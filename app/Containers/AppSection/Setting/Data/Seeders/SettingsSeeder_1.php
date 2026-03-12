@@ -4,12 +4,11 @@ namespace App\Containers\AppSection\Setting\Data\Seeders;
 
 use App\Containers\AppSection\Setting\Tasks\UpsertSettingsTask;
 use App\Containers\AppSection\Setting\Models\Setting;
-use App\Containers\AppSection\Media\Supports\MediaSettingsStore;
 use App\Ship\Parents\Seeders\Seeder as ParentSeeder;
 
 final class SettingsSeeder_1 extends ParentSeeder
 {
-    public function run(UpsertSettingsTask $task, MediaSettingsStore $settingsStore): void
+    public function run(UpsertSettingsTask $task): void
     {
         $force = filter_var(env('FORCE_SETTINGS_SEED', false), FILTER_VALIDATE_BOOLEAN);
         $mediaDefaults = $this->normalizeMediaDefaults((array) config('media.settings_defaults', []));
@@ -107,8 +106,6 @@ final class SettingsSeeder_1 extends ParentSeeder
             'admin_appearance_custom_body_js' => '',
             'admin_appearance_custom_footer_js' => '',
         ], $mediaSeed));
-
-        $settingsStore->clear();
     }
 
     /**
