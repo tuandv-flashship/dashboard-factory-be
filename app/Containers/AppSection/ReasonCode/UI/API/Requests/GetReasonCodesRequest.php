@@ -24,6 +24,6 @@ final class GetReasonCodesRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->check(['is_admin']);
+        return true;
     }
 }
