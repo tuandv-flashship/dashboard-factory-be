@@ -23,6 +23,8 @@ final class GetReasonCodesController extends ApiController
             dept: $request->query('dept'),
         );
 
-        return Response::create($categories, ReasonCategoryTransformer::class)->ok();
+        return Response::create($categories, ReasonCategoryTransformer::class)
+            ->parseIncludes($request->query('include') ?? $request->query('Include') ?? '')
+            ->ok();
     }
 }
