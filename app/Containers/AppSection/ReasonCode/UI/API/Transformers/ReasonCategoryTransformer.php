@@ -7,7 +7,7 @@ use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
 
 final class ReasonCategoryTransformer extends ParentTransformer
 {
-    protected array $defaultIncludes = [
+    protected array $availableIncludes = [
         'sub_items',
         'errors',
     ];
@@ -22,6 +22,9 @@ final class ReasonCategoryTransformer extends ParentTransformer
             'icon' => $category->icon,
             'color' => $category->color,
             'sort_order' => $category->sort_order,
+            'is_active' => $category->is_active,
+            'created_at' => $category->created_at?->toIsoString(),
+            'updated_at' => $category->updated_at?->toIsoString(),
         ];
     }
 
