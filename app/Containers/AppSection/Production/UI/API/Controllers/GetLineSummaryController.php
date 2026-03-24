@@ -52,11 +52,6 @@ final class GetLineSummaryController extends ApiController
             ];
         });
 
-        $pickData = $data['pick']->map(fn ($r) => [
-            'target' => $r->target,
-            'actual' => $r->actual,
-        ])->values();
-
         $response = [
             'data' => [
                 'shift' => (new ShiftTransformer())->transform($data['shift']),
@@ -64,15 +59,10 @@ final class GetLineSummaryController extends ApiController
                     'code' => $data['line']->code,
                     'label' => $data['line']->label,
                     'color' => $data['line']->color,
+                    'subtitle' => $data['line']->subtitle,
+                    'is_shared' => $data['line']->is_shared,
                 ],
                 'departments' => $departments->values(),
-                'pick' => [
-                    'staff' => $data['pick']->first()?->staff ?? 0,
-                    'efficiency' => $data['pick']->first()?->efficiency ?? 0,
-                    'error_rate' => $data['pick']->first()?->error_rate ?? 0,
-                    'total_picked' => $data['pick']->first()?->total_picked ?? 0,
-                    'hourly' => $pickData,
-                ],
             ],
         ];
 
@@ -83,3 +73,4 @@ final class GetLineSummaryController extends ApiController
         return response()->json($response);
     }
 }
+

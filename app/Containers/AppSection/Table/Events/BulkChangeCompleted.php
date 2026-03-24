@@ -1,0 +1,20 @@
+<?php
+
+namespace App\Containers\AppSection\Table\Events;
+
+use Illuminate\Queue\SerializesModels;
+
+final class BulkChangeCompleted
+{
+    use SerializesModels;
+
+    public function __construct(
+        public readonly string $modelKey,
+        public readonly string $key,
+        public readonly mixed $value,
+        public readonly array $successIds,
+        public readonly int $successCount,
+        public readonly int $failedCount,
+    ) {
+    }
+}

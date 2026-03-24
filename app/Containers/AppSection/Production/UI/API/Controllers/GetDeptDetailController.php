@@ -5,7 +5,6 @@ namespace App\Containers\AppSection\Production\UI\API\Controllers;
 use App\Containers\AppSection\Production\Actions\GetDeptDetailAction;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyIssueTransformer;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyRecordTransformer;
-use App\Containers\AppSection\Production\UI\API\Transformers\PickHourlyRecordTransformer;
 use App\Containers\AppSection\Production\UI\API\Transformers\ShiftTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
@@ -39,22 +38,15 @@ final class GetDeptDetailController extends ApiController
 
         $hourlyTransformer = new HourlyRecordTransformer();
         $issueTransformer = new HourlyIssueTransformer();
-        $pickTransformer = new PickHourlyRecordTransformer();
 
-        if ($data['type'] === 'pick') {
-            $recordsData = $data['records']->map(
-                fn ($r) => $pickTransformer->transform($r)
-            );
-        } else {
-            $recordsData = $data['records']->map(
-                fn ($r) => array_merge(
-                    $hourlyTransformer->transform($r),
-                    ['issues' => $r->issues->map(
-                        fn ($i) => $issueTransformer->transform($i)
-                    )->values()],
-                )
-            );
-        }
+        $recordsData = $data['records']->map(
+            fn ($r) => array_merge(
+                $hourlyTransformer->transform($r),
+                ['issues' => $r->issues->map(
+                    fn ($i) => $issueTransformer->transform($i)
+                )->values()],
+            )
+        );
 
         // Calculate summary
         $records = $data['records'];

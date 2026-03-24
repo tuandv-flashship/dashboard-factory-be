@@ -16,7 +16,12 @@ final class ProductionLineTransformer extends ParentTransformer
             'code' => $line->code,
             'label' => $line->label,
             'color' => $line->color,
-            'building' => $line->building,
+            'subtitle' => $line->subtitle,
+            'is_shared' => $line->is_shared,
+            'sort_order' => $line->sort_order,
+            'is_active' => $line->is_active,
+            'created_at' => $line->created_at?->toIsoString(),
+            'updated_at' => $line->updated_at?->toIsoString(),
         ];
     }
 

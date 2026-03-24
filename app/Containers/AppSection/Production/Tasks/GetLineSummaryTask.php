@@ -3,7 +3,6 @@
 namespace App\Containers\AppSection\Production\Tasks;
 
 use App\Containers\AppSection\Production\Models\HourlyRecord;
-use App\Containers\AppSection\Production\Models\PickHourlyRecord;
 use App\Containers\AppSection\Production\Models\ProductionLine;
 use App\Containers\AppSection\Production\Models\Shift;
 use App\Ship\Parents\Tasks\Task as ParentTask;
@@ -18,7 +17,7 @@ final class GetLineSummaryTask extends ParentTask
     {
         $shift = Shift::resolve($date, $shiftNumber);
         if (!$shift) {
-            return ['shift' => null, 'line' => null, 'departments' => [], 'pick' => null];
+            return ['shift' => null, 'line' => null, 'departments' => []];
         }
 
         $line = ProductionLine::query()
@@ -47,18 +46,10 @@ final class GetLineSummaryTask extends ParentTask
             ];
         })->values()->all();
 
-        // Pick data for this line
-        $pickRecords = PickHourlyRecord::query()
-            ->where('shift_id', $shift->id)
-            ->where('production_line_id', $line->id)
-            ->orderBy('hour_index')
-            ->get();
-
         return [
             'shift' => $shift,
             'line' => $line,
             'departments' => $departments,
-            'pick' => $pickRecords,
         ];
     }
 }

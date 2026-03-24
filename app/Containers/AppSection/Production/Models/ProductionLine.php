@@ -10,21 +10,17 @@ final class ProductionLine extends ParentModel
     protected $table = 'production_lines';
 
     protected $fillable = [
-        'code', 'label', 'color', 'building', 'sort_order', 'is_active',
+        'code', 'label', 'color', 'subtitle', 'sort_order', 'is_active', 'is_shared',
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
         'is_active' => 'boolean',
+        'is_shared' => 'boolean',
     ];
 
     public function departments(): HasMany
     {
         return $this->hasMany(Department::class, 'production_line_id')->orderBy('sort_order');
-    }
-
-    public function pickHourlyRecords(): HasMany
-    {
-        return $this->hasMany(PickHourlyRecord::class, 'production_line_id');
     }
 }

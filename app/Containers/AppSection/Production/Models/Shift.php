@@ -24,11 +24,6 @@ final class Shift extends ParentModel
         return $this->hasMany(HourlyRecord::class, 'shift_id');
     }
 
-    public function pickHourlyRecords(): HasMany
-    {
-        return $this->hasMany(PickHourlyRecord::class, 'shift_id');
-    }
-
     /**
      * Get the currently active shift.
      */
