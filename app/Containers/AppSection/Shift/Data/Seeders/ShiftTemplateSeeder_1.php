@@ -24,9 +24,9 @@ final class ShiftTemplateSeeder_1 extends Seeder
 {
     public function run(): void
     {
-        // Clear existing data
-        ShiftTemplateDetail::query()->delete();
-        ShiftTemplate::query()->delete();
+        if (ShiftTemplate::count() > 0) {
+            return;
+        }
 
         // Fetch departments keyed by "lineCode-deptCode"
         $departments = Department::with('productionLine')->get()

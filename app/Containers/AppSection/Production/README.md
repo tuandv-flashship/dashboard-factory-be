@@ -4,9 +4,11 @@ Container lớn nhất — quản lý **dữ liệu sản xuất theo giờ** ch
 
 ## Mô tả
 
-Container bao gồm 5 bảng xử lý: production lines (4 lines gồm Pick), departments (12 bộ phận), shifts, hourly production records (target vs actual), và hourly issues (lý do miss KPI). Pick được mô hình hóa như 1 production line đặc biệt (`is_shared = true`) với 3 departments (dtf1, dtf2, dtg).
+Container bao gồm 4 bảng xử lý: production lines (4 lines gồm Pick), departments (12 bộ phận), hourly production records (target vs actual), và hourly issues (lý do miss KPI). Pick được mô hình hóa như 1 production line đặc biệt (`is_shared = true`) với 3 departments (dtf1, dtf2, dtg).
 
-## Database Schema (5 tables)
+> **Lưu ý:** Bảng `shifts` và model `Shift.php` đã được chuyển sang **Shift Container**. Production container import `App\Containers\AppSection\Shift\Models\Shift` khi cần.
+
+## Database Schema (4 tables)
 
 ### `production_lines`
 | Column | Type | Mô tả |
@@ -30,15 +32,9 @@ Container bao gồm 5 bảng xử lý: production lines (4 lines gồm Pick), de
 | factory | varchar(10) | Xưởng: `FLS`, `PD` |
 | | | **Unique constraint:** production_line_id + code |
 
-### `shifts`
-| Column | Type | Mô tả |
-|---|---|---|
-| date | date | Ngày sản xuất |
-| shift_number | tinyint | Ca làm: 1, 2, 3 |
-| start_time / end_time | time | 06:00 → 14:00 |
-| supervisor | varchar(100) | Quản đốc: Nguyễn Văn Minh |
-| is_active | boolean | Ca đang hoạt động |
-| | | **Unique constraint:** date + shift_number |
+### `shifts` ➡️ **Moved to Shift Container**
+
+> Xem chi tiết tại [Shift README](../Shift/README.md#shifts).
 
 ### `hourly_records` ⭐ Bảng chính
 | Column | Type | Mô tả |
@@ -172,9 +168,10 @@ const { data: detail } = useDeptDetail("pick", "dtf1");                  // pick
 
 Chạy: `php artisan db:seed --class="App\Containers\AppSection\Production\Data\Seeders\ProductionSeeder_1"`
 
+> ⚠️ **Dependency:** Cần chạy `ShiftSeeder_1` trước để tạo shift data.
+
 - **4 production lines**: DTF1, DTF2, DTG, **Pick** (is_shared)
 - **12 departments**: DTF1×4 + DTF2×4 + DTG×1 + Pick×3
-- **1 shift**: Hôm nay, Ca 1 (06:00-14:00), Quản đốc: Nguyễn Văn Minh
 - **96 hourly records**: 12 depts × 8 giờ (bao gồm pick departments)
 - **Auto-generated issues**: tự tạo cho giờ missed > 10% KPI (bao gồm pick)
 
@@ -189,18 +186,17 @@ Production/
 │   ├── GetDeptDetailAction.php
 │   └── GetLineSummaryAction.php
 ├── Data/
-│   ├── Migrations/ (6 files)
+│   ├── Migrations/ (5 files)
 │   └── Seeders/ProductionSeeder_1.php
 ├── Models/
 │   ├── ProductionLine.php (subtitle, is_shared)
 │   ├── Department.php (kpi_per_hour, factory)
-│   ├── Shift.php (static resolve(), current(), forDate())
 │   ├── HourlyRecord.php
 │   └── HourlyIssue.php
 ├── Tasks/
 │   ├── GetAllProductionLinesTask.php
-│   ├── GetDeptDetailTask.php
-│   └── GetLineSummaryTask.php
+│   ├── GetDeptDetailTask.php       ← imports Shift\Models\Shift
+│   └── GetLineSummaryTask.php      ← imports Shift\Models\Shift
 ├── Tests/
 │   ├── ContainerTestCase.php
 │   ├── UnitTestCase.php
@@ -219,7 +215,6 @@ Production/
     └── Transformers/
         ├── ProductionLineTransformer.php (includes departments)
         ├── DepartmentTransformer.php (kpi_per_hour, factory)
-        ├── ShiftTransformer.php
         ├── HourlyRecordTransformer.php (includes issues, computed 'missed')
         └── HourlyIssueTransformer.php
 ```

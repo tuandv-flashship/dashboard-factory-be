@@ -14,7 +14,9 @@ final class OrderSeeder_1 extends Seeder
 {
     public function run(): void
     {
-        OrderSummary::query()->delete();
+        if (OrderSummary::count() > 0) {
+            return;
+        }
 
         $today = now()->toDateString();
 

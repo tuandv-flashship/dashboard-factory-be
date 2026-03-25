@@ -1,8 +1,10 @@
 <?php
 
-namespace App\Containers\AppSection\Production\Models;
+namespace App\Containers\AppSection\Shift\Models;
 
+use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Ship\Parents\Models\Model as ParentModel;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class Shift extends ParentModel
@@ -10,19 +12,36 @@ final class Shift extends ParentModel
     protected $table = 'shifts';
 
     protected $fillable = [
-        'date', 'shift_number', 'start_time', 'end_time', 'supervisor', 'is_active',
+        'date', 'shift_number', 'start_time', 'end_time',
+        'supervisor', 'is_active', 'shift_template_id',
     ];
 
     protected $casts = [
-        'date' => 'immutable_date',
+        'date'         => 'immutable_date',
         'shift_number' => 'integer',
-        'is_active' => 'boolean',
+        'is_active'    => 'boolean',
     ];
+
+    // ── Relationships ────────────────────────────────────
+
+    public function template(): BelongsTo
+    {
+        return $this->belongsTo(ShiftTemplate::class, 'shift_template_id');
+    }
+
+    public function details(): HasMany
+    {
+        return $this->hasMany(ShiftDetail::class, 'shift_id')
+            ->orderBy('department_id')
+            ->orderBy('shift_number');
+    }
 
     public function hourlyRecords(): HasMany
     {
         return $this->hasMany(HourlyRecord::class, 'shift_id');
     }
+
+    // ── Static Helpers ───────────────────────────────────
 
     /**
      * Get the currently active shift.
@@ -48,7 +67,6 @@ final class Shift extends ParentModel
         }
 
         if ($date) {
-            // If only date given, return the latest shift of that date
             return self::query()
                 ->where('date', $date)
                 ->latest('shift_number')

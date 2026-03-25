@@ -20,9 +20,9 @@ final class KpiRatingLevelSeeder_1 extends Seeder
 {
     public function run(): void
     {
-        // Clear existing data
-        KpiRatingLevelDetail::query()->delete();
-        KpiRatingLevel::query()->delete();
+        if (KpiRatingLevel::count() > 0) {
+            return;
+        }
 
         // ═══════════════════════════════════════════════════════
         // 1. Mức đánh giá 2026 — Active (Apr 2025 → vô thời hạn)

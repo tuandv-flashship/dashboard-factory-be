@@ -14,7 +14,9 @@ final class MachineSeeder_1 extends Seeder
 {
     public function run(): void
     {
-        Machine::query()->delete();
+        if (Machine::count() > 0) {
+            return;
+        }
 
         $machines = [
             // ═════════════════════════════════════════════════

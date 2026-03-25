@@ -6,7 +6,7 @@ use App\Containers\AppSection\Production\Models\Department;
 use App\Containers\AppSection\Production\Models\HourlyIssue;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Models\ProductionLine;
-use App\Containers\AppSection\Production\Models\Shift;
+use App\Containers\AppSection\Shift\Models\Shift;
 use App\Ship\Parents\Seeders\Seeder;
 
 /**
@@ -21,12 +21,9 @@ final class ProductionSeeder_1 extends Seeder
 
     public function run(): void
     {
-        // Clear existing data (order matters for FK constraints)
-        HourlyIssue::query()->delete();
-        HourlyRecord::query()->delete();
-        Shift::query()->delete();
-        Department::query()->delete();
-        ProductionLine::query()->delete();
+        if (ProductionLine::count() > 0) {
+            return;
+        }
 
         $now = now();
 
@@ -71,16 +68,13 @@ final class ProductionSeeder_1 extends Seeder
         $departments = Department::all()->keyBy(fn ($d) => "{$d->production_line_id}-{$d->code}");
 
         // ═══════════════════════════════════════════════════════
-        // 3. SHIFT (today, shift 1)
+        // 3. SHIFT — from Shift container seeder (ShiftSeeder_1)
         // ═══════════════════════════════════════════════════════
-        $shift = Shift::create([
-            'date' => now()->toDateString(),
-            'shift_number' => 1,
-            'start_time' => '06:00',
-            'end_time' => '14:00',
-            'supervisor' => 'Nguyễn Văn Minh',
-            'is_active' => true,
-        ]);
+        $shift = Shift::current();
+        if (!$shift) {
+            $this->command?->warn('No shift found. Run ShiftSeeder_1 first.');
+            return;
+        }
 
         // ═══════════════════════════════════════════════════════
         // 4. HOURLY RECORDS — batch insert (96 records: 12 depts × 8h)

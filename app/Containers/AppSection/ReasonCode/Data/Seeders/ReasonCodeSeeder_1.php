@@ -18,10 +18,9 @@ final class ReasonCodeSeeder_1 extends Seeder
 {
     public function run(): void
     {
-        // Clear existing data
-        ReasonError::query()->delete();
-        ReasonSubItem::query()->delete();
-        ReasonCategory::query()->delete();
+        if (ReasonCategory::count() > 0) {
+            return;
+        }
 
         // ═══════════════════════════════════════════════════════
         // 1. CATEGORIES

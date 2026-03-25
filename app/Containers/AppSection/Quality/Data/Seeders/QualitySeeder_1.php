@@ -14,7 +14,9 @@ final class QualitySeeder_1 extends Seeder
 {
     public function run(): void
     {
-        QualityRecord::query()->delete();
+        if (QualityRecord::count() > 0) {
+            return;
+        }
 
         QualityRecord::create([
             'date' => now()->toDateString(),

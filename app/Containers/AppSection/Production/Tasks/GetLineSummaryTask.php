@@ -4,7 +4,7 @@ namespace App\Containers\AppSection\Production\Tasks;
 
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Models\ProductionLine;
-use App\Containers\AppSection\Production\Models\Shift;
+use App\Containers\AppSection\Shift\Models\Shift;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 final class GetLineSummaryTask extends ParentTask

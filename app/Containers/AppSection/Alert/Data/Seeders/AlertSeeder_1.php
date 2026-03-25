@@ -14,7 +14,9 @@ final class AlertSeeder_1 extends Seeder
 {
     public function run(): void
     {
-        Alert::query()->delete();
+        if (Alert::count() > 0) {
+            return;
+        }
 
         $alerts = [
             [
