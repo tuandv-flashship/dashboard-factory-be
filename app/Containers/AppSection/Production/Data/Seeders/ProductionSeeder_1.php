@@ -2,7 +2,8 @@
 
 namespace App\Containers\AppSection\Production\Data\Seeders;
 
-use App\Containers\AppSection\Production\Models\Department;
+use App\Containers\AppSection\Department\Data\Seeders\DepartmentSeeder_1;
+use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Models\HourlyIssue;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Models\ProductionLine;
@@ -10,8 +11,8 @@ use App\Containers\AppSection\Shift\Models\Shift;
 use App\Ship\Parents\Seeders\Seeder;
 
 /**
- * Seeds all production data matching FE data.ts mock data exactly.
- * Optimized with batch inserts for performance.
+ * Seeds production data: lines, then delegates to DepartmentSeeder,
+ * then seeds hourly records and issues.
  *
  * Run: php artisan db:seed --class="App\Containers\AppSection\Production\Data\Seeders\ProductionSeeder_1"
  */
@@ -37,35 +38,18 @@ final class ProductionSeeder_1 extends Seeder
             ['code' => 'pick', 'label' => 'Pick', 'color' => '#ec4899', 'subtitle' => 'Lấy hàng — Chung cho DTF1 + DTF2 + DTG', 'is_shared' => true, 'sort_order' => 4, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
         ]);
 
+        // ═══════════════════════════════════════════════════════
+        // 2. DEPARTMENTS — delegated to Department container
+        // ═══════════════════════════════════════════════════════
+        $this->call(DepartmentSeeder_1::class);
+
+        // Re-fetch for hourly record seeding
+        $departments = Department::all()->keyBy(fn ($d) => "{$d->production_line_id}-{$d->code}");
+
         $dtf1 = ProductionLine::where('code', 'dtf1')->first();
         $dtf2 = ProductionLine::where('code', 'dtf2')->first();
-        $dtg = ProductionLine::where('code', 'dtg')->first();
+        $dtg  = ProductionLine::where('code', 'dtg')->first();
         $pick = ProductionLine::where('code', 'pick')->first();
-
-        // ═══════════════════════════════════════════════════════
-        // 2. DEPARTMENTS (batch insert) — 12 total
-        // ═══════════════════════════════════════════════════════
-        Department::insert([
-            // DTF1 (4)
-            ['production_line_id' => $dtf1->id, 'code' => 'print', 'label' => 'In ấn', 'label_en' => 'Print', 'icon' => 'Printer', 'unit' => 'file', 'kpi_per_hour' => 130, 'factory' => 'FLS', 'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['production_line_id' => $dtf1->id, 'code' => 'cut', 'label' => 'Cắt', 'label_en' => 'Cut', 'icon' => 'Scissors', 'unit' => 'file', 'kpi_per_hour' => 280, 'factory' => 'FLS', 'sort_order' => 2, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['production_line_id' => $dtf1->id, 'code' => 'mockup', 'label' => 'Ráp mẫu', 'label_en' => 'Mock Up', 'icon' => 'Layers', 'unit' => 'file', 'kpi_per_hour' => 75, 'factory' => 'FLS', 'sort_order' => 3, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['production_line_id' => $dtf1->id, 'code' => 'pack_ship', 'label' => 'Đóng gói & Giao', 'label_en' => 'Pack & Ship', 'icon' => 'Package', 'unit' => 'shirt', 'kpi_per_hour' => 105, 'factory' => 'FLS', 'sort_order' => 4, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            // DTF2 (4)
-            ['production_line_id' => $dtf2->id, 'code' => 'print', 'label' => 'In ấn', 'label_en' => 'Print', 'icon' => 'Printer', 'unit' => 'file', 'kpi_per_hour' => 130, 'factory' => 'PD', 'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['production_line_id' => $dtf2->id, 'code' => 'cut', 'label' => 'Cắt', 'label_en' => 'Cut', 'icon' => 'Scissors', 'unit' => 'file', 'kpi_per_hour' => 280, 'factory' => 'PD', 'sort_order' => 2, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['production_line_id' => $dtf2->id, 'code' => 'mockup', 'label' => 'Ráp mẫu', 'label_en' => 'Mock Up', 'icon' => 'Layers', 'unit' => 'file', 'kpi_per_hour' => 75, 'factory' => 'PD', 'sort_order' => 3, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['production_line_id' => $dtf2->id, 'code' => 'pack_ship', 'label' => 'Đóng gói & Giao', 'label_en' => 'Pack & Ship', 'icon' => 'Package', 'unit' => 'shirt', 'kpi_per_hour' => 105, 'factory' => 'PD', 'sort_order' => 4, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            // DTG (1)
-            ['production_line_id' => $dtg->id, 'code' => 'print', 'label' => 'In ấn DTG', 'label_en' => 'DTG Print', 'icon' => 'Printer', 'unit' => 'print', 'kpi_per_hour' => 400, 'factory' => 'PD', 'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            // Pick (3)
-            ['production_line_id' => $pick->id, 'code' => 'dtf1', 'label' => 'Pick DTF 1', 'label_en' => 'Pick DTF 1', 'icon' => 'ShoppingCart', 'unit' => 'shirt', 'kpi_per_hour' => 180, 'factory' => 'FLS', 'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['production_line_id' => $pick->id, 'code' => 'dtf2', 'label' => 'Pick DTF 2', 'label_en' => 'Pick DTF 2', 'icon' => 'ShoppingCart', 'unit' => 'shirt', 'kpi_per_hour' => 180, 'factory' => 'PD', 'sort_order' => 2, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['production_line_id' => $pick->id, 'code' => 'dtg', 'label' => 'Pick DTG', 'label_en' => 'Pick DTG', 'icon' => 'ShoppingCart', 'unit' => 'shirt', 'kpi_per_hour' => 180, 'factory' => 'PD', 'sort_order' => 3, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-        ]);
-
-        // Re-fetch departments with IDs
-        $departments = Department::all()->keyBy(fn ($d) => "{$d->production_line_id}-{$d->code}");
 
         // ═══════════════════════════════════════════════════════
         // 3. SHIFT — from Shift container seeder (ShiftSeeder_1)

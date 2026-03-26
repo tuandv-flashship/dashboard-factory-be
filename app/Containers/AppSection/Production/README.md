@@ -1,14 +1,17 @@
 # Production Container
 
-Container lớn nhất — quản lý **dữ liệu sản xuất theo giờ** cho toàn bộ dây chuyền PrintDash.
+Container quản lý **dữ liệu sản xuất theo giờ** cho toàn bộ dây chuyền PrintDash.
 
 ## Mô tả
 
-Container bao gồm 4 bảng xử lý: production lines (4 lines gồm Pick), departments (12 bộ phận), hourly production records (target vs actual), và hourly issues (lý do miss KPI). Pick được mô hình hóa như 1 production line đặc biệt (`is_shared = true`) với 3 departments (dtf1, dtf2, dtg).
+Container bao gồm 3 bảng: production lines (4 lines gồm Pick), hourly production records (target vs actual), và hourly issues (lý do miss KPI).
 
-> **Lưu ý:** Bảng `shifts` và model `Shift.php` đã được chuyển sang **Shift Container**. Production container import `App\Containers\AppSection\Shift\Models\Shift` khi cần.
+> **Lưu ý:**
+> - Bảng `shifts` và model `Shift.php` đã được chuyển sang **Shift Container**.
+> - Bảng `departments` và toàn bộ Department logic đã được chuyển sang **[Department Container](../Department/README.md)**.
+> - Production container import cross-container qua `App\Containers\AppSection\Department\Models\Department` và `App\Containers\AppSection\Shift\Models\Shift` khi cần.
 
-## Database Schema (4 tables)
+## Database Schema (3 tables)
 
 ### `production_lines`
 | Column | Type | Mô tả |
@@ -20,17 +23,9 @@ Container bao gồm 4 bảng xử lý: production lines (4 lines gồm Pick), de
 | is_shared | boolean | `false` (default), `true` cho Pick |
 | sort_order | smallint | Thứ tự sắp xếp |
 
-### `departments`
-| Column | Type | Mô tả |
-|---|---|---|
-| production_line_id | FK | → production_lines |
-| code | varchar(30) | print, cut, mockup, pack_ship, dtf1, dtf2, dtg |
-| label / label_en | varchar(50) | In ấn / Print, Pick DTF 1 / Pick DTF 1, ... |
-| icon | varchar(30) | Lucide icon: Printer, Scissors, Layers, Package, ShoppingCart |
-| unit | varchar(20) | Đơn vị đo: `file`, `shirt`, `print` |
-| kpi_per_hour | int unsigned | Năng suất mục tiêu 1 giờ (default: 0) |
-| factory | varchar(10) | Xưởng: `FLS`, `PD` |
-| | | **Unique constraint:** production_line_id + code |
+### `departments` ➡️ **Moved to Department Container**
+
+> Xem chi tiết tại [Department README](../Department/README.md).
 
 ### `shifts` ➡️ **Moved to Shift Container**
 
@@ -79,12 +74,8 @@ Container bao gồm 4 bảng xử lý: production lines (4 lines gồm Pick), de
 | PATCH | `/v1/admin/production-lines/:id` | `production-lines.edit` | Partial update |
 | DELETE | `/v1/admin/production-lines/:id` | `production-lines.destroy` | Delete (CASCADE) |
 | PATCH | `/v1/admin/production-lines/reorder` | `production-lines.edit` | Batch reorder |
-| GET | `/v1/admin/departments` | `departments.index` | List paginated + search/filter |
-| GET | `/v1/admin/departments/:id` | `departments.index` | Find by ID |
-| POST | `/v1/admin/departments` | `departments.create` | Create new |
-| PATCH | `/v1/admin/departments/:id` | `departments.edit` | Partial update |
-| DELETE | `/v1/admin/departments/:id` | `departments.destroy` | Delete (CASCADE) |
-| PATCH | `/v1/admin/departments/reorder` | `departments.edit` | Batch reorder |
+
+> **Department Admin Endpoints** đã chuyển sang [Department Container](../Department/README.md#api-endpoints).
 
 ### Table Meta API (🔒 Bearer Token)
 
@@ -127,13 +118,13 @@ const { data: detail } = useDeptDetail("pick", "dtf1");                  // pick
 ```json
 {
   "data": {
-    "shift": { "date": "2026-03-23", "shift_number": 1, ... },
+    "shift": { "date": "2026-03-23", "shift_number": 1, "..." : "..." },
     "line": { "code": "dtf1", "label": "DTF 1", "color": "#f59e0b", "subtitle": "Building 1", "is_shared": false },
     "departments": [
       {
-        "department": { "code": "print", "label": "In ấn", "unit": "file", "kpi_per_hour": 130, "factory": "FLS", ... },
+        "department": { "code": "print", "label": "In ấn", "unit": "file", "kpi_per_hour": 130, "factory": "FLS" },
         "staff": 12, "efficiency": 94.2, "error_rate": 2.1,
-        "hourly": [{ "target": 94, "actual": 95 }, ...]
+        "hourly": [{ "target": 94, "actual": 95 }]
       }
     ]
   }
@@ -144,22 +135,16 @@ const { data: detail } = useDeptDetail("pick", "dtf1");                  // pick
 ```json
 {
   "data": {
-    "shift": { ... },
+    "shift": { "..." : "..." },
     "type": "department",
     "department": { "code": "print", "label": "In ấn", "unit": "file" },
     "hours": [
-      {
-        "hour_slot": "6h-7h", "target": 94, "actual": 95, "missed": false,
-        "issues": []
-      },
-      {
-        "hour_slot": "9h-10h", "target": 92, "actual": 87, "missed": true,
-        "issues": [
-          { "category": "machine", "sub_item": "Máy chính", "error": "Chạy chậm", ... }
-        ]
+      { "hour_slot": "6h-7h", "target": 94, "actual": 95, "missed": false, "issues": [] },
+      { "hour_slot": "9h-10h", "target": 92, "actual": 87, "missed": true,
+        "issues": [{ "category": "machine", "sub_item": "Máy chính", "error": "Chạy chậm" }]
       }
     ],
-    "summary": { "total_target": 754, "completed": 502, "remaining": 252, ... }
+    "summary": { "total_target": 754, "completed": 502, "remaining": 252 }
   }
 }
 ```
@@ -168,14 +153,23 @@ const { data: detail } = useDeptDetail("pick", "dtf1");                  // pick
 
 Chạy: `php artisan db:seed --class="App\Containers\AppSection\Production\Data\Seeders\ProductionSeeder_1"`
 
-> ⚠️ **Dependency:** Cần chạy `ShiftSeeder_1` trước để tạo shift data.
+> ⚠️ **Dependencies:**
+> 1. Cần chạy `ShiftSeeder_1` trước để tạo shift data.
+> 2. `DepartmentSeeder_1` được gọi tự động qua `$this->call()`.
 
 - **4 production lines**: DTF1, DTF2, DTG, **Pick** (is_shared)
-- **12 departments**: DTF1×4 + DTF2×4 + DTG×1 + Pick×3
+- **12 departments**: Delegated → `DepartmentSeeder_1` (Department Container)
 - **96 hourly records**: 12 depts × 8 giờ (bao gồm pick departments)
 - **Auto-generated issues**: tự tạo cho giờ missed > 10% KPI (bao gồm pick)
 
 > **Performance:** Seeder dùng batch `insert()` (5 queries) thay vì ~120 `create()` calls.
+
+## Cross-Container Dependencies
+
+| Direction | Container | Via |
+|-----------|-----------|-----|
+| → uses | Department | `Department` model (relation), `FindDepartmentsByLineIdTask`, `DepartmentTransformer`, `DepartmentSeeder_1` |
+| → uses | Shift | `Shift` model (resolve), `ShiftSeeder_1` dependency |
 
 ## File Structure
 
@@ -186,35 +180,31 @@ Production/
 │   ├── GetDeptDetailAction.php
 │   └── GetLineSummaryAction.php
 ├── Data/
-│   ├── Migrations/ (5 files)
+│   ├── Migrations/ (3 files — departments moved)
+│   ├── Repositories/ProductionLineRepository.php
 │   └── Seeders/ProductionSeeder_1.php
 ├── Models/
-│   ├── ProductionLine.php (subtitle, is_shared)
-│   ├── Department.php (kpi_per_hour, factory)
-│   ├── HourlyRecord.php
+│   ├── ProductionLine.php (departments() → Department container)
+│   ├── HourlyRecord.php (shift() → Shift container, department() → Department container)
 │   └── HourlyIssue.php
 ├── Tasks/
 │   ├── GetAllProductionLinesTask.php
-│   ├── GetDeptDetailTask.php       ← imports Shift\Models\Shift
-│   └── GetLineSummaryTask.php      ← imports Shift\Models\Shift
+│   ├── FindProductionLineByIdTask.php
+│   ├── ListAllProductionLinesTask.php
+│   ├── GetDeptDetailTask.php
+│   └── GetLineSummaryTask.php (uses FindDepartmentsByLineIdTask)
 ├── Tests/
 │   ├── ContainerTestCase.php
 │   ├── UnitTestCase.php
 │   └── Unit/
-│       ├── Models/ProductionModelsTest.php (8 methods)
+│       ├── Models/ProductionModelsTest.php
 │       └── Tasks/GetAllProductionLinesTaskTest.php
 └── UI/API/
     ├── Controllers/ (3 controllers)
-    ├── Routes/
-    │   ├── GetAllProductionLines.v1.public.php   ← TV Dashboard
-    │   ├── GetAllProductionLines.v1.private.php
-    │   ├── GetLineSummary.v1.public.php          ← TV Dashboard
-    │   ├── GetLineSummary.v1.private.php
-    │   ├── GetDeptDetail.v1.public.php           ← TV Dashboard
-    │   └── GetDeptDetail.v1.private.php
+    ├── Routes/ (6 route files)
     └── Transformers/
-        ├── ProductionLineTransformer.php (includes departments)
-        ├── DepartmentTransformer.php (kpi_per_hour, factory)
-        ├── HourlyRecordTransformer.php (includes issues, computed 'missed')
-        └── HourlyIssueTransformer.php
+        ├── ProductionLineTransformer.php (includes Department\DepartmentTransformer)
+        ├── HourlyRecordTransformer.php
+        ├── HourlyIssueTransformer.php
+        └── ShiftTransformer.php
 ```

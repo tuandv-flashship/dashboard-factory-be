@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Production\UI\API\Transformers;
 
+use App\Containers\AppSection\Department\UI\API\Transformers\DepartmentTransformer;
 use App\Containers\AppSection\Production\Models\ProductionLine;
 use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
 

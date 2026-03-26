@@ -2,7 +2,7 @@
 
 namespace App\Containers\AppSection\Production\Tasks;
 
-use App\Containers\AppSection\Production\Models\Department;
+use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Models\ProductionLine;
 use App\Containers\AppSection\Shift\Models\Shift;

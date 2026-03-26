@@ -2,7 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\Tasks;
 
-use App\Containers\AppSection\Production\Models\Department;
+use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 

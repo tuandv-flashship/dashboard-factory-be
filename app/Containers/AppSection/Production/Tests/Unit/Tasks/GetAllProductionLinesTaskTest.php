@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Production\Tests\Unit\Tasks;
 
+use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Models\ProductionLine;
 use App\Containers\AppSection\Production\Tasks\GetAllProductionLinesTask;
 use App\Containers\AppSection\Production\Tests\UnitTestCase;
@@ -26,9 +27,9 @@ final class GetAllProductionLinesTaskTest extends UnitTestCase
     public function testEagerLoadsDepartments(): void
     {
         $line = ProductionLine::create(['code' => 'dtf1', 'label' => 'DTF 1', 'color' => '#f59e0b', 'sort_order' => 1]);
-        \App\Containers\AppSection\Production\Models\Department::create([
+        Department::create([
             'production_line_id' => $line->id, 'code' => 'print',
-            'label' => 'In ấn', 'label_en' => 'Print', 'icon' => 'Printer', 'unit' => 'files', 'sort_order' => 1,
+            'label' => 'In ấn', 'label_en' => 'Print', 'icon' => 'Printer', 'unit' => 'file', 'sort_order' => 1,
         ]);
 
         $result = app(GetAllProductionLinesTask::class)->run();

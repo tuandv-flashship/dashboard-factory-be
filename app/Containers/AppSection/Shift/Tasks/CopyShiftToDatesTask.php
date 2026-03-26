@@ -6,24 +6,41 @@ use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
+use Illuminate\Support\Carbon;
 
 /**
  * Copy a shift (header + details + hourly_records) to target dates.
+ * Returns ['created' => [...dates], 'skipped' => [...{date, reason}]].
  */
 final class CopyShiftToDatesTask extends ParentTask
 {
     public function run(Shift $source, array $targetDates): array
     {
-        $createdShifts = [];
+        $created = [];
+        $skipped = [];
+        $today = today()->toDateString();
 
         foreach ($targetDates as $date) {
+            // Validate: target date >= today
+            if ($date < $today) {
+                $skipped[] = [
+                    'date'   => $date,
+                    'reason' => 'past_date', // Ngày < today, bị khoá
+                ];
+                continue;
+            }
+
             // Check if shift already exists for this date + shift_number
             $exists = Shift::where('date', $date)
                 ->where('shift_number', $source->shift_number)
                 ->exists();
 
             if ($exists) {
-                continue; // Skip if shift already assigned
+                $skipped[] = [
+                    'date'   => $date,
+                    'reason' => 'already_exists', // Đã có ca, không ghi đè
+                ];
+                continue;
             }
 
             // Clone shift header
@@ -84,9 +101,12 @@ final class CopyShiftToDatesTask extends ParentTask
                 HourlyRecord::insert($hourlyRecords);
             }
 
-            $createdShifts[] = $newShift;
+            $created[] = $date;
         }
 
-        return $createdShifts;
+        return [
+            'created' => $created,
+            'skipped' => $skipped,
+        ];
     }
 }

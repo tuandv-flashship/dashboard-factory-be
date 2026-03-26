@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Production\Tasks;
 
+use App\Containers\AppSection\Department\Tasks\FindDepartmentsByLineIdTask;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Models\ProductionLine;
 use App\Containers\AppSection\Shift\Models\Shift;
@@ -22,10 +23,11 @@ final class GetLineSummaryTask extends ParentTask
 
         $line = ProductionLine::query()
             ->where('code', $lineCode)
-            ->with('departments')
             ->firstOrFail();
 
-        $deptIds = $line->departments->pluck('id');
+        // Use Department container's task for clean cross-container boundary
+        $departments = app(FindDepartmentsByLineIdTask::class)->run($line->id);
+        $deptIds = $departments->pluck('id');
 
         // Single query for ALL hourly records of this line's departments
         $allRecords = HourlyRecord::query()
@@ -35,7 +37,7 @@ final class GetLineSummaryTask extends ParentTask
             ->get()
             ->groupBy('department_id');
 
-        $departments = $line->departments->map(function ($dept) use ($allRecords) {
+        $departmentData = $departments->map(function ($dept) use ($allRecords) {
             $records = $allRecords->get($dept->id, collect());
             return [
                 'department' => $dept,
@@ -49,8 +51,7 @@ final class GetLineSummaryTask extends ParentTask
         return [
             'shift' => $shift,
             'line' => $line,
-            'departments' => $departments,
+            'departments' => $departmentData,
         ];
     }
 }
-

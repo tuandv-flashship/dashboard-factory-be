@@ -434,7 +434,7 @@ Tất cả yêu cầu `auth:api` + permission `shifts.*`.
 | 3 | POST | `/v1/admin/shifts` | `shifts.create` | Tạo shift từ template (auto-gen details + hourly) |
 | 4 | PATCH | `/v1/admin/shifts/{id}` | `shifts.edit` | Update shift header + sync details |
 | 5 | DELETE | `/v1/admin/shifts/{id}` | `shifts.destroy` | Xóa shift (chặn ngày cũ) |
-| 6 | POST | `/v1/admin/shifts/{id}/copy` | `shifts.create` | Copy sang ngày khác |
+| 6 | POST | `/v1/admin/shifts/copy` | `shifts.create` | Copy nhiều ca sang nhiều ngày |
 | 7 | PATCH | `/v1/admin/shifts/{id}/hourly` | `shifts.edit` | Điều chỉnh nhân sự (target auto-recalc) |
 | 8 | GET | `/v1/admin/shifts/{id}/hourly` | `shifts.index` | Bảng điều chỉnh nhân sự (pivot) |
 
@@ -584,17 +584,50 @@ Server tự động:
 
 ---
 
-#### POST /v1/admin/shifts/{id}/copy — Copy ca sang ngày khác
+#### POST /v1/admin/shifts/copy — Sao chép ca sang ngày khác
+
+Hỗ trợ copy **nhiều ca** (VD: Ca 1 + Ca 2) sang **nhiều ngày** cùng lúc.
 
 ```json
 {
+  "shift_ids": [1, 2],
   "target_dates": ["2026-03-21", "2026-03-22", "2026-03-23"]
 }
 ```
 
-Clone shift header + details + hourly_records. Skip nếu ngày đích đã có ca cùng shift_number.
+**Validation:**
 
-**Response:** `201 Created` — array các shift mới.
+| Field | Rules |
+|---|---|
+| `shift_ids` | required, array, min:1 |
+| `shift_ids.*` | required, integer, exists:shifts |
+| `target_dates` | required, array, min:1 |
+| `target_dates.*` | required, date, **after_or_equal:today** |
+
+**Business rules:**
+- Chỉ copy được vào ngày **>= hôm nay**
+- Skip nếu ngày đích đã có ca cùng `shift_number`
+- Không ghi đè ca cũ
+
+**Response:** `201 Created` (nếu có ít nhất 1 ca được tạo) / `200 OK` (nếu tất cả bị skip)
+
+```json
+{
+  "data": {
+    "created": [
+      { "date": "2026-03-21", "shift_number": 1 },
+      { "date": "2026-03-21", "shift_number": 2 }
+    ],
+    "skipped": [
+      { "date": "2026-03-22", "shift_number": 1, "reason": "already_exists" },
+      { "date": "2026-03-19", "shift_number": 1, "reason": "past_date" }
+    ]
+  },
+  "message": "Đã sao chép 2 ca, bỏ qua 2 ngày."
+}
+```
+
+> 💡 **Reason codes:** `past_date` = ngày < today, `already_exists` = đã có ca cùng shift_number
 
 ---
 

@@ -2,7 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\UI\API\Transformers;
 
-use App\Containers\AppSection\Production\Models\Department;
+use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
 

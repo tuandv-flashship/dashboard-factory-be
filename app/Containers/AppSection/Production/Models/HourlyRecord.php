@@ -2,6 +2,8 @@
 
 namespace App\Containers\AppSection\Production\Models;
 
+use App\Containers\AppSection\Department\Models\Department;
+use App\Containers\AppSection\Shift\Models\Shift;
 use App\Ship\Parents\Models\Model as ParentModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;

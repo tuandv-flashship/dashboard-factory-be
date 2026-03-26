@@ -2,7 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\Data\Seeders;
 
-use App\Containers\AppSection\Production\Models\Department;
+use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Models\ProductionLine;
 use App\Containers\AppSection\Shift\Models\ShiftTemplate;
 use App\Containers\AppSection\Shift\Models\ShiftTemplateDetail;
