@@ -10,9 +10,7 @@ final class DeleteShiftTemplateRequest extends ParentRequest
 
     public function rules(): array
     {
-        return [
-            'id' => ['required'],
-        ];
+        return [];
     }
 
     public function authorize(): bool

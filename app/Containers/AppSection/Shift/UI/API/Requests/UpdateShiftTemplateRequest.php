@@ -11,7 +11,6 @@ final class UpdateShiftTemplateRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'id'                             => ['required'],
             'name'                           => ['sometimes', 'string', 'max:255'],
             'color'                          => ['sometimes', 'string', 'max:20'],
             'description'                    => ['nullable', 'string'],
