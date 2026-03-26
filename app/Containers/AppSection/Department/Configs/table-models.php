@@ -49,8 +49,10 @@ return [
                 ->searchable()->enum(Factory::class),
             ColumnDefinition::boolean('is_active', 'table::columns.is_active')
                 ->width(100)->priority(9),
+            ColumnDefinition::boolean('can_increase_productivity', 'table::columns.can_increase_productivity')
+                ->width(130)->priority(10),
             ColumnDefinition::number('sort_order', 'table::columns.sort_order')
-                ->width(80)->priority(10),
+                ->width(80)->priority(11),
         ],
 
         'forms' => [
@@ -79,8 +81,10 @@ return [
                         ->group('settings')->order(1),
                     FormFieldDefinition::boolean('is_active')
                         ->group('settings')->order(2)->default(true),
+                    FormFieldDefinition::boolean('can_increase_productivity')
+                        ->group('settings')->order(3)->default(true),
                     FormFieldDefinition::number('sort_order')
-                        ->group('settings')->order(3)->default(0),
+                        ->group('settings')->order(4)->default(0),
                 ],
             ],
             'update' => [

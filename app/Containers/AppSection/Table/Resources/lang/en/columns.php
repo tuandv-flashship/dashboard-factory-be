@@ -26,4 +26,5 @@ return [
     'unit' => 'Unit',
     'kpi_per_hour' => 'KPI/Hour',
     'factory' => 'Factory',
+    'can_increase_productivity' => 'Can Increase Productivity',
 ];

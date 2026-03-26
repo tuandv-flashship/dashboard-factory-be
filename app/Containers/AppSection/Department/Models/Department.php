@@ -16,15 +16,16 @@ final class Department extends ParentModel
 
     protected $fillable = [
         'production_line_id', 'code', 'label', 'label_en', 'icon', 'unit',
-        'kpi_per_hour', 'factory', 'sort_order', 'is_active',
+        'kpi_per_hour', 'factory', 'sort_order', 'is_active', 'can_increase_productivity',
     ];
 
     protected $casts = [
-        'sort_order'   => 'integer',
-        'is_active'    => 'boolean',
-        'kpi_per_hour' => 'integer',
-        'unit'         => DepartmentUnit::class,
-        'factory'      => Factory::class,
+        'sort_order'                 => 'integer',
+        'is_active'                  => 'boolean',
+        'can_increase_productivity'  => 'boolean',
+        'kpi_per_hour'               => 'integer',
+        'unit'                       => DepartmentUnit::class,
+        'factory'                    => Factory::class,
     ];
 
     public function productionLine(): BelongsTo

@@ -13,6 +13,7 @@ return [
     'factory'            => 'Nhà máy',
     'sort_order'         => 'Thứ tự',
     'is_active'          => 'Hoạt động',
+    'can_increase_productivity' => 'Có thể tăng năng suất',
     'is_shared'          => 'Dùng chung',
     'name'               => 'Tên',
     'email'              => 'Email',

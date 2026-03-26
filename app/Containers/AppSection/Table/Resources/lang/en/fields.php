@@ -13,6 +13,7 @@ return [
     'factory'            => 'Factory',
     'sort_order'         => 'Sort Order',
     'is_active'          => 'Active',
+    'can_increase_productivity' => 'Can Increase Productivity',
     'is_shared'          => 'Shared',
     'name'               => 'Name',
     'email'              => 'Email',

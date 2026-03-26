@@ -25,4 +25,5 @@ return [
     'unit' => 'Đơn vị',
     'kpi_per_hour' => 'KPI/giờ',
     'factory' => 'Nhà máy',
+    'can_increase_productivity' => 'Có thể tăng năng suất',
 ];

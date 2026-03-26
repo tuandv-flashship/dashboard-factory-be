@@ -24,6 +24,7 @@ final class UpdateDepartmentRequest extends ParentRequest
             'factory'            => ['sometimes', Rule::enum(Factory::class)],
             'sort_order'         => ['sometimes', 'integer', 'min:0'],
             'is_active'          => ['sometimes', 'boolean'],
+            'can_increase_productivity' => ['sometimes', 'boolean'],
         ];
     }
 

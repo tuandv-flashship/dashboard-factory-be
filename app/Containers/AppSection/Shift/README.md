@@ -24,10 +24,10 @@ ShiftTemplate (parent — ca chuẩn)
 ├── applies_to_shift_1: true (Ca 1)
 ├── applies_to_shift_2: false (Ca 2)
 └── ShiftTemplateDetail[] (child — config từng bộ phận)
-    ├── Pick DTF1   — Ca 1: 06:00, 8.5h, 3 người
-    ├── Pick DTF2   — Ca 1: 06:00, 8.5h, 3 người
-    ├── Print DTF1  — Ca 1: 06:30, 8.5h, 8 người, chuẩn bị 23 phút
-    ├── Cut DTF1    — Ca 1: 07:00, 8.5h, 5 người
+    ├── Pick DTF1   — Ca 1: 06:00, 8h, 3 người
+    ├── Pick DTF2   — Ca 1: 06:00, 8h, 3 người
+    ├── Print DTF1  — Ca 1: 06:30, 8h, 8 người, chuẩn bị 23 phút
+    ├── Cut DTF1    — Ca 1: 07:00, 8h, 5 người
     ├── ...
     └── (mỗi department 1 dòng config cho 1 ca)
 ```
@@ -35,7 +35,7 @@ ShiftTemplate (parent — ca chuẩn)
 ### Business Rules
 
 1. **Status lưu DB** — `active` (đang sử dụng) hoặc `inactive` (tạm dừng)
-2. **`end_time` auto-computed** — tính từ `start_time + work_hours`, **không lưu DB** (virtual accessor)
+2. **`end_time` auto-computed** — tính từ `start_time + work_hours + meal_break_minutes`, **không lưu DB** (virtual accessor)
 3. **2 boolean columns** cho ca áp dụng: `applies_to_shift_1`, `applies_to_shift_2`
 4. **Mỗi department chỉ có 1 dòng** config cho 1 shift_number trong 1 template (unique constraint)
 5. **Sắp xếp** danh sách theo `sort_order` — hỗ trợ drag & drop reorder
@@ -99,7 +99,7 @@ ShiftTemplate (parent — ca chuẩn)
 | shift_number | tinyint | ❌ | | 1 = Ca 1, 2 = Ca 2 |
 | headcount | smallint | ❌ | `0` | Số nhân sự làm việc |
 | start_time | time | ❌ | | Giờ bắt đầu ca. VD: `06:30` |
-| work_hours | decimal(4,1) | ❌ | | Số giờ làm. VD: `8.5` |
+| work_hours | decimal(4,1) | ❌ | | Số giờ làm (net, không tính nghỉ ăn). VD: `8` |
 | prep_minutes | smallint | ❌ | `0` | Thời gian chuẩn bị đầu ca (phút) |
 | break1_start | time | ✅ | | Nghỉ giải lao 1 — giờ bắt đầu |
 | break1_minutes | smallint | ❌ | `0` | Nghỉ giải lao 1 — số phút |
@@ -116,7 +116,7 @@ ShiftTemplate (parent — ca chuẩn)
 
 | Field | Tính từ | Ví dụ |
 |---|---|---|
-| `end_time` | `start_time + work_hours` | `06:30 + 8.5h = 15:00` |
+| `end_time` | `start_time + work_hours + meal_break_minutes` | `06:30 + 8h + 30min = 15:00` |
 
 **Unique constraint:** `(shift_template_id, department_id, shift_number)`
 
@@ -136,7 +136,7 @@ Cùng structure với `shift_template_details` nhưng FK vào `shifts`.
 | prep_minutes | smallint | ❌ | `0` | Phút chuẩn bị |
 | break1_start..break3_minutes | | | | (giống shift_template_details) |
 
-**Virtual field:** `end_time` = `start_time + work_hours`
+**Virtual field:** `end_time` = `start_time + work_hours + meal_break_minutes`
 
 **Unique constraint:** `(shift_id, department_id, shift_number)`
 
@@ -205,13 +205,13 @@ Tất cả yêu cầu `auth:api` + permission `shift-templates.*`.
             "shift_number": 1,
             "headcount": 8,
             "start_time": "06:30",
-            "work_hours": 8.5,
+            "work_hours": 8,
             "prep_minutes": 23,
             "end_time": "15:00",
             "break1_start": "09:00",
-            "break1_minutes": 30,
+            "break1_minutes": 15,
             "meal_break_start": "11:30",
-            "meal_break_minutes": 15,
+            "meal_break_minutes": 30,
             "break2_start": "14:00",
             "break2_minutes": 15,
             "break3_start": "16:30",
@@ -233,7 +233,7 @@ Tất cả yêu cầu `auth:api` + permission `shift-templates.*`.
 }
 ```
 
-> 💡 **FE note:** `end_time` được server tự tính từ `start_time + work_hours`, không cần gửi khi create/update. Chỉ đọc từ response.
+> 💡 **FE note:** `end_time` được server tự tính từ `start_time + work_hours + meal_break_minutes`, không cần gửi khi create/update. Chỉ đọc từ response.
 
 ---
 
@@ -261,12 +261,12 @@ Response tương tự item trong danh sách, nhưng không wrap trong array. Det
       "shift_number": 1,
       "headcount": 8,
       "start_time": "06:30",
-      "work_hours": 8.5,
+      "work_hours": 8,
       "prep_minutes": 23,
       "break1_start": "09:00",
-      "break1_minutes": 30,
+      "break1_minutes": 15,
       "meal_break_start": "11:30",
-      "meal_break_minutes": 15,
+      "meal_break_minutes": 30,
       "break2_start": "14:00",
       "break2_minutes": 15,
       "break3_start": "16:30",
@@ -277,12 +277,12 @@ Response tương tự item trong danh sách, nhưng không wrap trong array. Det
       "shift_number": 1,
       "headcount": 5,
       "start_time": "07:00",
-      "work_hours": 8.5,
+      "work_hours": 8,
       "prep_minutes": 0,
       "break1_start": "09:30",
-      "break1_minutes": 30,
+      "break1_minutes": 15,
       "meal_break_start": "12:00",
-      "meal_break_minutes": 15,
+      "meal_break_minutes": 30,
       "break2_start": null,
       "break2_minutes": 0,
       "break3_start": null,
@@ -498,7 +498,7 @@ Response bao gồm shift header + details (with department info) + hourly_record
           "headcount": 8,
           "start_time": "06:30",
           "end_time": "15:00",
-          "work_hours": 8.5,
+          "work_hours": 8,
           "prep_minutes": 23
         }
       ]
@@ -721,7 +721,7 @@ GET /v1/admin/shift-templates  (tất cả)
 - Lấy danh sách departments: `GET /v1/admin/departments` (Production container)
 - Group theo production_line (Pick, DTF1, DTF2, DTG...)
 - Mỗi department có 1 hoặc 2 dòng tùy theo `applies_to_shift_1/2`
-- auto-compute `end_time` = `start_time + work_hours` ở FE (server cũng compute, chỉ cần hiển thị)
+- auto-compute `end_time` = `start_time + work_hours + meal_break_minutes` ở FE (server cũng compute, chỉ cần hiển thị)
 
 ### 3. Drag & Drop Reorder
 

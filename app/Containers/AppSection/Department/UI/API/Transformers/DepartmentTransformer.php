@@ -22,6 +22,7 @@ final class DepartmentTransformer extends ParentTransformer
             'factory' => $dept->factory,
             'sort_order' => $dept->sort_order,
             'is_active' => $dept->is_active,
+            'can_increase_productivity' => $dept->can_increase_productivity,
             'created_at' => $dept->created_at?->toIsoString(),
             'updated_at' => $dept->updated_at?->toIsoString(),
         ];

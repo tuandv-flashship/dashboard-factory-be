@@ -4,7 +4,7 @@
 
 ## Domain
 
-Department đại diện cho các bộ phận sản xuất (In ấn, Cắt, Ráp mẫu, Đóng gói & Giao, Pick...) thuộc các Production Line. Mỗi department có KPI riêng, đơn vị đo (file/shirt/print), và thuộc factory (FLS/PD).
+Department đại diện cho các bộ phận sản xuất (In ấn, Cắt, Ráp mẫu, Đóng gói & Giao, Pick...) thuộc các Production Line. Mỗi department có KPI riêng, đơn vị đo (file/shirt/print), thuộc factory (FLS/PD), và cờ `can_increase_productivity` (mặc định `true`) đánh dấu bộ phận có thể tăng năng suất.
 
 ## Structure
 

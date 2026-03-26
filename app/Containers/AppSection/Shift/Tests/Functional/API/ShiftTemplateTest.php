@@ -51,12 +51,12 @@ final class ShiftTemplateTest extends ApiTestCase
         $this->dept1 = Department::create([
             'production_line_id' => $this->line->id,
             'code' => 'print', 'label' => 'Print', 'label_en' => 'Print',
-            'icon' => 'Printer', 'unit' => 'files', 'sort_order' => 1, 'is_active' => true,
+            'icon' => 'Printer', 'unit' => 'file', 'sort_order' => 1, 'is_active' => true,
         ]);
         $this->dept2 = Department::create([
             'production_line_id' => $this->line->id,
             'code' => 'cut', 'label' => 'Cut', 'label_en' => 'Cut',
-            'icon' => 'Scissors', 'unit' => 'files', 'sort_order' => 2, 'is_active' => true,
+            'icon' => 'Scissors', 'unit' => 'file', 'sort_order' => 2, 'is_active' => true,
         ]);
     }
 
@@ -81,12 +81,12 @@ final class ShiftTemplateTest extends ApiTestCase
             'shift_number'      => 1,
             'headcount'         => 8,
             'start_time'        => '06:30',
-            'work_hours'        => 8.5,
+            'work_hours'        => 8,
             'prep_minutes'      => 23,
             'break1_start'      => '09:00',
-            'break1_minutes'    => 30,
+            'break1_minutes'    => 15,
             'meal_break_start'  => '11:30',
-            'meal_break_minutes'=> 15,
+            'meal_break_minutes'=> 30,
             'break2_start'      => '14:00',
             'break2_minutes'    => 15,
             'break3_start'      => '16:30',
@@ -99,12 +99,12 @@ final class ShiftTemplateTest extends ApiTestCase
             'shift_number'      => 1,
             'headcount'         => 5,
             'start_time'        => '07:00',
-            'work_hours'        => 8.5,
+            'work_hours'        => 8,
             'prep_minutes'      => 0,
             'break1_start'      => '09:30',
-            'break1_minutes'    => 30,
+            'break1_minutes'    => 15,
             'meal_break_start'  => '12:00',
-            'meal_break_minutes'=> 15,
+            'meal_break_minutes'=> 30,
             'break2_start'      => '14:30',
             'break2_minutes'    => 15,
             'break3_start'      => '17:00',
@@ -130,12 +130,12 @@ final class ShiftTemplateTest extends ApiTestCase
                     'shift_number'      => 1,
                     'headcount'         => 8,
                     'start_time'        => '06:30',
-                    'work_hours'        => 8.5,
+                    'work_hours'        => 8,
                     'prep_minutes'      => 23,
                     'break1_start'      => '09:00',
-                    'break1_minutes'    => 30,
+                    'break1_minutes'    => 15,
                     'meal_break_start'  => '11:30',
-                    'meal_break_minutes'=> 15,
+                    'meal_break_minutes'=> 30,
                     'break2_start'      => '14:00',
                     'break2_minutes'    => 15,
                     'break3_start'      => '16:30',
@@ -146,12 +146,12 @@ final class ShiftTemplateTest extends ApiTestCase
                     'shift_number'      => 1,
                     'headcount'         => 5,
                     'start_time'        => '07:00',
-                    'work_hours'        => 8.5,
+                    'work_hours'        => 8,
                     'prep_minutes'      => 0,
                     'break1_start'      => '09:30',
-                    'break1_minutes'    => 30,
+                    'break1_minutes'    => 15,
                     'meal_break_start'  => '12:00',
-                    'meal_break_minutes'=> 15,
+                    'meal_break_minutes'=> 30,
                     'break2_start'      => '14:30',
                     'break2_minutes'    => 15,
                     'break3_start'      => '17:00',
@@ -242,7 +242,7 @@ final class ShiftTemplateTest extends ApiTestCase
 
         $response->assertOk();
         $details = $response->json('data.details.data');
-        // dept1: start 06:30 + 8.5h = 15:00
+        // dept1: start 06:30 + 8h work + 30min meal = 15:00
         $this->assertSame('15:00', $details[0]['end_time']);
     }
 

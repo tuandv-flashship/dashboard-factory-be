@@ -53,10 +53,11 @@ final class ShiftTemplateDetail extends ParentModel
         return $this->belongsTo(Department::class, 'department_id');
     }
 
-    // ── Accessors ────────────────────────────────────────
-
     /**
-     * Auto-compute end_time = start_time + work_hours.
+     * Auto-compute end_time = start_time + work_hours + meal_break.
+     *
+     * work_hours = net productive time (e.g. 8h).
+     * meal_break is added on top (e.g. 30 min) → total presence.
      */
     protected function endTime(): Attribute
     {
@@ -65,8 +66,10 @@ final class ShiftTemplateDetail extends ParentModel
                 return null;
             }
 
+            $totalMinutes = (int) ($this->work_hours * 60) + ($this->meal_break_minutes ?? 0);
+
             return Carbon::createFromFormat('H:i:s', $this->start_time)
-                ->addMinutes((int) ($this->work_hours * 60))
+                ->addMinutes($totalMinutes)
                 ->format('H:i');
         });
     }
