@@ -13,11 +13,6 @@ final class CopyShiftRequest extends ParentRequest
 {
     protected array $decode = [];
 
-    protected array $access = [
-        'permissions' => 'shifts.create',
-        'roles'       => '',
-    ];
-
     public function rules(): array
     {
         return [
@@ -30,7 +25,7 @@ final class CopyShiftRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->check(['hasAccess']);
+        return $this->user()->can('shifts.create');
     }
 
     public function messages(): array

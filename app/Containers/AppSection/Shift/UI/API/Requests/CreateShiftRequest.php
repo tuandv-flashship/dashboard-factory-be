@@ -8,11 +8,6 @@ final class CreateShiftRequest extends ParentRequest
 {
     protected array $decode = ['shift_template_id'];
 
-    protected array $access = [
-        'permissions' => 'shifts.create',
-        'roles'       => '',
-    ];
-
     public function rules(): array
     {
         return [
@@ -26,6 +21,6 @@ final class CreateShiftRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->check(['hasAccess']);
+        return $this->user()->can('shifts.create');
     }
 }

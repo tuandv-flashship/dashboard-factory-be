@@ -8,11 +8,6 @@ final class DeleteShiftRequest extends ParentRequest
 {
     protected array $decode = ['id'];
 
-    protected array $access = [
-        'permissions' => 'shifts.destroy',
-        'roles'       => '',
-    ];
-
     public function rules(): array
     {
         return [];
@@ -20,6 +15,6 @@ final class DeleteShiftRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->check(['hasAccess']);
+        return $this->user()->can('shifts.destroy');
     }
 }

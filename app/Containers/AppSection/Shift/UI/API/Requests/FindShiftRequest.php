@@ -8,11 +8,6 @@ final class FindShiftRequest extends ParentRequest
 {
     protected array $decode = ['id'];
 
-    protected array $access = [
-        'permissions' => 'shifts.index',
-        'roles'       => '',
-    ];
-
     public function rules(): array
     {
         return [];
@@ -20,6 +15,6 @@ final class FindShiftRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->check(['hasAccess']);
+        return $this->user()->can('shifts.index');
     }
 }

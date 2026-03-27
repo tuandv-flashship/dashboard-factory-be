@@ -8,11 +8,6 @@ final class GetShiftCalendarRequest extends ParentRequest
 {
     protected array $decode = [];
 
-    protected array $access = [
-        'permissions' => 'shifts.index',
-        'roles'       => '',
-    ];
-
     public function rules(): array
     {
         return [
@@ -23,6 +18,6 @@ final class GetShiftCalendarRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->check(['hasAccess']);
+        return $this->user()->can('shifts.index');
     }
 }

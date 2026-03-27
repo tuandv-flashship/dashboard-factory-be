@@ -8,11 +8,6 @@ final class UpdateHourlyStaffRequest extends ParentRequest
 {
     protected array $decode = ['id'];
 
-    protected array $access = [
-        'permissions' => 'shifts.edit',
-        'roles'       => '',
-    ];
-
     public function rules(): array
     {
         return [
@@ -24,6 +19,6 @@ final class UpdateHourlyStaffRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->check(['hasAccess']);
+        return $this->user()->can('shifts.edit');
     }
 }
