@@ -151,6 +151,7 @@ Tất cả yêu cầu `auth:api` + permission `shift-templates.*`.
 | Method | Endpoint | Permission | Mô tả |
 |---|---|---|---|
 | GET | `/v1/admin/shift-templates` | `shift-templates.index` | Danh sách (paginated, searchable) |
+| GET | `/v1/admin/shift-templates/defaults` | `shifts.create` | Giá trị mặc định cho form tạo mới |
 | GET | `/v1/admin/shift-templates/{id}` | `shift-templates.index` | Chi tiết 1 record + details |
 | POST | `/v1/admin/shift-templates` | `shift-templates.create` | Tạo mới (header + details) |
 | PATCH | `/v1/admin/shift-templates/{id}` | `shift-templates.edit` | Cập nhật (partial + sync details) |
@@ -180,6 +181,9 @@ Tất cả yêu cầu `auth:api` + permission `shift-templates.*`.
 ### GET /v1/admin/shift-templates — Danh sách
 
 **Response:**
+
+> 💡 **Optimized:** List response **không** include `details` mặc định. Thay vào đó, trả về `shift_1_time` / `shift_2_time` summary fields cho hiển thị nhanh. Nếu cần full details, dùng `?include=details`.
+
 ```json
 {
   "data": [
@@ -187,38 +191,15 @@ Tất cả yêu cầu `auth:api` + permission `shift-templates.*`.
       "id": "HASHED_ID",
       "name": "Ca chuẩn - bình thường",
       "color": "#0000FF",
-      "description": "Dành cho ngày làm việc bình thường, làm việc từ 6h",
+      "description": "Dành cho ngày làm việc bình thường",
       "sort_order": 1,
       "status": "active",
       "applies_to_shift_1": true,
       "applies_to_shift_2": false,
+      "shift_1_time": "06:00 - 18:00",
+      "shift_2_time": null,
       "created_at": "2026-03-25T07:00:00.000000Z",
-      "updated_at": "2026-03-25T07:00:00.000000Z",
-      "details": {
-        "data": [
-          {
-            "id": "HASHED_ID",
-            "department_id": 1,
-            "department_code": "print",
-            "department_label": "In ấn",
-            "production_line": "DTF 1",
-            "shift_number": 1,
-            "headcount": 8,
-            "start_time": "06:30",
-            "work_hours": 8,
-            "prep_minutes": 23,
-            "end_time": "15:00",
-            "break1_start": "09:00",
-            "break1_minutes": 15,
-            "meal_break_start": "11:30",
-            "meal_break_minutes": 30,
-            "break2_start": "14:00",
-            "break2_minutes": 15,
-            "break3_start": "16:30",
-            "break3_minutes": 15
-          }
-        ]
-      }
+      "updated_at": "2026-03-25T07:00:00.000000Z"
     }
   ],
   "meta": {
@@ -233,13 +214,59 @@ Tất cả yêu cầu `auth:api` + permission `shift-templates.*`.
 }
 ```
 
-> 💡 **FE note:** `end_time` được server tự tính từ `start_time + work_hours + meal_break_minutes`, không cần gửi khi create/update. Chỉ đọc từ response.
+> 💡 **FE note:** `end_time` được server tự tính từ `start_time + work_hours + meal_break_minutes`, không cần gửi khi create/update. `shift_1_time` / `shift_2_time` dùng cho hiển thị nhanh trên danh sách.
+
+---
+
+### GET /v1/admin/shift-templates/defaults — Giá trị mặc định
+
+Trả về default schedule values cho **tất cả departments**, dùng cho form "Thêm mới ca chuẩn".
+
+Response dùng **cùng format** với Find Shift Template details — FE render cùng 1 table component cho cả Create và Edit.
+
+| Thuộc tính | Defaults | Find (existing) |
+|---|---|---|
+| `id` | `null` | hashed ID |
+| `headcount` | `0` | giá trị thực |
+| Schedule | Từ config mặc định | Từ DB |
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": null,
+      "department_id": 5,
+      "department_code": "dtf1",
+      "department_label": "Pick DTF1",
+      "production_line": "Pick",
+      "production_line_code": "pick",
+      "shift_number": 1,
+      "headcount": 0,
+      "start_time": "06:00",
+      "work_hours": 8,
+      "prep_minutes": 0,
+      "end_time": "14:30",
+      "break1_start": "08:30",
+      "break1_minutes": 15,
+      "meal_break_start": "11:00",
+      "meal_break_minutes": 30,
+      "break2_start": "13:30",
+      "break2_minutes": 15,
+      "break3_start": "16:00",
+      "break3_minutes": 15
+    }
+  ]
+}
+```
+
+> 💡 **FE:** Dùng `production_line_code` + `shift_number` để group thành bảng theo mockup. Details sorted sẵn theo `production_line → shift_number → department`.
 
 ---
 
 ### GET /v1/admin/shift-templates/{id} — Chi tiết
 
-Response tương tự item trong danh sách, nhưng không wrap trong array. Details luôn được include.
+Response tương tự item trong danh sách, nhưng **luôn include details** (không cần `?include=details`). Details có thêm `production_line_code` để FE group.
 
 ---
 
@@ -691,14 +718,11 @@ GET /v1/admin/shift-templates?search=status:active
 ```
 
 Hiển thị bảng:
-| Color | Tên ca chuẩn | Thời gian | Trạng thái | Thứ tự | Mô tả | Actions |
-|---|---|---|---|---|---|---|
-| 🔵 | Ca chuẩn - bình thường | (tính từ details) | Sử dụng | 1 | ... | Copy, Edit, Delete |
+| Color | Tên ca chuẩn | Ca 1 | Ca 2 | Trạng thái | Thứ tự | Mô tả | Actions |
+|---|---|---|---|---|---|---|---|
+| 🔵 | Ca chuẩn - bình thường | 06:00 - 18:00 | — | Sử dụng | 1 | ... | Copy, Edit, Delete |
 
-**Tính "Thời gian" hiển thị:** FE lấy từ details:
-- Group details theo `shift_number`
-- Mỗi group: `min(start_time) - max(end_time)`
-- VD: Ca 1: `06:00 - 14:00`, Ca 2: `14:00 - 22:00`
+**Thời gian Ca 1/Ca 2:** Server đã tính sẵn trong `shift_1_time` / `shift_2_time`. Nếu `null` = template không áp dụng cho ca đó.
 
 **Lọc theo trạng thái:**
 ```
@@ -717,11 +741,13 @@ GET /v1/admin/shift-templates  (tất cả)
 - Select → `status` (active/inactive)
 - Checkbox → `applies_to_shift_1`, `applies_to_shift_2`
 
-**Bảng chi tiết:**
-- Lấy danh sách departments: `GET /v1/admin/departments` (Production container)
-- Group theo production_line (Pick, DTF1, DTF2, DTG...)
-- Mỗi department có 1 hoặc 2 dòng tùy theo `applies_to_shift_1/2`
-- auto-compute `end_time` = `start_time + work_hours + meal_break_minutes` ở FE (server cũng compute, chỉ cần hiển thị)
+**Bảng chi tiết (Create/Edit shared component):**
+- **Thêm mới:** Gọi `GET /v1/admin/shift-templates/defaults` → pre-fill bảng
+- **Chỉnh sửa:** Gọi `GET /v1/admin/shift-templates/{id}` → fill từ DB data
+- Cả 2 response cùng format details → FE dùng chung 1 component
+- Group theo `production_line_code` (Pick, DTF1, DTF2, DTG...)
+- Sub-group theo `shift_number` (Ca 1, Ca 2)
+- `headcount` mặc định = 0 khi tạo mới
 
 ### 3. Drag & Drop Reorder
 
@@ -904,6 +930,7 @@ Shift/
     │   ├── DeleteShiftTemplateController.php
     │   ├── FindShiftController.php
     │   ├── FindShiftTemplateController.php
+    │   ├── GetShiftTemplateDefaultsController.php  ← Default schedule values
     │   ├── GetHourlyRecordsController.php
     │   ├── GetShiftCalendarController.php
     │   ├── ListShiftTemplatesController.php
@@ -920,6 +947,7 @@ Shift/
     │   ├── DeleteShiftTemplateRequest.php
     │   ├── FindShiftRequest.php
     │   ├── FindShiftTemplateRequest.php
+    │   ├── GetShiftTemplateDefaultsRequest.php
     │   ├── GetHourlyRecordsRequest.php
     │   ├── GetShiftCalendarRequest.php
     │   ├── ListShiftTemplatesRequest.php
@@ -937,6 +965,7 @@ Shift/
     │   ├── FindShift.v1.private.php
     │   ├── FindShiftTemplate.v1.private.php
     │   ├── GetHourlyRecords.v1.private.php
+    │   ├── GetShiftTemplateDefaults.v1.private.php
     │   ├── GetShiftCalendar.v1.private.php
     │   ├── ListShiftTemplates.v1.private.php
     │   ├── ReorderShiftTemplates.v1.private.php
