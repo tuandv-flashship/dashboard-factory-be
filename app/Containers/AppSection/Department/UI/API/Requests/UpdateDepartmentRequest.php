@@ -18,6 +18,7 @@ final class UpdateDepartmentRequest extends ParentRequest
             'code'               => ['sometimes', 'string', 'max:30', Rule::unique('departments')->where('production_line_id', $this->production_line_id ?? $this->route('id'))->ignore($this->id)],
             'label'              => ['sometimes', 'string', 'max:50'],
             'label_en'           => ['sometimes', 'string', 'max:50'],
+            'description'        => ['sometimes', 'string', 'nullable'],
             'icon'               => ['sometimes', 'string', 'max:30'],
             'unit'               => ['sometimes', Rule::enum(DepartmentUnit::class)],
             'kpi_per_hour'       => ['sometimes', 'integer', 'min:0'],

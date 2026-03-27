@@ -12,16 +12,18 @@ final class UpdateDepartmentAction extends ParentAction
     public function run(UpdateDepartmentRequest $request): Department
     {
         $data = array_filter([
-            'production_line_id' => $request->production_line_id,
-            'code'               => $request->code,
-            'label'              => $request->label,
-            'label_en'           => $request->label_en,
-            'icon'               => $request->icon,
-            'unit'               => $request->unit,
-            'kpi_per_hour'       => $request->kpi_per_hour,
-            'factory'            => $request->factory,
-            'sort_order'         => $request->sort_order,
-            'is_active'          => $request->is_active,
+            'production_line_id'        => $request->production_line_id,
+            'code'                      => $request->code,
+            'label'                     => $request->label,
+            'label_en'                  => $request->label_en,
+            'description'               => $request->description,
+            'icon'                      => $request->icon,
+            'unit'                      => $request->unit,
+            'kpi_per_hour'              => $request->kpi_per_hour,
+            'factory'                   => $request->factory,
+            'sort_order'                => $request->sort_order,
+            'is_active'                 => $request->is_active,
+            'can_increase_productivity' => $request->can_increase_productivity,
         ], fn ($v) => $v !== null);
 
         return app(UpdateDepartmentTask::class)->run($request->id, $data);

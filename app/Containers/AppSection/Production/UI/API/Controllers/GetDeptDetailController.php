@@ -63,10 +63,18 @@ final class GetDeptDetailController extends ApiController
                     'label' => $data['line']->label,
                 ],
                 'department' => isset($data['department']) ? [
+                    'id' => $data['department']->getHashedKey(),
                     'code' => $data['department']->code,
                     'label' => $data['department']->label,
                     'label_en' => $data['department']->label_en,
+                    'description' => $data['department']->description,
+                    'icon' => $data['department']->icon,
                     'unit' => $data['department']->unit,
+                    'kpi_per_hour' => $data['department']->kpi_per_hour,
+                    'factory' => $data['department']->factory,
+                    'sort_order' => $data['department']->sort_order,
+                    'is_active' => $data['department']->is_active,
+                    'can_increase_productivity' => $data['department']->can_increase_productivity,
                 ] : null,
                 'hours' => $recordsData->values(),
                 'summary' => [
