@@ -75,6 +75,33 @@ Container bao gồm 3 bảng: production lines (4 lines gồm Pick), hourly prod
 | DELETE | `/v1/admin/production-lines/:id` | `production-lines.destroy` | Delete (CASCADE) |
 | PATCH | `/v1/admin/production-lines/reorder` | `production-lines.edit` | Batch reorder |
 
+#### Department Filter (List Production Lines)
+
+Khi dùng `?include=departments`, FE có thể filter departments theo factory và trạng thái:
+
+| Param | Type | Values | Mô tả |
+|---|---|---|---|
+| `dept_factory` | string | `FLS`, `PD` | Lọc theo xưởng |
+| `dept_active` | boolean | `1` / `0` | Lọc theo trạng thái hoạt động |
+
+**Ví dụ:**
+```bash
+# Tất cả departments
+GET /v1/admin/production-lines?include=departments
+
+# Chỉ departments xưởng FLS
+GET /v1/admin/production-lines?include=departments&dept_factory=FLS
+
+# Chỉ departments đang hoạt động
+GET /v1/admin/production-lines?include=departments&dept_active=1
+
+# FLS + đang hoạt động
+GET /v1/admin/production-lines?include=departments&dept_factory=FLS&dept_active=1
+
+# PD + đang hoạt động
+GET /v1/admin/production-lines?include=departments&dept_factory=PD&dept_active=1
+```
+
 > **Department Admin Endpoints** đã chuyển sang [Department Container](../Department/README.md#api-endpoints).
 
 ### Table Meta API (🔒 Bearer Token)

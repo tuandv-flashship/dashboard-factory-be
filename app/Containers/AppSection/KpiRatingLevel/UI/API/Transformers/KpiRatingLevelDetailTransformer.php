@@ -16,8 +16,8 @@ final class KpiRatingLevelDetailTransformer extends ParentTransformer
             'text_color'      => $detail->text_color,
             'min_score'       => (float) $detail->min_score,
             'operator'        => $detail->operator,
-            'requires_reason'      => $detail->requires_reason,
-            'warn_staff_shortage'  => $detail->warn_staff_shortage,
+            'is_kpi_threshold'          => $detail->is_kpi_threshold,
+            'is_staff_warning_threshold' => $detail->is_staff_warning_threshold,
             'sort_order'      => $detail->sort_order,
         ];
     }

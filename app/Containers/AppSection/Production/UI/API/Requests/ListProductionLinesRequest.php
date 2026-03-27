@@ -10,7 +10,10 @@ final class ListProductionLinesRequest extends ParentRequest
 
     public function rules(): array
     {
-        return [];
+        return [
+            'dept_factory' => ['sometimes', 'string', 'in:FLS,PD'],
+            'dept_active'  => ['sometimes', 'boolean'],
+        ];
     }
 
     public function authorize(): bool

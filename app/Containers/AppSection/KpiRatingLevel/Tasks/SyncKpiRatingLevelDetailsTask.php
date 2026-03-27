@@ -26,9 +26,10 @@ final class SyncKpiRatingLevelDetailsTask extends ParentTask
                 'bg_color'        => $detail['bg_color'],
                 'text_color'      => $detail['text_color'],
                 'min_score'       => $detail['min_score'],
-                'operator'        => $detail['operator'] ?? '>=',
-                'requires_reason' => $detail['requires_reason'] ?? false,
-                'sort_order'      => $detail['sort_order'] ?? $index + 1,
+                'operator'                   => $detail['operator'] ?? '>=',
+                'is_kpi_threshold'           => $detail['is_kpi_threshold'] ?? false,
+                'is_staff_warning_threshold' => $detail['is_staff_warning_threshold'] ?? false,
+                'sort_order'                 => $detail['sort_order'] ?? $index + 1,
             ]);
         }
     }

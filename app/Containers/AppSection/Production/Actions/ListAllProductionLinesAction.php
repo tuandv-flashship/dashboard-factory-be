@@ -10,6 +10,9 @@ final class ListAllProductionLinesAction extends ParentAction
 {
     public function run(ListProductionLinesRequest $request): mixed
     {
-        return app(ListAllProductionLinesTask::class)->run();
+        $deptFactory = $request->query('dept_factory');
+        $deptActive  = $request->has('dept_active') ? (bool) $request->query('dept_active') : null;
+
+        return app(ListAllProductionLinesTask::class)->run($deptFactory, $deptActive);
     }
 }

@@ -16,16 +16,16 @@ final class KpiRatingLevelDetail extends ParentModel
         'text_color',
         'min_score',
         'operator',
-        'requires_reason',
-        'warn_staff_shortage',
+        'is_kpi_threshold',
+        'is_staff_warning_threshold',
         'sort_order',
     ];
 
     protected $casts = [
         'min_score'       => 'decimal:2',
-        'requires_reason'      => 'boolean',
-        'warn_staff_shortage'  => 'boolean',
-        'sort_order'           => 'integer',
+        'is_kpi_threshold'          => 'boolean',
+        'is_staff_warning_threshold' => 'boolean',
+        'sort_order'                 => 'integer',
     ];
 
     public function ratingLevel(): BelongsTo

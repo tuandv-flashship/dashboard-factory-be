@@ -30,6 +30,12 @@ final class KpiRatingLevelTest extends ApiTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Clean slate for each test — prevent data leaking between tests
+        KpiRatingLevelDetail::query()->delete();
+        KpiRatingLevel::query()->delete();
+        Cache::forget('kpi_rating_level_active');
+
         $this->admin = User::factory()->createOne();
         $this->admin->givePermissionTo([
             'kpi-rating-levels.index',
@@ -51,11 +57,11 @@ final class KpiRatingLevelTest extends ApiTestCase
         ], $overrides));
 
         $defaults = [
-            ['level_name' => 'Xuất sắc',   'bg_color' => '#006400', 'text_color' => '#FFFFFF', 'min_score' => 100, 'operator' => '>=', 'requires_reason' => false, 'sort_order' => 1],
-            ['level_name' => 'Đạt',        'bg_color' => '#228B22', 'text_color' => '#FFFFFF', 'min_score' => 95,  'operator' => '>=', 'requires_reason' => false, 'sort_order' => 2],
-            ['level_name' => 'Trung bình', 'bg_color' => '#DAA520', 'text_color' => '#FFFFFF', 'min_score' => 90,  'operator' => '>=', 'requires_reason' => true,  'sort_order' => 3],
-            ['level_name' => 'Yếu',        'bg_color' => '#8B4513', 'text_color' => '#FFFFFF', 'min_score' => 85,  'operator' => '>=', 'requires_reason' => true,  'sort_order' => 4],
-            ['level_name' => 'Chưa đạt',   'bg_color' => '#8B0000', 'text_color' => '#FFFFFF', 'min_score' => 85,  'operator' => '<',  'requires_reason' => true,  'sort_order' => 5],
+            ['level_name' => 'Xuất sắc',   'bg_color' => '#006400', 'text_color' => '#FFFFFF', 'min_score' => 100, 'operator' => '>=', 'is_kpi_threshold' => false, 'is_staff_warning_threshold' => false, 'sort_order' => 1],
+            ['level_name' => 'Đạt',        'bg_color' => '#228B22', 'text_color' => '#FFFFFF', 'min_score' => 95,  'operator' => '>=', 'is_kpi_threshold' => true,  'is_staff_warning_threshold' => false, 'sort_order' => 2],
+            ['level_name' => 'Trung bình', 'bg_color' => '#DAA520', 'text_color' => '#FFFFFF', 'min_score' => 90,  'operator' => '>=', 'is_kpi_threshold' => false, 'is_staff_warning_threshold' => true,  'sort_order' => 3],
+            ['level_name' => 'Yếu',        'bg_color' => '#8B4513', 'text_color' => '#FFFFFF', 'min_score' => 85,  'operator' => '>=', 'is_kpi_threshold' => false, 'is_staff_warning_threshold' => false, 'sort_order' => 4],
+            ['level_name' => 'Chưa đạt',   'bg_color' => '#8B0000', 'text_color' => '#FFFFFF', 'min_score' => 85,  'operator' => '<',  'is_kpi_threshold' => false, 'is_staff_warning_threshold' => false, 'sort_order' => 5],
         ];
 
         foreach ($defaults as $detail) {
@@ -73,11 +79,11 @@ final class KpiRatingLevelTest extends ApiTestCase
             'effective_until' => null,
             'description'    => 'Áp dụng từ Q2/2026',
             'details'        => [
-                ['level_name' => 'Xuất sắc',   'bg_color' => '#006400', 'text_color' => '#FFFFFF', 'min_score' => 100, 'operator' => '>=', 'requires_reason' => false, 'sort_order' => 1],
-                ['level_name' => 'Đạt',        'bg_color' => '#228B22', 'text_color' => '#FFFFFF', 'min_score' => 95,  'operator' => '>=', 'requires_reason' => false, 'sort_order' => 2],
-                ['level_name' => 'Trung bình', 'bg_color' => '#DAA520', 'text_color' => '#FFFFFF', 'min_score' => 90,  'operator' => '>=', 'requires_reason' => true,  'sort_order' => 3],
-                ['level_name' => 'Yếu',        'bg_color' => '#8B4513', 'text_color' => '#FFFFFF', 'min_score' => 85,  'operator' => '>=', 'requires_reason' => true,  'sort_order' => 4],
-                ['level_name' => 'Chưa đạt',   'bg_color' => '#8B0000', 'text_color' => '#FFFFFF', 'min_score' => 85,  'operator' => '<',  'requires_reason' => true,  'sort_order' => 5],
+                ['level_name' => 'Xuất sắc',   'bg_color' => '#006400', 'text_color' => '#FFFFFF', 'min_score' => 100, 'operator' => '>=', 'is_kpi_threshold' => false, 'is_staff_warning_threshold' => false, 'sort_order' => 1],
+                ['level_name' => 'Đạt',        'bg_color' => '#228B22', 'text_color' => '#FFFFFF', 'min_score' => 95,  'operator' => '>=', 'is_kpi_threshold' => true,  'is_staff_warning_threshold' => false, 'sort_order' => 2],
+                ['level_name' => 'Trung bình', 'bg_color' => '#DAA520', 'text_color' => '#FFFFFF', 'min_score' => 90,  'operator' => '>=', 'is_kpi_threshold' => false, 'is_staff_warning_threshold' => true,  'sort_order' => 3],
+                ['level_name' => 'Yếu',        'bg_color' => '#8B4513', 'text_color' => '#FFFFFF', 'min_score' => 85,  'operator' => '>=', 'is_kpi_threshold' => false, 'is_staff_warning_threshold' => false, 'sort_order' => 4],
+                ['level_name' => 'Chưa đạt',   'bg_color' => '#8B0000', 'text_color' => '#FFFFFF', 'min_score' => 85,  'operator' => '<',  'is_kpi_threshold' => false, 'is_staff_warning_threshold' => false, 'sort_order' => 5],
             ],
         ];
     }
