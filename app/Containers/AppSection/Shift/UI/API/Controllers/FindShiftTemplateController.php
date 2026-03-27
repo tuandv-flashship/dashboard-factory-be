@@ -15,6 +15,8 @@ final class FindShiftTemplateController extends ApiController
     {
         $template = app(FindShiftTemplateAction::class)->run($request);
 
-        return Response::create($template, ShiftTemplateTransformer::class)->ok();
+        return Response::create($template, ShiftTemplateTransformer::class)
+            ->parseIncludes('details')
+            ->ok();
     }
 }

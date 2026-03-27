@@ -16,7 +16,7 @@ final class ListShiftTemplatesTask extends ParentTask
     {
         return $this->repository
             ->addRequestCriteria()
-            ->with('details.department')
+            ->with('details:id,shift_template_id,shift_number,start_time,work_hours,meal_break_minutes')
             ->orderBy('sort_order')
             ->paginate();
     }
