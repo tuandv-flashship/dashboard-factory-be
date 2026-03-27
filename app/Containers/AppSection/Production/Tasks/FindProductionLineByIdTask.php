@@ -12,7 +12,7 @@ final class FindProductionLineByIdTask extends ParentTask
         private readonly ProductionLineRepository $repository,
     ) {}
 
-    public function run(int $id): ProductionLine
+    public function run(mixed $id): ProductionLine
     {
         return $this->repository->with('departments')->find($id);
     }

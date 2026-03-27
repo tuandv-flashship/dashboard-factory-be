@@ -12,8 +12,8 @@ final class FindDepartmentByIdTask extends ParentTask
         private readonly DepartmentRepository $repository,
     ) {}
 
-    public function run(int $id): Department
+    public function run(mixed $id): Department
     {
-        return $this->repository->with('productionLine')->find($id);
+        return $this->repository->with('productionLine')->findOrFail($id);
     }
 }

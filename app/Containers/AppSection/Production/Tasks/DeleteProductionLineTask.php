@@ -11,7 +11,7 @@ final class DeleteProductionLineTask extends ParentTask
         private readonly ProductionLineRepository $repository,
     ) {}
 
-    public function run(int $id): bool
+    public function run(mixed $id): bool
     {
         return (bool) $this->repository->delete($id);
     }

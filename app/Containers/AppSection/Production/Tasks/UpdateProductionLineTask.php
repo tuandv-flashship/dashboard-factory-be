@@ -12,7 +12,7 @@ final class UpdateProductionLineTask extends ParentTask
         private readonly ProductionLineRepository $repository,
     ) {}
 
-    public function run(int $id, array $data): ProductionLine
+    public function run(mixed $id, array $data): ProductionLine
     {
         return $this->repository->update($data, $id);
     }

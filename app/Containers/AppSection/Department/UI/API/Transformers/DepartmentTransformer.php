@@ -16,6 +16,7 @@ final class DepartmentTransformer extends ParentTransformer
             'code' => $dept->code,
             'label' => $dept->label,
             'label_en' => $dept->label_en,
+            'description' => $dept->description,
             'icon' => $dept->icon,
             'unit' => $dept->unit,
             'kpi_per_hour' => $dept->kpi_per_hour,

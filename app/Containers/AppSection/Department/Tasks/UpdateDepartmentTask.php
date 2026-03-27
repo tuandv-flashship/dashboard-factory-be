@@ -12,7 +12,7 @@ final class UpdateDepartmentTask extends ParentTask
         private readonly DepartmentRepository $repository,
     ) {}
 
-    public function run(int $id, array $data): Department
+    public function run(mixed $id, array $data): Department
     {
         return $this->repository->update($data, $id);
     }

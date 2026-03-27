@@ -15,7 +15,7 @@ final class Department extends ParentModel
     protected $table = 'departments';
 
     protected $fillable = [
-        'production_line_id', 'code', 'label', 'label_en', 'icon', 'unit',
+        'production_line_id', 'code', 'label', 'label_en', 'description', 'icon', 'unit',
         'kpi_per_hour', 'factory', 'sort_order', 'is_active', 'can_increase_productivity',
     ];
 

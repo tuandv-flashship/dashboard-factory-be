@@ -11,7 +11,7 @@ final class DeleteDepartmentTask extends ParentTask
         private readonly DepartmentRepository $repository,
     ) {}
 
-    public function run(int $id): bool
+    public function run(mixed $id): bool
     {
         return (bool) $this->repository->delete($id);
     }
