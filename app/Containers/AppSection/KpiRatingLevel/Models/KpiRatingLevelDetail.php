@@ -17,13 +17,15 @@ final class KpiRatingLevelDetail extends ParentModel
         'min_score',
         'operator',
         'requires_reason',
+        'warn_staff_shortage',
         'sort_order',
     ];
 
     protected $casts = [
         'min_score'       => 'decimal:2',
-        'requires_reason' => 'boolean',
-        'sort_order'      => 'integer',
+        'requires_reason'      => 'boolean',
+        'warn_staff_shortage'  => 'boolean',
+        'sort_order'           => 'integer',
     ];
 
     public function ratingLevel(): BelongsTo

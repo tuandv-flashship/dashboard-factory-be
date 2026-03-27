@@ -66,6 +66,7 @@ KpiRatingLevel (parent — mức đánh giá)
 | min_score | decimal(5,2) | ❌ | Ngưỡng điểm đạt: `100.00`, `95.00`, `90.00`, `85.00` |
 | operator | varchar(5) | ❌ | Toán tử so sánh: `>=` hoặc `<`. Default: `>=` |
 | requires_reason | boolean | ❌ | Yêu cầu nhập lý do khi KPI ở mức này. Default: `false` |
+| warn_staff_shortage | boolean | ❌ | Cảnh báo thiếu nhân sự làm việc. Default: `false` |
 | sort_order | smallint | ❌ | Thứ tự hiển thị. Default: `0` |
 | created_at | timestamp | | |
 | updated_at | timestamp | | |
@@ -145,6 +146,7 @@ protected function status(): Attribute
           "min_score": 100.0,
           "operator": ">=",
           "requires_reason": false,
+          "warn_staff_shortage": false,
           "sort_order": 1
         },
         {
@@ -155,6 +157,7 @@ protected function status(): Attribute
           "min_score": 95.0,
           "operator": ">=",
           "requires_reason": false,
+          "warn_staff_shortage": false,
           "sort_order": 2
         }
       ]
@@ -169,11 +172,11 @@ protected function status(): Attribute
   "data": {
     "name": "Mặc định",
     "details": [
-      { "level_name": "Xuất sắc",   "bg_color": "#006400", "text_color": "#FFFFFF", "min_score": 100, "operator": ">=", "requires_reason": false, "sort_order": 1 },
-      { "level_name": "Đạt",        "bg_color": "#228B22", "text_color": "#FFFFFF", "min_score": 95,  "operator": ">=", "requires_reason": false, "sort_order": 2 },
-      { "level_name": "Trung bình", "bg_color": "#DAA520", "text_color": "#FFFFFF", "min_score": 90,  "operator": ">=", "requires_reason": true,  "sort_order": 3 },
-      { "level_name": "Yếu",        "bg_color": "#8B4513", "text_color": "#FFFFFF", "min_score": 85,  "operator": ">=", "requires_reason": true,  "sort_order": 4 },
-      { "level_name": "Chưa đạt",   "bg_color": "#8B0000", "text_color": "#FFFFFF", "min_score": 85,  "operator": "<",  "requires_reason": true,  "sort_order": 5 }
+      { "level_name": "Xuất sắc",   "bg_color": "#006400", "text_color": "#FFFFFF", "min_score": 100, "operator": ">=", "requires_reason": false, "warn_staff_shortage": false, "sort_order": 1 },
+      { "level_name": "Đạt",        "bg_color": "#228B22", "text_color": "#FFFFFF", "min_score": 95,  "operator": ">=", "requires_reason": false, "warn_staff_shortage": false, "sort_order": 2 },
+      { "level_name": "Trung bình", "bg_color": "#DAA520", "text_color": "#FFFFFF", "min_score": 90,  "operator": ">=", "requires_reason": true,  "warn_staff_shortage": true,  "sort_order": 3 },
+      { "level_name": "Yếu",        "bg_color": "#8B4513", "text_color": "#FFFFFF", "min_score": 85,  "operator": ">=", "requires_reason": true,  "warn_staff_shortage": true,  "sort_order": 4 },
+      { "level_name": "Chưa đạt",   "bg_color": "#8B0000", "text_color": "#FFFFFF", "min_score": 85,  "operator": "<",  "requires_reason": true,  "warn_staff_shortage": true,  "sort_order": 5 }
     ]
   }
 }
@@ -248,6 +251,7 @@ Tất cả yêu cầu `auth:api` + permission `kpi-rating-levels.*`.
       "min_score": 100,
       "operator": ">=",
       "requires_reason": false,
+      "warn_staff_shortage": false,
       "sort_order": 1
     },
     {
@@ -257,6 +261,7 @@ Tất cả yêu cầu `auth:api` + permission `kpi-rating-levels.*`.
       "min_score": 95,
       "operator": ">=",
       "requires_reason": false,
+      "warn_staff_shortage": false,
       "sort_order": 2
     },
     {
@@ -266,6 +271,7 @@ Tất cả yêu cầu `auth:api` + permission `kpi-rating-levels.*`.
       "min_score": 90,
       "operator": ">=",
       "requires_reason": true,
+      "warn_staff_shortage": true,
       "sort_order": 3
     },
     {
@@ -275,6 +281,7 @@ Tất cả yêu cầu `auth:api` + permission `kpi-rating-levels.*`.
       "min_score": 85,
       "operator": ">=",
       "requires_reason": true,
+      "warn_staff_shortage": true,
       "sort_order": 4
     },
     {
@@ -284,6 +291,7 @@ Tất cả yêu cầu `auth:api` + permission `kpi-rating-levels.*`.
       "min_score": 85,
       "operator": "<",
       "requires_reason": true,
+      "warn_staff_shortage": true,
       "sort_order": 5
     }
   ]
@@ -305,6 +313,7 @@ Tất cả yêu cầu `auth:api` + permission `kpi-rating-levels.*`.
 | `details.*.min_score` | required, numeric, min:0, max:100 |
 | `details.*.operator` | sometimes, string, in: `>=`, `<` |
 | `details.*.requires_reason` | sometimes, boolean |
+| `details.*.warn_staff_shortage` | sometimes, boolean |
 | `details.*.sort_order` | sometimes, integer, min:0 |
 
 #### PATCH /v1/admin/kpi-rating-levels/{id} — Cập nhật
@@ -315,9 +324,9 @@ Partial update — chỉ gửi fields cần thay đổi. Nếu gửi `details`, 
 {
   "name": "Mức đánh giá 2026 (Updated)",
   "details": [
-    { "level_name": "Xuất sắc", "bg_color": "#006400", "text_color": "#FFFFFF", "min_score": 100, "operator": ">=", "requires_reason": false, "sort_order": 1 },
-    { "level_name": "Đạt",      "bg_color": "#228B22", "text_color": "#FFFFFF", "min_score": 90,  "operator": ">=", "requires_reason": false, "sort_order": 2 },
-    { "level_name": "Chưa đạt", "bg_color": "#8B0000", "text_color": "#FFFFFF", "min_score": 90,  "operator": "<",  "requires_reason": true,  "sort_order": 3 }
+    { "level_name": "Xuất sắc", "bg_color": "#006400", "text_color": "#FFFFFF", "min_score": 100, "operator": ">=", "requires_reason": false, "warn_staff_shortage": false, "sort_order": 1 },
+    { "level_name": "Đạt",      "bg_color": "#228B22", "text_color": "#FFFFFF", "min_score": 90,  "operator": ">=", "requires_reason": false, "warn_staff_shortage": false, "sort_order": 2 },
+    { "level_name": "Chưa đạt", "bg_color": "#8B0000", "text_color": "#FFFFFF", "min_score": 90,  "operator": "<",  "requires_reason": true,  "warn_staff_shortage": true,  "sort_order": 3 }
   ]
 }
 ```
@@ -431,7 +440,8 @@ KpiRatingLevel/
 ├── Data/
 │   ├── Migrations/
 │   │   ├── 2026_03_25_000001_create_kpi_rating_levels_table.php
-│   │   └── 2026_03_25_000002_create_kpi_rating_level_details_table.php
+│   │   ├── 2026_03_25_000002_create_kpi_rating_level_details_table.php
+│   │   └── 2026_03_27_100000_add_warn_staff_shortage_to_kpi_rating_level_details.php
 │   └── Repositories/
 │       ├── KpiRatingLevelDetailRepository.php
 │       └── KpiRatingLevelRepository.php    ← fieldSearchable: name(like)

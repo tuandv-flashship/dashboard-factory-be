@@ -35,11 +35,12 @@ final class KpiRatingLevelSeeder_1 extends Seeder
         ]);
 
         $this->seedDetails($level2026->id, [
-            ['Xuất sắc',   '#006400', '#FFFFFF', 100, '>=', false, 1],
-            ['Đạt',        '#228B22', '#FFFFFF', 95,  '>=', false, 2],
-            ['Trung bình', '#DAA520', '#FFFFFF', 90,  '>=', true,  3],
-            ['Yếu',        '#8B4513', '#FFFFFF', 85,  '>=', true,  4],
-            ['Chưa đạt',   '#8B0000', '#FFFFFF', 85,  '<',  true,  5],
+            //                                                             requires_reason  warn_staff
+            ['Xuất sắc',   '#006400', '#FFFFFF', 100, '>=', false, false, 1],
+            ['Đạt',        '#228B22', '#FFFFFF', 95,  '>=', false, false, 2],
+            ['Trung bình', '#DAA520', '#FFFFFF', 90,  '>=', true,  true,  3],
+            ['Yếu',        '#8B4513', '#FFFFFF', 85,  '>=', true,  true,  4],
+            ['Chưa đạt',   '#8B0000', '#FFFFFF', 85,  '<',  true,  true,  5],
         ]);
 
         // ═══════════════════════════════════════════════════════
@@ -53,11 +54,11 @@ final class KpiRatingLevelSeeder_1 extends Seeder
         ]);
 
         $this->seedDetails($level2024->id, [
-            ['Xuất sắc',   '#006400', '#FFFFFF', 100, '>=', false, 1],
-            ['Đạt',        '#228B22', '#FFFFFF', 90,  '>=', false, 2],
-            ['Trung bình', '#DAA520', '#FFFFFF', 80,  '>=', true,  3],
-            ['Yếu',        '#8B4513', '#FFFFFF', 70,  '>=', true,  4],
-            ['Chưa đạt',   '#8B0000', '#FFFFFF', 70,  '<',  true,  5],
+            ['Xuất sắc',   '#006400', '#FFFFFF', 100, '>=', false, false, 1],
+            ['Đạt',        '#228B22', '#FFFFFF', 90,  '>=', false, false, 2],
+            ['Trung bình', '#DAA520', '#FFFFFF', 80,  '>=', true,  true,  3],
+            ['Yếu',        '#8B4513', '#FFFFFF', 70,  '>=', true,  true,  4],
+            ['Chưa đạt',   '#8B0000', '#FFFFFF', 70,  '<',  true,  true,  5],
         ]);
 
         // ═══════════════════════════════════════════════════════
@@ -71,11 +72,11 @@ final class KpiRatingLevelSeeder_1 extends Seeder
         ]);
 
         $this->seedDetails($level2021->id, [
-            ['Xuất sắc',   '#006400', '#FFFFFF', 95, '>=', false, 1],
-            ['Đạt',        '#228B22', '#FFFFFF', 90, '>=', false, 2],
-            ['Trung bình', '#DAA520', '#FFFFFF', 85, '>=', true,  3],
-            ['Yếu',        '#8B4513', '#FFFFFF', 80, '>=', true,  4],
-            ['Chưa đạt',   '#8B0000', '#FFFFFF', 80, '<',  true,  5],
+            ['Xuất sắc',   '#006400', '#FFFFFF', 95, '>=', false, false, 1],
+            ['Đạt',        '#228B22', '#FFFFFF', 90, '>=', false, false, 2],
+            ['Trung bình', '#DAA520', '#FFFFFF', 85, '>=', true,  true,  3],
+            ['Yếu',        '#8B4513', '#FFFFFF', 80, '>=', true,  true,  4],
+            ['Chưa đạt',   '#8B0000', '#FFFFFF', 80, '<',  true,  true,  5],
         ]);
     }
 
@@ -83,20 +84,21 @@ final class KpiRatingLevelSeeder_1 extends Seeder
      * Seed detail rows for a rating level.
      *
      * @param int   $ratingLevelId
-     * @param array $rows  Each: [level_name, bg_color, text_color, min_score, operator, requires_reason, sort_order]
+     * @param array $rows  Each: [level_name, bg_color, text_color, min_score, operator, requires_reason, warn_staff_shortage, sort_order]
      */
     private function seedDetails(int $ratingLevelId, array $rows): void
     {
-        foreach ($rows as [$levelName, $bgColor, $textColor, $minScore, $operator, $requiresReason, $sortOrder]) {
+        foreach ($rows as [$levelName, $bgColor, $textColor, $minScore, $operator, $requiresReason, $warnStaffShortage, $sortOrder]) {
             KpiRatingLevelDetail::create([
-                'rating_level_id' => $ratingLevelId,
-                'level_name'      => $levelName,
-                'bg_color'        => $bgColor,
-                'text_color'      => $textColor,
-                'min_score'       => $minScore,
-                'operator'        => $operator,
-                'requires_reason' => $requiresReason,
-                'sort_order'      => $sortOrder,
+                'rating_level_id'    => $ratingLevelId,
+                'level_name'         => $levelName,
+                'bg_color'           => $bgColor,
+                'text_color'         => $textColor,
+                'min_score'          => $minScore,
+                'operator'           => $operator,
+                'requires_reason'    => $requiresReason,
+                'warn_staff_shortage'=> $warnStaffShortage,
+                'sort_order'         => $sortOrder,
             ]);
         }
     }

@@ -22,7 +22,8 @@ final class CreateKpiRatingLevelRequest extends ParentRequest
             'details.*.text_color'      => ['required', 'string', 'max:20'],
             'details.*.min_score'       => ['required', 'numeric', 'min:0', 'max:100'],
             'details.*.operator'        => ['sometimes', 'string', 'in:>=,<'],
-            'details.*.requires_reason' => ['sometimes', 'boolean'],
+            'details.*.requires_reason'      => ['sometimes', 'boolean'],
+            'details.*.warn_staff_shortage'  => ['sometimes', 'boolean'],
             'details.*.sort_order'      => ['sometimes', 'integer', 'min:0'],
         ];
     }
