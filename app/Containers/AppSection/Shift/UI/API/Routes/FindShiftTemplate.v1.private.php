@@ -11,5 +11,6 @@ use App\Containers\AppSection\Shift\UI\API\Controllers\FindShiftTemplateControll
 use Illuminate\Support\Facades\Route;
 
 Route::get('admin/shift-templates/{id}', FindShiftTemplateController::class)
+    ->where('id', '[0-9]+')
     ->middleware(['auth:api'])
     ->name('api_shift_template_find');

@@ -8,7 +8,7 @@ use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
 
 final class ProductionLineTransformer extends ParentTransformer
 {
-    protected array $defaultIncludes = ['departments'];
+    protected array $availableIncludes = ['departments'];
 
     public function transform(ProductionLine $line): array
     {
