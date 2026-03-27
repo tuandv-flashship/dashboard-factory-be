@@ -16,7 +16,7 @@ Department/
 │   └── Factory.php                # FLS | PD
 ├── Data/
 │   ├── Repositories/              # DepartmentRepository (searchable)
-│   └── Migrations/                # create_departments, merge_pick
+│   └── Migrations/                # create_departments, merge_pick, add_description
 ├── Actions/                       # CRUD + Reorder (6 actions)
 ├── Tasks/                         # CRUD + FindByLineId (6 tasks)
 ├── Configs/table-models.php       # Auto-discovered by Table container
@@ -45,3 +45,20 @@ Department/
 | PATCH  | `/v1/admin/departments/{id}` | Update |
 | DELETE | `/v1/admin/departments/{id}` | Delete |
 | PATCH  | `/v1/admin/departments/reorder` | Reorder |
+
+## Create Department Payload
+
+FE gửi payload theo mockup "Thêm mới bộ phận". `code` được tự động sinh từ `Str::slug(name)`.
+
+| Field | Type | Required | Mô tả |
+|---|---|---|---|
+| name | string(50) | ✅ | Tên bộ phận → stored as `label` |
+| factory | enum | ✅ | FLS / PD (Xưởng) |
+| group | int | ✅ | FK → production_lines.id (Nhóm) |
+| description | string(255) | ❌ | Mô tả, nullable |
+| kpi_per_hour | int | ❌ | Năng suất 1h, default 0 |
+| unit | enum | ❌ | file / shirt / print (Đơn vị tính) |
+| sort_order | int | ❌ | Thứ tự sắp xếp, default 0 |
+| can_increase_productivity | bool | ❌ | Default true |
+
+**Auto-defaults:** `code`=slug(name), `label_en`=name, `icon`=Layers, `is_active`=true
