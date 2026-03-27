@@ -67,8 +67,9 @@ final class ShiftTemplateDetail extends ParentModel
             }
 
             $totalMinutes = (int) ($this->work_hours * 60) + ($this->meal_break_minutes ?? 0);
+            $format = substr_count($this->start_time, ':') === 2 ? 'H:i:s' : 'H:i';
 
-            return Carbon::createFromFormat('H:i:s', $this->start_time)
+            return Carbon::createFromFormat($format, $this->start_time)
                 ->addMinutes($totalMinutes)
                 ->format('H:i');
         });
