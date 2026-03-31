@@ -276,13 +276,86 @@ GET /v1/admin/kpi-rating-levels/{id}
 
 Tất cả yêu cầu `auth:api` + permission `kpi-rating-levels.*`.
 
-| Method | Endpoint                           | Permission                  | Mô tả                                                                    |
-| ------ | ---------------------------------- | --------------------------- | ------------------------------------------------------------------------ |
-| GET    | `/v1/admin/kpi-rating-levels`      | `kpi-rating-levels.index`   | Danh sách (paginated, searchable, default sort by `effective_from desc`) |
-| GET    | `/v1/admin/kpi-rating-levels/{id}` | `kpi-rating-levels.index`   | Chi tiết 1 record (kèm details)                                          |
-| POST   | `/v1/admin/kpi-rating-levels`      | `kpi-rating-levels.create`  | Tạo mới (parent + details)                                               |
-| PATCH  | `/v1/admin/kpi-rating-levels/{id}` | `kpi-rating-levels.edit`    | Cập nhật (parent + sync details)                                         |
-| DELETE | `/v1/admin/kpi-rating-levels/{id}` | `kpi-rating-levels.destroy` | Xóa (cascade xóa details)                                                |
+| Method | Endpoint                                | Permission                  | Mô tả                                                                    |
+| ------ | --------------------------------------- | --------------------------- | ------------------------------------------------------------------------ |
+| GET    | `/v1/admin/kpi-rating-levels`           | `kpi-rating-levels.index`   | Danh sách (paginated, searchable, default sort by `effective_from desc`) |
+| GET    | `/v1/admin/kpi-rating-levels/default`   | `kpi-rating-levels.store`   | Lấy mức đánh giá mặc định (dùng khi tạo mới)                            |
+| GET    | `/v1/admin/kpi-rating-levels/{id}`      | `kpi-rating-levels.index`   | Chi tiết 1 record (kèm details)                                          |
+| POST   | `/v1/admin/kpi-rating-levels`           | `kpi-rating-levels.create`  | Tạo mới (parent + details)                                               |
+| PATCH  | `/v1/admin/kpi-rating-levels/{id}`      | `kpi-rating-levels.edit`    | Cập nhật (parent + sync details)                                         |
+| DELETE | `/v1/admin/kpi-rating-levels/{id}`      | `kpi-rating-levels.destroy` | Xóa (cascade xóa details)                                                |
+
+#### GET /v1/admin/kpi-rating-levels/default — Lấy mức mặc định
+
+Trả về các cấp đánh giá mặc định khởi tạo ban đầu từ config `appSection-kpiRatingLevel.default`. Dùng để FE pre-fill form khi user tạo mới 1 mức đánh giá.
+
+**Permission:** `kpi-rating-levels.store`
+
+**Response:**
+
+```json
+{
+    "data": {
+        "name": "Mặc định",
+        "details": [
+            {
+                "level_name": "Xuất sắc",
+                "bg_color": "#006400",
+                "text_color": "#FFFFFF",
+                "min_score": 100,
+                "operator": ">=",
+                "is_kpi_threshold": false,
+                "is_staff_warning_threshold": false,
+                "sort_order": 1
+            },
+            {
+                "level_name": "Đạt",
+                "bg_color": "#228B22",
+                "text_color": "#FFFFFF",
+                "min_score": 95,
+                "operator": ">=",
+                "is_kpi_threshold": true,
+                "is_staff_warning_threshold": false,
+                "sort_order": 2
+            },
+            {
+                "level_name": "Trung bình",
+                "bg_color": "#DAA520",
+                "text_color": "#FFFFFF",
+                "min_score": 90,
+                "operator": ">=",
+                "is_kpi_threshold": false,
+                "is_staff_warning_threshold": true,
+                "sort_order": 3
+            },
+            {
+                "level_name": "Yếu",
+                "bg_color": "#8B4513",
+                "text_color": "#FFFFFF",
+                "min_score": 85,
+                "operator": ">=",
+                "is_kpi_threshold": false,
+                "is_staff_warning_threshold": false,
+                "sort_order": 4
+            },
+            {
+                "level_name": "Chưa đạt",
+                "bg_color": "#8B0000",
+                "text_color": "#FFFFFF",
+                "min_score": 85,
+                "operator": "<",
+                "is_kpi_threshold": false,
+                "is_staff_warning_threshold": false,
+                "sort_order": 5
+            }
+        ]
+    }
+}
+```
+
+> 💡 **Use case:** FE gọi endpoint này khi mở form "Tạo mới mức đánh giá" để pre-fill bảng cấp độ với dữ liệu mặc định 5 cấp.
+
+---
 
 #### POST /v1/admin/kpi-rating-levels — Tạo mới
 
@@ -485,6 +558,15 @@ UpdateKpiRatingLevelRequest (validate, fields optional)
     → KpiRatingLevelTransformer
 ```
 
+### Flow lấy mức mặc định (Default)
+
+```
+GetDefaultKpiRatingLevelRequest (auth:api, kpi-rating-levels.store)
+  → GetDefaultKpiRatingLevelController
+    → GetDefaultKpiRatingLevelAction
+      → config('appSection-kpiRatingLevel.default') → raw JSON
+```
+
 ### Flow lấy mức active (Public)
 
 ```
@@ -518,7 +600,17 @@ Hiển thị bảng:
 - `status`: `pending` → badge "Chưa áp dụng", `active` → "Đang áp dụng", `expired` → "Hết hiệu lực"
 - `effective_until = null` → hiển thị "—" hoặc "Vô thời hạn"
 
-### 2. Form thêm/sửa (Create/Edit)
+### 2. Lấy mức mặc định cho form tạo mới
+
+```
+GET /v1/admin/kpi-rating-levels/default
+```
+
+- Cần auth (`Bearer token`) + permission `kpi-rating-levels.store`
+- Trả về 5 cấp đánh giá mặc định từ config
+- FE gọi khi mở form "Tạo mới" để pre-fill bảng cấp độ
+
+### 3. Form thêm/sửa (Create/Edit)
 
 **Header:**
 - Text → `name` (required)
@@ -553,11 +645,11 @@ Hiển thị bảng:
 | Ngưỡng cảnh báo | `is_staff_warning_threshold` | boolean |
 | Thứ tự | `sort_order` | integer |
 
-### 3. Sync Strategy
+### 4. Sync Strategy
 
 > ⚠️ Khi submit form có `details`, FE **phải gửi toàn bộ** details array. Server xóa hết details cũ và tạo lại từ array mới.
 
-### 4. Public API — Mức đánh giá hiện hành
+### 5. Public API — Mức đánh giá hiện hành
 
 ```
 GET /v1/kpi-rating-levels/active
@@ -578,6 +670,7 @@ KpiRatingLevel/
 │   ├── DeleteKpiRatingLevelAction.php      ← Find then delete (cascade)
 │   ├── FindKpiRatingLevelAction.php
 │   ├── GetActiveKpiRatingLevelAction.php   ← Public API
+│   ├── GetDefaultKpiRatingLevelAction.php  ← Trả về config default (cho form tạo mới)
 │   ├── ListKpiRatingLevelsAction.php
 │   └── UpdateKpiRatingLevelAction.php      ← DB transaction: update parent + sync details
 ├── Configs/
@@ -610,24 +703,27 @@ KpiRatingLevel/
     │   ├── CreateKpiRatingLevelController.php
     │   ├── DeleteKpiRatingLevelController.php
     │   ├── FindKpiRatingLevelController.php
-    │   ├── GetActiveKpiRatingLevelController.php   ← Public endpoint
+    │   ├── GetActiveKpiRatingLevelController.php    ← Public endpoint
+    │   ├── GetDefaultKpiRatingLevelController.php   ← Trả về config default
     │   ├── ListKpiRatingLevelsController.php
     │   └── UpdateKpiRatingLevelController.php
     ├── Requests/
-    │   ├── CreateKpiRatingLevelRequest.php          ← Nested details validation
+    │   ├── CreateKpiRatingLevelRequest.php           ← Nested details validation
     │   ├── DeleteKpiRatingLevelRequest.php
     │   ├── FindKpiRatingLevelRequest.php
-    │   ├── GetActiveKpiRatingLevelRequest.php       ← No auth (public)
+    │   ├── GetActiveKpiRatingLevelRequest.php        ← No auth (public)
+    │   ├── GetDefaultKpiRatingLevelRequest.php       ← kpi-rating-levels.store
     │   ├── ListKpiRatingLevelsRequest.php
-    │   └── UpdateKpiRatingLevelRequest.php          ← Partial update support
+    │   └── UpdateKpiRatingLevelRequest.php           ← Partial update support
     ├── Routes/
     │   ├── CreateKpiRatingLevel.v1.private.php
     │   ├── DeleteKpiRatingLevel.v1.private.php
     │   ├── FindKpiRatingLevel.v1.private.php
-    │   ├── GetActiveKpiRatingLevel.v1.public.php    ← Public route
+    │   ├── GetActiveKpiRatingLevel.v1.public.php     ← Public route
+    │   ├── GetDefaultKpiRatingLevel.v1.private.php   ← Admin route (default values)
     │   ├── ListKpiRatingLevels.v1.private.php
     │   └── UpdateKpiRatingLevel.v1.private.php
     └── Transformers/
         ├── KpiRatingLevelDetailTransformer.php
-        └── KpiRatingLevelTransformer.php            ← defaultIncludes details
+        └── KpiRatingLevelTransformer.php             ← defaultIncludes details
 ```
