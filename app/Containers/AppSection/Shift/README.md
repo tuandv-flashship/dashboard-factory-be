@@ -552,30 +552,98 @@ Response bao gồm shift header + details (with department info) + hourly_record
 
 #### POST /v1/admin/shifts — Tạo ca từ template
 
-**Request body:**
+Server tự động:
+1. Tạo bản ghi `shifts`
+2. Copy `shift_template_details` → `shift_details` (**chỉ đúng `shift_number`**, filter theo ca được chọn)
+3. Nếu FE gửi kèm `details[]` override → **merge** trước khi lưu
+4. Generate `hourly_records` (`target = department.kpi_per_hour × headcount`)
+
+**Request body — Tối giản (không override):**
 ```json
 {
   "date": "2026-03-20",
-  "shift_template_id": 1,
+  "shift_template_id": "tpl_hashed_001",
   "shift_numbers": [1],
   "supervisor": "Nguyễn Văn Minh"
 }
 ```
 
-**Validation:**
+**Request body — Có override details (những cell màu trắng trong mockup):**
+```json
+{
+  "date": "2026-03-20",
+  "shift_template_id": "tpl_hashed_001",
+  "shift_numbers": [1],
+  "supervisor": "Nguyễn Văn Minh",
+  "details": [
+    {
+      "department_id": 5,
+      "shift_number": 1,
+      "start_time": "06:00",
+      "work_hours": 8,
+      "prep_minutes": 0,
+      "break1_start": "08:30",
+      "break1_minutes": 15,
+      "meal_break_start": "11:00",
+      "meal_break_minutes": 30,
+      "break2_start": "13:30",
+      "break2_minutes": 15,
+      "break3_start": "16:00",
+      "break3_minutes": 15
+    },
+    {
+      "department_id": 6,
+      "shift_number": 1,
+      "start_time": "06:30",
+      "work_hours": 8,
+      "prep_minutes": 23,
+      "break1_start": "09:00",
+      "break1_minutes": 15,
+      "meal_break_start": "11:30",
+      "meal_break_minutes": 30,
+      "break2_start": "14:00",
+      "break2_minutes": 15,
+      "break3_start": "16:30",
+      "break3_minutes": 15
+    }
+  ]
+}
+```
+
+**Validation rules:**
 
 | Field | Rules |
 |---|---|
 | `date` | required, date |
-| `shift_template_id` | required, integer, exists:shift_templates,id |
+| `shift_template_id` | required, hashed ID, exists:shift_templates |
 | `shift_numbers` | required, array, min:1 |
 | `shift_numbers.*` | required, integer, in:1,2 |
 | `supervisor` | nullable, string, max:100 |
+| `details` | **sometimes**, array |
+| `details[].department_id` | required\_with:details, integer, exists:departments,id |
+| `details[].shift_number` | required\_with:details, integer, in:1,2 |
+| ~~`details[].headcount`~~ | **Read-only** — luôn copy từ template, FE không gửi |
+| `details[].start_time` | required\_with:details, **date\_format:H:i** VD: `"06:30"` |
+| `details[].work_hours` | required\_with:details, numeric, min:0, max:24 |
+| `details[].prep_minutes` | sometimes, integer, min:0 |
+| `details[].break1_start` | nullable, date\_format:H:i |
+| `details[].break1_minutes` | sometimes, integer, min:0 |
+| `details[].meal_break_start` | nullable, date\_format:H:i |
+| `details[].meal_break_minutes` | sometimes, integer, min:0 |
+| `details[].break2_start` | nullable, date\_format:H:i |
+| `details[].break2_minutes` | sometimes, integer, min:0 |
+| `details[].break3_start` | nullable, date\_format:H:i |
+| `details[].break3_minutes` | sometimes, integer, min:0 |
 
-Server tự động:
-1. Tạo `shifts` record
-2. Copy `shift_template_details` → `shift_details`
-3. Generate `hourly_records` (`target = department.kpi_per_hour × staff`)
+**Logic `details[]` override:**
+
+| Tình huống | Hành vi |
+|---|---|
+| FE **không gửi** `details` | Copy nguyên 100% từ template (headcount, giờ giấc...) |
+| FE **gửi kèm** `details` | Merge: field nào có trong `details` → dùng giá trị FE; field nào thiếu → lấy từ template |
+| `details[]` item không khớp department nào trong template | Bỏ qua (continue) |
+
+> ⚠️ **Lưu ý:** `shift_template_id` là hashed ID. `end_time` server tự tính = `start_time + work_hours + meal_break_minutes`. `shift_numbers: [1, 2]` tạo 2 Shift record riêng biệt.
 
 **Response:** `201 Created`
 
@@ -825,7 +893,7 @@ Route → Request ($decode, rules(), authorize())
           → Model (endTime accessor, details() HasMany)
 ```
 
-### Flow tạo mới (Create)
+### Flow tạo mới Shift Template (Create)
 
 ```
 CreateShiftTemplateRequest (validate header + details[])
@@ -834,6 +902,23 @@ CreateShiftTemplateRequest (validate header + details[])
       ├── CreateShiftTemplateTask (create header)
       └── SyncShiftTemplateDetailsTask (create details[])
     → ShiftTemplateTransformer (defaultIncludes details)
+```
+
+### Flow tạo mới Shift (Create Shift from Template)
+
+```
+CreateShiftRequest (validate header + optional details[] override)
+  → CreateShiftController
+    → CreateShiftAction (DB::transaction)
+      ├── Foreach shift_numbers
+      │   ├── Tính start_time/end_time header từ template (có merge override)
+      │   ├── Shift::create() → shifts record
+      │   ├── CreateShiftFromTemplateTask.run($shift, $templateId, $overrides)
+      │   │     ├── Lọc template_details theo shift_number
+      │   │     └── Merge override (department_id|shift_number key) trước khi ShiftDetail::create()
+      │   └── GenerateHourlyRecordsTask.run($shift)
+      └── Return $lastShift->load([details, template, hourlyRecords])
+    → ShiftTransformer (defaultIncludes: details; available: hourlyRecords)
 ```
 
 ### Flow cập nhật (Update)

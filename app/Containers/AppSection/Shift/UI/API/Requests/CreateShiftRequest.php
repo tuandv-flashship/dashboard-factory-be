@@ -16,6 +16,24 @@ final class CreateShiftRequest extends ParentRequest
             'shift_numbers'     => 'required|array|min:1',
             'shift_numbers.*'   => 'required|integer|in:1,2',
             'supervisor'        => 'nullable|string|max:100',
+
+            // Optional: FE có thể gửi kèm details đã chỉnh sửa (những cell trắng trong mockup).
+            // Nếu không gửi → copy nguyên từ template.
+            'details'                      => 'sometimes|array',
+            'details.*.department_id'      => 'required_with:details|integer|exists:departments,id',
+            'details.*.shift_number'       => 'required_with:details|integer|in:1,2',
+            // headcount: KHÔNG cho FE override — luôn lấy từ template (cell màu vàng, read-only trên UI)
+            'details.*.start_time'         => 'required_with:details|date_format:H:i',
+            'details.*.work_hours'         => 'required_with:details|numeric|min:0|max:24',
+            'details.*.prep_minutes'       => 'sometimes|integer|min:0',
+            'details.*.break1_start'       => 'nullable|date_format:H:i',
+            'details.*.break1_minutes'     => 'sometimes|integer|min:0',
+            'details.*.meal_break_start'   => 'nullable|date_format:H:i',
+            'details.*.meal_break_minutes' => 'sometimes|integer|min:0',
+            'details.*.break2_start'       => 'nullable|date_format:H:i',
+            'details.*.break2_minutes'     => 'sometimes|integer|min:0',
+            'details.*.break3_start'       => 'nullable|date_format:H:i',
+            'details.*.break3_minutes'     => 'sometimes|integer|min:0',
         ];
     }
 
