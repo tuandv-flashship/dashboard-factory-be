@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\UI\API\Controllers;
 
+use Apiato\Support\Facades\Response;
 use App\Containers\AppSection\Shift\Actions\CreateShiftAction;
 use App\Containers\AppSection\Shift\UI\API\Requests\CreateShiftRequest;
 use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftTransformer;
@@ -14,6 +15,6 @@ final class CreateShiftController extends ApiController
     {
         $shift = app(CreateShiftAction::class)->run($request->validated());
 
-        return $this->created($this->transform($shift, ShiftTransformer::class));
+        return Response::create($shift, ShiftTransformer::class)->created();
     }
 }
