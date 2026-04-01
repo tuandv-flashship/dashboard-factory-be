@@ -122,7 +122,7 @@ ShiftTemplate (parent — ca chuẩn)
 
 ### `shift_details` — Config từng department cho 1 ca cụ thể
 
-Cùng structure với `shift_template_details` nhưng FK vào `shifts`.
+Cùng structure với `shift_template_details` nhưng FK vào `shifts`, bổ sung thêm 2 trường snapshot.
 
 | Column | Type | Nullable | Default | Mô tả |
 |---|---|---|---|---|
@@ -131,10 +131,14 @@ Cùng structure với `shift_template_details` nhưng FK vào `shifts`.
 | department_id | FK → departments | ❌ | | Cascade on delete |
 | shift_number | tinyint | ❌ | | 1 = Ca 1, 2 = Ca 2 |
 | headcount | smallint | ❌ | `0` | Số nhân sự |
+| **kpi_per_hour** | **unsignedInt** | ✅ | `null` | **Snapshot năng suất 1h từ `departments.kpi_per_hour` tại thời điểm tạo ca** |
+| **day_start_inventory** | **unsignedInt** | ❌ | `0` | **Tồn đầu ngày — FE gửi kèm khi tạo ca, mặc định 0** |
 | start_time | time | ❌ | | Giờ bắt đầu |
 | work_hours | decimal(4,1) | ❌ | | Số giờ làm |
 | prep_minutes | smallint | ❌ | `0` | Phút chuẩn bị |
 | break1_start..break3_minutes | | | | (giống shift_template_details) |
+
+> 💡 **Snapshot logic:** `kpi_per_hour` được copy từ `departments.kpi_per_hour` lúc `CreateShiftFromTemplateTask` chạy — giữ nguyên lịch sử dù department KPI thay đổi sau.
 
 **Virtual field:** `end_time` = `start_time + work_hours + meal_break_minutes`
 
@@ -228,6 +232,7 @@ Response dùng **cùng format** với Find Shift Template details — FE render 
 |---|---|---|
 | `id` | `null` | hashed ID |
 | `headcount` | `0` | giá trị thực |
+| `kpi_per_hour` | từ `departments` | từ `departments` |
 | Schedule | Từ config mặc định | Từ DB |
 
 **Response:**
@@ -241,6 +246,7 @@ Response dùng **cùng format** với Find Shift Template details — FE render 
       "department_label": "Pick DTF1",
       "production_line": "Pick",
       "production_line_code": "pick",
+      "kpi_per_hour": 48,
       "shift_number": 1,
       "headcount": 0,
       "start_time": "06:00",
@@ -260,7 +266,7 @@ Response dùng **cùng format** với Find Shift Template details — FE render 
 }
 ```
 
-> 💡 **FE:** Dùng `production_line_code` + `shift_number` để group thành bảng theo mockup. Details sorted sẵn theo `production_line → shift_number → department`.
+> 💡 **FE:** Dùng `production_line_code` + `shift_number` để group thành bảng theo mockup. Details sorted sẵn theo `production_line → shift_number → department`. `kpi_per_hour` dùng để hiển thị năng suất tham chiếu.
 
 ---
 
@@ -504,7 +510,7 @@ Response bao gồm shift header + details (with department info) + hourly_record
 {
   "data": {
     "id": "HASHED_ID",
-    "date": "2026-03-20",
+    "date": "2026-04-01",
     "shift_number": 1,
     "start_time": "06:00",
     "end_time": "14:00",
@@ -517,12 +523,14 @@ Response bao gồm shift header + details (with department info) + hourly_record
       "data": [
         {
           "id": "HASHED_ID",
-          "department_code": "print",
-          "department_label": "In ấn",
+          "department_code": "dtf1-print",
+          "department_label": "In DTF1",
           "line_code": "dtf1",
           "line_label": "DTF 1",
           "shift_number": 1,
           "headcount": 8,
+          "kpi_per_hour": 48,
+          "day_start_inventory": 150,
           "start_time": "06:30",
           "end_time": "15:00",
           "work_hours": 8,
@@ -534,19 +542,24 @@ Response bao gồm shift header + details (with department info) + hourly_record
       "data": [
         {
           "id": "HASHED_ID",
-          "department_code": "print",
+          "department_code": "dtf1-print",
           "hour_slot": "6h-7h",
           "hour_index": 0,
           "staff": 8,
-          "target": 390,
+          "hour_start_inventory": 0,
+          "target": 384,
           "actual": null,
-          "remaining": null
+          "remaining": null,
+          "efficiency": 0,
+          "error_rate": 0
         }
       ]
     }
   }
 }
 ```
+
+> 💡 **Fields mới:** `details[].kpi_per_hour` (snapshot lúc tạo ca), `details[].day_start_inventory` (tồn đầu ngày), `hourlyRecords[].hour_start_inventory` (tồn đầu giờ).
 
 ---
 
@@ -555,23 +568,24 @@ Response bao gồm shift header + details (with department info) + hourly_record
 Server tự động:
 1. Tạo bản ghi `shifts`
 2. Copy `shift_template_details` → `shift_details` (**chỉ đúng `shift_number`**, filter theo ca được chọn)
-3. Nếu FE gửi kèm `details[]` override → **merge** trước khi lưu
-4. Generate `hourly_records` (`target = department.kpi_per_hour × headcount`)
+3. Snapshot `kpi_per_hour` từ department vào từng shift_detail
+4. Nếu FE gửi kèm `details[]` override → **merge** trước khi lưu (bao gồm `day_start_inventory`)
+5. Generate `hourly_records` (`target = kpi_per_hour × headcount`, `hour_start_inventory = 0`)
 
 **Request body — Tối giản (không override):**
 ```json
 {
-  "date": "2026-03-20",
+  "date": "2026-04-01",
   "shift_template_id": "tpl_hashed_001",
   "shift_numbers": [1],
   "supervisor": "Nguyễn Văn Minh"
 }
 ```
 
-**Request body — Có override details (những cell màu trắng trong mockup):**
+**Request body — Có override details (kèm tồn đầu ngày):**
 ```json
 {
-  "date": "2026-03-20",
+  "date": "2026-04-01",
   "shift_template_id": "tpl_hashed_001",
   "shift_numbers": [1],
   "supervisor": "Nguyễn Văn Minh",
@@ -579,6 +593,7 @@ Server tự động:
     {
       "department_id": 5,
       "shift_number": 1,
+      "day_start_inventory": 150,
       "start_time": "06:00",
       "work_hours": 8,
       "prep_minutes": 0,
@@ -594,6 +609,7 @@ Server tự động:
     {
       "department_id": 6,
       "shift_number": 1,
+      "day_start_inventory": 80,
       "start_time": "06:30",
       "work_hours": 8,
       "prep_minutes": 23,
@@ -623,6 +639,7 @@ Server tự động:
 | `details[].department_id` | required\_with:details, integer, exists:departments,id |
 | `details[].shift_number` | required\_with:details, integer, in:1,2 |
 | ~~`details[].headcount`~~ | **Read-only** — luôn copy từ template, FE không gửi |
+| **`details[].day_start_inventory`** | **sometimes, integer, min:0** — **Tồn đầu ngày. Mặc định `0`** |
 | `details[].start_time` | required\_with:details, **date\_format:H:i** VD: `"06:30"` |
 | `details[].work_hours` | required\_with:details, numeric, min:0, max:24 |
 | `details[].prep_minutes` | sometimes, integer, min:0 |
@@ -760,20 +777,23 @@ Response: danh sách hourly_records grouped theo department × hour:
   "data": [
     {
       "id": "HASHED_ID",
-      "department_code": "print",
-      "department_label": "In ấn",
+      "department_code": "dtf1-print",
+      "department_label": "In DTF1",
       "hour_slot": "6h-7h",
       "hour_index": 0,
       "staff": 8,
-      "target": 390,
+      "hour_start_inventory": 0,
+      "target": 384,
       "actual": 380,
-      "remaining": 10,
-      "efficiency": 97.4,
+      "remaining": 4,
+      "efficiency": 98.9,
       "error_rate": 1.2
     }
   ]
 }
 ```
+
+> 💡 **`hour_start_inventory`** — Tồn đầu giờ của khung giờ đó. Khởi tạo = `0` khi tạo ca, có thể cập nhật sau.
 
 ---
 
@@ -975,7 +995,10 @@ Shift/
 │   │   ├── 2026_03_25_100001_create_shift_templates_table.php
 │   │   ├── 2026_03_25_100002_create_shift_template_details_table.php
 │   │   ├── 2026_03_25_200001_create_shift_details_table.php
-│   │   └── 2026_03_25_200002_add_shift_template_id_to_shifts.php
+│   │   ├── 2026_03_25_200002_add_shift_template_id_to_shifts.php
+│   │   ├── 2026_04_01_131820_add_kpi_per_hour_to_shift_details.php
+│   │   ├── 2026_04_01_132241_add_day_start_inventory_to_shift_details.php
+│   │   └── (hourly_records: see Production container migrations)
 │   ├── Repositories/
 │   │   ├── ShiftDetailRepository.php
 │   │   ├── ShiftRepository.php             ← date(=), shift_number(=), is_active(=)

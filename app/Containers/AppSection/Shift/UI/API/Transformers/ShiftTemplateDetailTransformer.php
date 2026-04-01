@@ -17,6 +17,7 @@ final class ShiftTemplateDetailTransformer extends ParentTransformer
             'production_line'     => $detail->department?->productionLine?->label,
             'production_line_code'=> $detail->department?->productionLine?->code,
             'kpi_per_hour'        => $detail->department?->kpi_per_hour,
+            'day_start_inventory' => $detail->day_start_inventory ?? 0,
             'shift_number'        => $detail->shift_number,
             'headcount'           => $detail->headcount,
             'start_time'          => $detail->start_time ? substr($detail->start_time, 0, 5) : null,
