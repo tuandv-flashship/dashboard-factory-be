@@ -14,7 +14,7 @@ final class HourlyRecord extends ParentModel
 
     protected $fillable = [
         'shift_id', 'department_id', 'hour_slot', 'hour_index',
-        'target', 'actual', 'staff', 'efficiency', 'error_rate',
+        'target', 'actual', 'staff', 'hour_start_inventory', 'efficiency', 'error_rate',
     ];
 
     protected $casts = [
@@ -22,6 +22,7 @@ final class HourlyRecord extends ParentModel
         'target' => 'integer',
         'actual' => 'integer',
         'staff' => 'integer',
+        'hour_start_inventory' => 'integer',
         'efficiency' => 'float',
         'error_rate' => 'float',
     ];

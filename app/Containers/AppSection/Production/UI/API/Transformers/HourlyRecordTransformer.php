@@ -19,6 +19,7 @@ final class HourlyRecordTransformer extends ParentTransformer
             'actual' => $record->actual,
             'missed' => $record->actual !== null && $record->actual < $record->target,
             'staff' => $record->staff,
+            'hour_start_inventory' => $record->hour_start_inventory,
             'efficiency' => $record->efficiency,
             'error_rate' => $record->error_rate,
         ];

@@ -43,6 +43,7 @@ final class GenerateHourlyRecordsTask extends ParentTask
                     'hour_slot'     => $hourSlot,
                     'hour_index'    => $i,
                     'staff'         => $detail->headcount,
+                    'hour_start_inventory' => 0,
                     'target'        => (int) round($kpiPerHour * $detail->headcount),
                     'actual'        => null,
                     'efficiency'    => 0,

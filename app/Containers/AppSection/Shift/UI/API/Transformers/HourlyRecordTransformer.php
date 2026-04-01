@@ -22,6 +22,7 @@ final class HourlyRecordTransformer extends ParentTransformer
             'hour_slot'       => $record->hour_slot,
             'hour_index'      => $record->hour_index,
             'staff'           => $record->staff,
+            'hour_start_inventory' => $record->hour_start_inventory,
             'target'          => $record->target,
             'actual'          => $record->actual,
             'remaining'       => $record->actual !== null

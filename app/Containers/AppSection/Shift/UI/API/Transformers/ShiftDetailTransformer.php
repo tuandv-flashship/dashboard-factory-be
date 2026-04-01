@@ -26,6 +26,8 @@ final class ShiftDetailTransformer extends ParentTransformer
             'line_label'         => $line?->label,
             'shift_number'       => $detail->shift_number,
             'headcount'          => $detail->headcount,
+            'kpi_per_hour'       => $detail->kpi_per_hour,
+            'day_start_inventory'=> $detail->day_start_inventory,
             'start_time'         => $detail->start_time ? substr($detail->start_time, 0, 5) : null,
             'end_time'           => $detail->end_time,
             'work_hours'         => (float) $detail->work_hours,

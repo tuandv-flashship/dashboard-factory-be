@@ -20,7 +20,8 @@ final class CreateShiftFromTemplateTask extends ParentTask
 {
     public function run(Shift $shift, int $templateId, array $overrides = []): void
     {
-        $templateDetails = ShiftTemplateDetail::where('shift_template_id', $templateId)
+        $templateDetails = ShiftTemplateDetail::with('department')
+            ->where('shift_template_id', $templateId)
             ->where('shift_number', $shift->shift_number)
             ->get();
 
@@ -39,6 +40,10 @@ final class CreateShiftFromTemplateTask extends ParentTask
                 'shift_number'       => $td->shift_number,
                 // headcount: KHÔNG cho FE override — luôn copy từ template (cell màu vàng, read-only)
                 'headcount'          => $td->headcount,
+                // Snapshot năng suất 1h từ department tại thời điểm tạo ca
+                'kpi_per_hour'       => $td->department?->kpi_per_hour,
+                // Tồn đầu ngày — FE gửi kèm, mặc định 0
+                'day_start_inventory'=> $override['day_start_inventory'] ?? 0,
                 'start_time'         => $override['start_time']         ?? $td->start_time,
                 'work_hours'         => $override['work_hours']         ?? $td->work_hours,
                 'prep_minutes'       => $override['prep_minutes']       ?? $td->prep_minutes,

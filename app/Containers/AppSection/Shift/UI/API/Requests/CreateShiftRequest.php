@@ -34,6 +34,7 @@ final class CreateShiftRequest extends ParentRequest
             'details.*.break2_minutes'     => 'sometimes|integer|min:0',
             'details.*.break3_start'       => 'nullable|date_format:H:i',
             'details.*.break3_minutes'     => 'sometimes|integer|min:0',
+            'details.*.day_start_inventory'=> 'sometimes|integer|min:0',
         ];
     }
 
