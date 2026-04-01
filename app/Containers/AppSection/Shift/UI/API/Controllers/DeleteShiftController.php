@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\UI\API\Controllers;
 
+use Apiato\Support\Facades\Response;
 use App\Containers\AppSection\Shift\Actions\DeleteShiftAction;
 use App\Containers\AppSection\Shift\UI\API\Requests\DeleteShiftRequest;
 use App\Ship\Parents\Controllers\ApiController;
@@ -13,6 +14,6 @@ final class DeleteShiftController extends ApiController
     {
         app(DeleteShiftAction::class)->run($request->id);
 
-        return $this->noContent();
+        return Response::create()->noContent();
     }
 }

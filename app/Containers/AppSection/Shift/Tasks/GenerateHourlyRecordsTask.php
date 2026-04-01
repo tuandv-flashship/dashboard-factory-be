@@ -25,8 +25,14 @@ final class GenerateHourlyRecordsTask extends ParentTask
         $records = [];
         $now = now();
 
+        // Track hour_index per department globally across all time blocks.
+        // A department can have multiple ShiftDetail rows (e.g. morning + afternoon);
+        // hour_index must be unique per (shift_id, department_id) to satisfy the DB constraint.
+        $deptHourIndex = [];
+
         foreach ($shiftDetails as $detail) {
-            $dept = $departments->get($detail->department_id);
+            $deptId = $detail->department_id;
+            $dept = $departments->get($deptId);
             $kpiPerHour = $dept?->kpi_per_hour ?? 0;
 
             $hours = (int) floor($detail->work_hours);
@@ -37,19 +43,21 @@ final class GenerateHourlyRecordsTask extends ParentTask
                 $slotEnd = $slotStart->copy()->addHour();
                 $hourSlot = $slotStart->format('G') . 'h-' . $slotEnd->format('G') . 'h';
 
+                $deptHourIndex[$deptId] = ($deptHourIndex[$deptId] ?? -1) + 1;
+
                 $records[] = [
-                    'shift_id'      => $shift->id,
-                    'department_id' => $detail->department_id,
-                    'hour_slot'     => $hourSlot,
-                    'hour_index'    => $i,
-                    'staff'         => $detail->headcount,
+                    'shift_id'             => $shift->id,
+                    'department_id'        => $deptId,
+                    'hour_slot'            => $hourSlot,
+                    'hour_index'           => $deptHourIndex[$deptId],
+                    'staff'                => $detail->headcount,
                     'hour_start_inventory' => 0,
-                    'target'        => (int) round($kpiPerHour * $detail->headcount),
-                    'actual'        => null,
-                    'efficiency'    => 0,
-                    'error_rate'    => 0,
-                    'created_at'    => $now,
-                    'updated_at'    => $now,
+                    'target'               => (int) round($kpiPerHour * $detail->headcount),
+                    'actual'               => null,
+                    'efficiency'           => 0,
+                    'error_rate'           => 0,
+                    'created_at'           => $now,
+                    'updated_at'           => $now,
                 ];
             }
         }
