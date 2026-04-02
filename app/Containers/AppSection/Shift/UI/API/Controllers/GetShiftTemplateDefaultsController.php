@@ -31,9 +31,14 @@ final class GetShiftTemplateDefaultsController extends ApiController
         $details = collect();
 
         foreach (['ca1' => 1, 'ca2' => 2] as $caKey => $shiftNumber) {
-            foreach ($defaults[$caKey] ?? [] as $deptKey => $values) {
-                $dept = $departments->get($deptKey);
-                if (! $dept) {
+            $caDefaults = $defaults[$caKey] ?? [];
+            $fallback   = $caDefaults['_default'] ?? null;
+
+            foreach ($departments as $deptKey => $dept) {
+                // Use department-specific values if defined, else fall back to _default
+                $values = $caDefaults[$deptKey] ?? $fallback;
+
+                if (! $values) {
                     continue;
                 }
 
