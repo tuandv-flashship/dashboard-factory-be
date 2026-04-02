@@ -551,7 +551,8 @@ Response bao gồm shift header + details (with department info) + hourly_record
           "actual": null,
           "remaining": null,
           "efficiency": 0,
-          "error_rate": 0
+          "error_rate": 0,
+          "status": "pending"
         }
       ]
     }
@@ -559,7 +560,7 @@ Response bao gồm shift header + details (with department info) + hourly_record
 }
 ```
 
-> 💡 **Fields mới:** `details[].kpi_per_hour` (snapshot lúc tạo ca), `details[].day_start_inventory` (tồn đầu ngày), `hourlyRecords[].hour_start_inventory` (tồn đầu giờ).
+> 💡 **Fields mới:** `details[].kpi_per_hour` (snapshot lúc tạo ca), `details[].day_start_inventory` (tồn đầu ngày), `hourlyRecords[].hour_start_inventory` (tồn đầu giờ), `hourlyRecords[].status` (lifecycle — xem bảng bên dưới).
 
 ---
 
@@ -684,13 +685,19 @@ Server tự động:
 }
 ```
 
-> ⚠️ Khi gửi `details`, hourly_records cũng bị regenerate. FE gửi **toàn bộ** details.
+> ✅ **Smart Sync (v2):** Khi gửi `details`, hourly_records được **smart sync** — dữ liệu thực tế đã nhập (`actual`, `efficiency`, `error_rate`) được **giữ nguyên**. Chỉ `target`, `staff`, `hour_slot` được cập nhật.
+>
+> - Records thừa (do giảm `work_hours` hoặc gỡ department) → **soft-delete** (lưu lịch sử)
+> - Records mới (do tăng `work_hours` hoặc thêm department) → insert với `status=pending`
+> - Records đã soft-delete trước đó → **restore** nếu quay lại scope
+>
+> FE gửi **toàn bộ** details (không phải chỉ phần thay đổi).
 
 ---
 
 #### DELETE /v1/admin/shifts/{id} — Xóa ca
 
-> ⚠️ **Không cho xóa ca ngày cũ** (`date < today`). Cascade xóa shift_details + hourly_records.
+> ⚠️ **Không cho xóa ca ngày cũ** (`date < today`). Hourly records được **soft-delete** (giữ lịch sử), shift_details bị hard-delete (via FK cascade).
 
 **Response:** `204 No Content`
 
@@ -787,13 +794,35 @@ Response: danh sách hourly_records grouped theo department × hour:
       "actual": 380,
       "remaining": 4,
       "efficiency": 98.9,
-      "error_rate": 1.2
+      "error_rate": 1.2,
+      "status": "completed"
     }
   ]
 }
 ```
 
 > 💡 **`hour_start_inventory`** — Tồn đầu giờ của khung giờ đó. Khởi tạo = `0` khi tạo ca, có thể cập nhật sau.
+
+#### `status` Lifecycle — Hourly Records
+
+Mỗi `hourly_record` có trường `status` theo lifecycle:
+
+| Status | Ý nghĩa | FE behavior |
+|---|---|---|
+| `pending` | Giờ này chưa đến — skeleton record | Cell **disabled**, background nhạt, không cho nhập `actual` |
+| `active` | Giờ hiện tại — đang trong khung giờ làm việc | Cell **enabled**, highlight, cho phép nhập `actual` |
+| `completed` | Giờ đã qua — khung giờ kết thúc | Cell **read-only**, show data |
+
+**Lifecycle transitions (tự động bởi Job chạy mỗi giờ):**
+
+```
+pending → active     (khi giờ hiện tại >= start hour của slot)
+active  → completed  (khi giờ hiện tại >= end hour của slot)
+```
+
+> ⚠️ **FE không cần gọi API** để chuyển status — Job `ActivateHourlyRecordsJob` chạy tự động tại `:00` mỗi giờ. FE chỉ cần poll/refresh data định kỳ.
+
+> 💡 **Soft Delete:** Hourly records bị xóa khi update shift (giảm work_hours, gỡ department) sẽ **soft-delete** — vẫn truy vấn được lịch sử nếu cần.
 
 ---
 
@@ -941,7 +970,7 @@ CreateShiftRequest (validate header + optional details[] override)
     → ShiftTransformer (defaultIncludes: details; available: hourlyRecords)
 ```
 
-### Flow cập nhật (Update)
+### Flow cập nhật Shift Template (Update)
 
 ```
 UpdateShiftTemplateRequest (partial + optional details)
@@ -951,6 +980,42 @@ UpdateShiftTemplateRequest (partial + optional details)
       ├── UpdateShiftTemplateTask (update header fields)
       └── SyncShiftTemplateDetailsTask (delete old + create new)
     → ShiftTemplateTransformer
+```
+
+### Flow cập nhật Shift (Update — Smart Sync)
+
+```
+UpdateShiftRequest (partial + optional details)
+  → UpdateShiftController
+    → UpdateShiftAction (DB::transaction)
+      ├── Update header fields (supervisor, is_active)
+      └── If details provided:
+          ├── SyncShiftDetailsTask (upsert on unique key, prune stale)
+          └── SyncHourlyRecordsTask
+              ├── Snapshot existing records (incl. soft-deleted)
+              ├── Compute new record set from updated shift_details
+              ├── Soft-delete stale records (preserve actual data)
+              └── Upsert (insert new, update existing, restore soft-deleted)
+    → ShiftTransformer
+```
+
+### Flow xóa Shift (Delete — Soft Delete hourly)
+
+```
+DeleteShiftRequest (validate date >= today)
+  → DeleteShiftController
+    → DeleteShiftAction (DB::transaction)
+      ├── HourlyRecord::where(shift_id)->delete()  ← Soft-delete (preserve history)
+      └── $shift->delete()  ← Hard-delete (FK cascade → shift_details)
+```
+
+### Scheduled Job — Hourly Record Activation
+
+```
+ActivateHourlyRecordsJob (runs every hour at :00)
+  ├── Get active shifts for today
+  ├── Complete: active → completed (slot end hour <= current hour)
+  └── Activate: pending → active (slot start hour <= current hour)
 ```
 
 ### Flow copy
@@ -1014,19 +1079,24 @@ Shift/
 │   ├── ShiftDetail.php                     ← endTime accessor, per-day config
 │   ├── ShiftTemplate.php
 │   └── ShiftTemplateDetail.php
+├── Jobs/
+│   └── ActivateHourlyRecordsJob.php       ← [NEW] Hourly cron: pending→active→completed
+├── Providers/
+│   └── ShiftServiceProvider.php           ← [NEW] Register hourly scheduler
 ├── Tasks/
-│   ├── CopyShiftToDatesTask.php            ← Clone shift+details+hourly
+│   ├── CopyShiftToDatesTask.php            ← Clone shift+details+hourly (bulk insert)
 │   ├── CopyShiftTemplateTask.php
-│   ├── CreateShiftFromTemplateTask.php     ← Copy template details → shift_details
+│   ├── CreateShiftFromTemplateTask.php     ← Copy template → shift_details (bulk insert)
 │   ├── CreateShiftTemplateTask.php
 │   ├── DeleteShiftTemplateTask.php
 │   ├── FindShiftTemplateByIdTask.php
-│   ├── GenerateHourlyRecordsTask.php       ← Auto-gen hourly (target=kpi×staff)
+│   ├── GenerateHourlyRecordsTask.php       ← Auto-gen hourly (target=kpi×staff, status=pending)
 │   ├── ListShiftTemplatesTask.php
 │   ├── ListShiftsForMonthTask.php
-│   ├── SyncShiftDetailsTask.php
+│   ├── SyncHourlyRecordsTask.php           ← [NEW] Smart sync: preserve actual, soft-delete stale
+│   ├── SyncShiftDetailsTask.php            ← Upsert on unique key (not drop+recreate)
 │   ├── SyncShiftTemplateDetailsTask.php
-│   ├── UpdateHourlyStaffTask.php           ← Recalc target = kpi_per_hour × staff
+│   ├── UpdateHourlyStaffTask.php           ← Recalc target = kpi_per_hour × staff (optimized)
 │   └── UpdateShiftTemplateTask.php
 └── UI/API/
     ├── Controllers/

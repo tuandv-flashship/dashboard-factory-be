@@ -14,11 +14,20 @@ final class UpdateHourlyStaffTask extends ParentTask
 {
     public function run(array $records): void
     {
-        // Pre-load departments for KPI lookup
-        $departments = Department::all()->keyBy('id');
+        // Collect all record IDs upfront, then load departments in one query
+        $hourlyRecords = HourlyRecord::findMany(
+            collect($records)->pluck('id')->toArray()
+        );
+
+        $deptIds = $hourlyRecords->pluck('department_id')->unique();
+        $departments = Department::whereIn('id', $deptIds)->get()->keyBy('id');
 
         foreach ($records as $record) {
-            $hourlyRecord = HourlyRecord::findOrFail($record['id']);
+            $hourlyRecord = $hourlyRecords->find($record['id']);
+            if (!$hourlyRecord) {
+                continue;
+            }
+
             $dept = $departments->get($hourlyRecord->department_id);
             $kpiPerHour = $dept?->kpi_per_hour ?? 0;
 

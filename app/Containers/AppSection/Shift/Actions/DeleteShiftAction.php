@@ -2,8 +2,10 @@
 
 namespace App\Containers\AppSection\Shift\Actions;
 
+use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Ship\Parents\Actions\Action as ParentAction;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 final class DeleteShiftAction extends ParentAction
@@ -19,7 +21,14 @@ final class DeleteShiftAction extends ParentAction
             ]);
         }
 
-        // Cascade: shift_details + hourly_records deleted via FK constraints
-        $shift->delete();
+        DB::transaction(function () use ($shift) {
+            // Soft-delete hourly_records first (preserve historical data).
+            // Must be done manually because DB-level cascadeOnDelete
+            // would hard-delete and bypass Eloquent SoftDeletes.
+            HourlyRecord::where('shift_id', $shift->id)->delete();
+
+            // Hard-delete shift (cascades to shift_details via FK)
+            $shift->delete();
+        });
     }
 }

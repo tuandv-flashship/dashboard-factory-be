@@ -3,6 +3,7 @@
 namespace App\Containers\AppSection\Shift\Tasks;
 
 use App\Containers\AppSection\Department\Models\Department;
+use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
@@ -17,10 +18,10 @@ final class GenerateHourlyRecordsTask extends ParentTask
 {
     public function run(Shift $shift): void
     {
-        // Pre-load departments keyed by id for KPI lookup
-        $departments = Department::all()->keyBy('id');
-
+        // Pre-load only required departments keyed by id for KPI lookup
         $shiftDetails = ShiftDetail::where('shift_id', $shift->id)->get();
+        $deptIds = $shiftDetails->pluck('department_id')->unique();
+        $departments = Department::whereIn('id', $deptIds)->get()->keyBy('id');
 
         $records = [];
         $now = now();
@@ -56,6 +57,7 @@ final class GenerateHourlyRecordsTask extends ParentTask
                     'actual'               => null,
                     'efficiency'           => 0,
                     'error_rate'           => 0,
+                    'status'               => HourlyRecordStatus::Pending->value,
                     'created_at'           => $now,
                     'updated_at'           => $now,
                 ];

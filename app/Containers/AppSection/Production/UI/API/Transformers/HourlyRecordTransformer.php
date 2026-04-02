@@ -22,6 +22,7 @@ final class HourlyRecordTransformer extends ParentTransformer
             'hour_start_inventory' => $record->hour_start_inventory,
             'efficiency' => $record->efficiency,
             'error_rate' => $record->error_rate,
+            'status'     => $record->status,
         ];
     }
 

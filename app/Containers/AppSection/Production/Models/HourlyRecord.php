@@ -7,14 +7,17 @@ use App\Containers\AppSection\Shift\Models\Shift;
 use App\Ship\Parents\Models\Model as ParentModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class HourlyRecord extends ParentModel
 {
+    use SoftDeletes;
     protected $table = 'hourly_records';
 
     protected $fillable = [
         'shift_id', 'department_id', 'hour_slot', 'hour_index',
-        'target', 'actual', 'staff', 'hour_start_inventory', 'efficiency', 'error_rate',
+        'target', 'actual', 'staff', 'hour_start_inventory',
+        'efficiency', 'error_rate', 'status',
     ];
 
     protected $casts = [
@@ -25,6 +28,7 @@ final class HourlyRecord extends ParentModel
         'hour_start_inventory' => 'integer',
         'efficiency' => 'float',
         'error_rate' => 'float',
+        'status'     => 'string',
     ];
 
     public function shift(): BelongsTo

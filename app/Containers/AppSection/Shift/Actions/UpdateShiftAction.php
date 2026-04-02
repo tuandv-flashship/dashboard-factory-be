@@ -2,9 +2,8 @@
 
 namespace App\Containers\AppSection\Shift\Actions;
 
-use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
-use App\Containers\AppSection\Shift\Tasks\GenerateHourlyRecordsTask;
+use App\Containers\AppSection\Shift\Tasks\SyncHourlyRecordsTask;
 use App\Containers\AppSection\Shift\Tasks\SyncShiftDetailsTask;
 use App\Ship\Parents\Actions\Action as ParentAction;
 use Illuminate\Support\Facades\DB;
@@ -29,9 +28,8 @@ final class UpdateShiftAction extends ParentAction
             if (isset($data['details'])) {
                 app(SyncShiftDetailsTask::class)->run($shift, $data['details']);
 
-                // Regenerate hourly records
-                HourlyRecord::where('shift_id', $shift->id)->delete();
-                app(GenerateHourlyRecordsTask::class)->run($shift);
+                // Smart sync hourly records: preserve actual data, soft-delete stale
+                app(SyncHourlyRecordsTask::class)->run($shift);
             }
 
             return $shift->load(['details.department.productionLine', 'template', 'hourlyRecords']);

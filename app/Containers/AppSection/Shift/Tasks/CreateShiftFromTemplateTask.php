@@ -15,6 +15,8 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
  * thì merge override vào trước khi lưu.
  *
  * Override được key theo "department_id|shift_number".
+ *
+ * Optimized: bulk insert instead of N separate create() calls.
  */
 final class CreateShiftFromTemplateTask extends ParentTask
 {
@@ -25,16 +27,22 @@ final class CreateShiftFromTemplateTask extends ParentTask
             ->where('shift_number', $shift->shift_number)
             ->get();
 
+        if ($templateDetails->isEmpty()) {
+            return;
+        }
+
         // Index overrides by "department_id|shift_number" for O(1) lookup
         $overrideMap = collect($overrides)->keyBy(
             fn ($o) => "{$o['department_id']}|{$o['shift_number']}"
         );
 
-        foreach ($templateDetails as $td) {
+        $now = now();
+
+        $rows = $templateDetails->map(function ($td) use ($shift, $overrideMap, $now) {
             $key      = "{$td->department_id}|{$td->shift_number}";
             $override = $overrideMap->get($key, []);
 
-            ShiftDetail::create([
+            return [
                 'shift_id'           => $shift->id,
                 'department_id'      => $td->department_id,
                 'shift_number'       => $td->shift_number,
@@ -55,7 +63,11 @@ final class CreateShiftFromTemplateTask extends ParentTask
                 'break2_minutes'     => $override['break2_minutes']     ?? $td->break2_minutes,
                 'break3_start'       => $override['break3_start']       ?? $td->break3_start,
                 'break3_minutes'     => $override['break3_minutes']     ?? $td->break3_minutes,
-            ]);
-        }
+                'created_at'         => $now,
+                'updated_at'         => $now,
+            ];
+        })->toArray();
+
+        ShiftDetail::insert($rows);
     }
 }
