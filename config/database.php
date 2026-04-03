@@ -62,6 +62,26 @@ return [
             ]) : [],
         ],
 
+        'fplatform' => [
+            'driver' => env('DB_CONNECTION_FPLATFORM', 'mysql'),
+            'host' => env('DB_HOST_FPLATFORM', '127.0.0.1'),
+            'port' => env('DB_PORT_FPLATFORM', '3306'),
+            'database' => env('DB_DATABASE_FPLATFORM', 'fplatform'),
+            'username' => env('DB_USERNAME_FPLATFORM', 'root'),
+            'password' => env('DB_PASSWORD_FPLATFORM', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => false,
+            'engine' => null,
+            'options' => array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                PDO::ATTR_TIMEOUT => 10, // 10s connection timeout for remote DB
+            ]),
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),
