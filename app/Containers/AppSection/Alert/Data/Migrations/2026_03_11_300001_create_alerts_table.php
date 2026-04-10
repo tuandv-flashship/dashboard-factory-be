@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('department', 50);            // Print, Pack & Ship, Mock Up
             $table->time('time');                         // 10:42
             $table->text('message');                      // Máy in DTF-03 ngừng hoạt động...
-            $table->string('line', 20)->default('all');   // dtf1, dtf2, dtg, all
+            $table->string('line', 20)->default('all');   // dtf, dtg, pack_ship, all
             $table->boolean('is_resolved')->default(false);
             $table->timestamp('resolved_at')->nullable();
             $table->timestamps();

@@ -2,16 +2,24 @@
 
 namespace App\Containers\AppSection\Department\Enums;
 
-enum Factory: string
+enum ProductivityType: string
 {
-    case FLS = 'FLS';
-    case PD  = 'PD';
+    case PerPerson  = 'per_person';
+    case PerMachine = 'per_machine';
 
     public function label(): string
     {
         return match ($this) {
-            self::FLS => 'FLS',
-            self::PD  => 'PD',
+            self::PerPerson  => 'Theo người',
+            self::PerMachine => 'Theo máy',
+        };
+    }
+
+    public function labelEn(): string
+    {
+        return match ($this) {
+            self::PerPerson  => 'Per Person',
+            self::PerMachine => 'Per Machine',
         };
     }
 

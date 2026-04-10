@@ -3,7 +3,7 @@
 namespace App\Containers\AppSection\Department\UI\API\Requests;
 
 use App\Containers\AppSection\Department\Enums\DepartmentUnit;
-use App\Containers\AppSection\Department\Enums\Factory;
+use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Ship\Parents\Requests\Request as ParentRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,10 +22,10 @@ final class UpdateDepartmentRequest extends ParentRequest
             'icon'               => ['sometimes', 'string', 'max:30'],
             'unit'               => ['sometimes', Rule::enum(DepartmentUnit::class)],
             'kpi_per_hour'       => ['sometimes', 'integer', 'min:0'],
-            'factory'            => ['sometimes', Rule::enum(Factory::class)],
+
             'sort_order'         => ['sometimes', 'integer', 'min:0'],
             'is_active'          => ['sometimes', 'boolean'],
-            'can_increase_productivity' => ['sometimes', 'boolean'],
+            'productivity_type' => ['sometimes', Rule::enum(ProductivityType::class)],
         ];
     }
 

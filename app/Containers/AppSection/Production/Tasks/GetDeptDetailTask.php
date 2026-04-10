@@ -25,7 +25,7 @@ final class GetDeptDetailTask extends ParentTask
 
         $dept = Department::query()
             ->where('production_line_id', $line->id)
-            ->where('code', $deptCode === 'dtg_print' ? 'print' : $deptCode)
+            ->where('code', $deptCode)
             ->firstOrFail();
 
         $records = HourlyRecord::query()

@@ -36,7 +36,7 @@ final class ReasonCodeModelsTest extends UnitTestCase
     public function testSubItemScopeForContextGlobal(): void
     {
         // Global items should appear for any context
-        $result = ReasonSubItem::query()->forContext('dtf1', 'cut')->get();
+        $result = ReasonSubItem::query()->forContext('dtf', 'cut')->get();
         $globalItems = $result->where('scope_type', 'global');
         $this->assertNotEmpty($globalItems);
 
@@ -47,21 +47,21 @@ final class ReasonCodeModelsTest extends UnitTestCase
 
     public function testSubItemScopeForContextPerLineDepartment(): void
     {
-        // DTF1 print should only see dtf1 per_line_department items
-        $result = ReasonSubItem::query()->forContext('dtf1', 'print')->get();
+        // DTF print should only see dtf per_line_department items
+        $result = ReasonSubItem::query()->forContext('dtf', 'print')->get();
         $perLineItems = $result->where('scope_type', 'per_line_department');
 
         foreach ($perLineItems as $item) {
-            $this->assertSame('dtf1', $item->scope_line);
+            $this->assertSame('dtf', $item->scope_line);
             $this->assertSame('print', $item->scope_dept);
         }
 
-        // DTF2 print should only see dtf2 per_line_department items
-        $result2 = ReasonSubItem::query()->forContext('dtf2', 'print')->get();
+        // DTG print should only see dtg per_line_department items
+        $result2 = ReasonSubItem::query()->forContext('dtg', 'print')->get();
         $perLineItems2 = $result2->where('scope_type', 'per_line_department');
 
         foreach ($perLineItems2 as $item) {
-            $this->assertSame('dtf2', $item->scope_line);
+            $this->assertSame('dtg', $item->scope_line);
             $this->assertSame('print', $item->scope_dept);
         }
     }

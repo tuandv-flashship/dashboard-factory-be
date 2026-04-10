@@ -3,7 +3,7 @@
 namespace App\Containers\AppSection\Department\UI\API\Requests;
 
 use App\Containers\AppSection\Department\Enums\DepartmentUnit;
-use App\Containers\AppSection\Department\Enums\Factory;
+use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Ship\Parents\Requests\Request as ParentRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -15,14 +15,13 @@ final class CreateDepartmentRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'name'                      => ['required', 'string', 'max:50'],
-            'factory'                   => ['required', Rule::enum(Factory::class)],
-            'group'                     => ['required', 'integer', 'exists:production_lines,id'],
-            'description'               => ['sometimes', 'nullable', 'string', 'max:255'],
-            'kpi_per_hour'              => ['sometimes', 'integer', 'min:0'],
-            'unit'                      => ['sometimes', Rule::enum(DepartmentUnit::class)],
-            'sort_order'                => ['sometimes', 'integer', 'min:0'],
-            'can_increase_productivity' => ['sometimes', 'boolean'],
+            'name'              => ['required', 'string', 'max:50'],
+            'production_line_id' => ['required', 'integer', 'exists:production_lines,id'],
+            'description'       => ['sometimes', 'nullable', 'string', 'max:255'],
+            'kpi_per_hour'      => ['sometimes', 'integer', 'min:0'],
+            'unit'              => ['sometimes', Rule::enum(DepartmentUnit::class)],
+            'sort_order'        => ['sometimes', 'integer', 'min:0'],
+            'productivity_type' => ['sometimes', Rule::enum(ProductivityType::class)],
         ];
     }
 

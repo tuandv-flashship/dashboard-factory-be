@@ -16,7 +16,6 @@ final class CreateProductionLineAction extends ParentAction
             'label'      => $request->label,
             'color'      => $request->color,
             'subtitle'   => $request->subtitle,
-            'is_shared'  => $request->is_shared ?? false,
             'sort_order' => $request->sort_order ?? 0,
             'is_active'  => $request->is_active ?? true,
         ]);

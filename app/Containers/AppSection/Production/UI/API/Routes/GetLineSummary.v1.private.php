@@ -8,7 +8,7 @@
  *
  * @apiDescription Get production summary for a specific line including all departments and pick data.
  *
- * @apiParam {String="dtf1","dtf2","dtg"} line Production line code
+ * @apiParam {String} line Production line code (e.g. dtf, dtg, pack_ship)
  */
 
 use App\Containers\AppSection\Production\UI\API\Controllers\GetLineSummaryController;
@@ -16,4 +16,4 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('production/lines/{line}', GetLineSummaryController::class)
     ->middleware(['auth:api'])
-    ->whereIn('line', ['dtf1', 'dtf2', 'dtg']);
+    ->where('line', '[a-z_]+');

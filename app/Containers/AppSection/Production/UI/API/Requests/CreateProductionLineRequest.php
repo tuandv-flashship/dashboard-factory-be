@@ -15,7 +15,6 @@ final class CreateProductionLineRequest extends ParentRequest
             'label'      => ['required', 'string', 'max:50'],
             'color'      => ['required', 'string', 'max:20'],
             'subtitle'   => ['sometimes', 'nullable', 'string', 'max:255'],
-            'is_shared'  => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0'],
             'is_active'  => ['sometimes', 'boolean'],
         ];

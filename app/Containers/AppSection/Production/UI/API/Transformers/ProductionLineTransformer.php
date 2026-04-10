@@ -18,7 +18,6 @@ final class ProductionLineTransformer extends ParentTransformer
             'label' => $line->label,
             'color' => $line->color,
             'subtitle' => $line->subtitle,
-            'is_shared' => $line->is_shared,
             'sort_order' => $line->sort_order,
             'is_active' => $line->is_active,
             'created_at' => $line->created_at?->toIsoString(),
@@ -29,7 +28,7 @@ final class ProductionLineTransformer extends ParentTransformer
     public function includeDepartments(ProductionLine $line): \League\Fractal\Resource\Collection
     {
         return $this->collection(
-            $line->departments,
+            $line->departments->load('machines'),
             new DepartmentTransformer(),
             'departments',
         );

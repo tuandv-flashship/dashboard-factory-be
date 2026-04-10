@@ -2,43 +2,38 @@
 
 namespace App\Containers\AppSection\Machine\Models;
 
+use App\Containers\AppSection\Department\Models\Department;
+use App\Containers\AppSection\Machine\Enums\MachineStatus;
 use App\Ship\Parents\Models\Model as ParentModel;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class Machine extends ParentModel
 {
     protected $table = 'machines';
 
     protected $fillable = [
+        'department_id',
         'code',
         'name',
         'status',
-        'department',
-        'line',
         'description',
+        'unit',
+        'kpi_per_hour',
         'sort_order',
         'is_active',
     ];
 
     protected $casts = [
-        'sort_order' => 'integer',
-        'is_active' => 'boolean',
+        'sort_order'   => 'integer',
+        'is_active'    => 'boolean',
+        'kpi_per_hour' => 'integer',
+        'status'       => MachineStatus::class,
     ];
 
-    /**
-     * Scope: filter machines by production line.
-     */
-    public function scopeForLine(Builder $query, string $line): Builder
+    public function department(): BelongsTo
     {
-        return $query->where('line', $line);
-    }
-
-    /**
-     * Scope: filter machines by department.
-     */
-    public function scopeForDepartment(Builder $query, string $department): Builder
-    {
-        return $query->where('department', $department);
+        return $this->belongsTo(Department::class, 'department_id');
     }
 
     /**

@@ -11,6 +11,6 @@ use App\Containers\AppSection\Production\UI\API\Controllers\GetDeptDetailControl
 use Illuminate\Support\Facades\Route;
 
 Route::get('production/lines/{line}/departments/{dept}', GetDeptDetailController::class)
-    ->where('line', 'dtf1|dtf2|dtg')
-    ->where('dept', 'print|cut|mockup|pack_ship|pick|dtg_print')
+    ->where('line', '[a-z_]+')
+    ->where('dept', '[a-z_]+')
     ->middleware('throttle:60,1');

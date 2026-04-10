@@ -45,7 +45,7 @@ final class ShiftTemplateTest extends ApiTestCase
 
         // Seed production line + departments for detail tests
         $this->line = ProductionLine::create([
-            'code' => 'dtf1', 'label' => 'DTF 1', 'color' => '#f59e0b',
+            'code' => 'dtf', 'label' => 'DTF', 'color' => '#f59e0b',
             'sort_order' => 1, 'is_active' => true,
         ]);
         $this->dept1 = Department::create([

@@ -12,8 +12,8 @@ return new class extends Migration
             $table->id();
             $table->date('date');
             $table->unsignedTinyInteger('shift_number');
-            $table->string('line', 20)->nullable();       // dtf1, dtf2, dtg (null = total)
-            $table->string('line_label', 50)->nullable();  // DTF 1, DTF 2, DTG
+            $table->string('line', 20)->nullable();       // dtf, dtg, pack_ship (null = total)
+            $table->string('line_label', 50)->nullable();  // DTF, DTG, Pack & Ship
             $table->unsignedInteger('total');
             $table->unsignedInteger('completed');
             $table->unsignedInteger('remaining');

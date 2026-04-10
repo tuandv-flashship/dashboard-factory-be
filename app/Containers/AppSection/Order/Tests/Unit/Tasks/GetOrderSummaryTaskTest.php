@@ -20,12 +20,12 @@ final class GetOrderSummaryTaskTest extends UnitTestCase
             'estimated_done' => '16:30', 'progress' => 57,
         ]);
         OrderSummary::create([
-            'date' => $today, 'shift_number' => 1, 'line' => 'dtf1', 'line_label' => 'DTF 1',
+            'date' => $today, 'shift_number' => 1, 'line' => 'dtf', 'line_label' => 'DTF',
             'total' => 748, 'completed' => 423, 'remaining' => 325,
             'estimated_done' => '15:45', 'progress' => 57,
         ]);
         OrderSummary::create([
-            'date' => $today, 'shift_number' => 1, 'line' => 'dtf2', 'line_label' => 'DTF 2',
+            'date' => $today, 'shift_number' => 1, 'line' => 'dtg', 'line_label' => 'DTG',
             'total' => 620, 'completed' => 362, 'remaining' => 258,
             'estimated_done' => '16:00', 'progress' => 58,
         ]);
@@ -35,7 +35,7 @@ final class GetOrderSummaryTaskTest extends UnitTestCase
         $this->assertNotNull($result['total']);
         $this->assertSame(1850, $result['total']->total);
         $this->assertCount(2, $result['per_line']);
-        $this->assertSame('dtf1', $result['per_line']->first()->line);
+        $this->assertSame('dtf', $result['per_line']->first()->line);
     }
 
     public function testReturnsNullTotalWhenNoData(): void

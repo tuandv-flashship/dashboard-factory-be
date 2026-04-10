@@ -19,12 +19,10 @@ return [
     'label_en' => 'Label (EN)',
     'color' => 'Color',
     'subtitle' => 'Subtitle',
-    'is_shared' => 'Shared',
     'is_active' => 'Active',
     'sort_order' => 'Sort Order',
     'icon' => 'Icon',
     'unit' => 'Unit',
     'kpi_per_hour' => 'KPI/Hour',
-    'factory' => 'Factory',
-    'can_increase_productivity' => 'Can Increase Productivity',
+    'productivity_type' => 'Productivity Type',
 ];

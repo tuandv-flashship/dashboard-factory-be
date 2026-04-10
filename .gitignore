@@ -2,6 +2,8 @@
 .env.*
 !.env.ci
 !.env.example
+!.env.fls.example
+!.env.pd.example
 storage/logs/laravel.log
 /public/uploads/
 /laradock*/
@@ -46,3 +48,5 @@ CLAUDE.md
 /postman
 /.postman
 /.gemini
+# Local tools
+bin/

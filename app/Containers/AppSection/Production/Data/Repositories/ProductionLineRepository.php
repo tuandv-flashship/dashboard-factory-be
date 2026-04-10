@@ -16,7 +16,6 @@ final class ProductionLineRepository extends ParentRepository
         'code'      => '=',
         'label'     => 'like',
         'is_active' => '=',
-        'is_shared' => '=',
     ];
 
     public function model(): string

@@ -17,8 +17,8 @@ final class GetReasonCodesRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'line' => ['sometimes', 'string', 'in:dtf1,dtf2,dtg'],
-            'dept' => ['sometimes', 'string', 'in:print,cut,mockup,pack_ship,pick,dtg_print'],
+            'line' => ['sometimes', 'string', 'exists:production_lines,code'],
+            'dept' => ['sometimes', 'string', 'exists:departments,code'],
         ];
     }
 

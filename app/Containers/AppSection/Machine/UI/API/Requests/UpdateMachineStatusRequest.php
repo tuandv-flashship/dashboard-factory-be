@@ -2,7 +2,9 @@
 
 namespace App\Containers\AppSection\Machine\UI\API\Requests;
 
+use App\Containers\AppSection\Machine\Enums\MachineStatus;
 use App\Ship\Parents\Requests\Request as ParentRequest;
+use Illuminate\Validation\Rule;
 
 final class UpdateMachineStatusRequest extends ParentRequest
 {
@@ -17,7 +19,7 @@ final class UpdateMachineStatusRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', 'string', 'in:online,offline,maintenance'],
+            'status' => ['required', Rule::enum(MachineStatus::class)],
         ];
     }
 

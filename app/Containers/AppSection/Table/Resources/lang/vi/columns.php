@@ -18,12 +18,10 @@ return [
     'label_en' => 'Tên (EN)',
     'color' => 'Màu',
     'subtitle' => 'Mô tả phụ',
-    'is_shared' => 'Dùng chung',
     'is_active' => 'Hoạt động',
     'sort_order' => 'Thứ tự',
     'icon' => 'Icon',
     'unit' => 'Đơn vị',
     'kpi_per_hour' => 'KPI/giờ',
-    'factory' => 'Nhà máy',
-    'can_increase_productivity' => 'Có thể tăng năng suất',
+    'productivity_type' => 'Cách tính năng suất',
 ];

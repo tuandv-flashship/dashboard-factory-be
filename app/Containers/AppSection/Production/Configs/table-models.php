@@ -37,12 +37,10 @@ return [
                 ->type('color')->sortable(false)->width(80)->align('center')->priority(4),
             ColumnDefinition::make('subtitle', 'table::columns.subtitle')
                 ->emptyState()->priority(5),
-            ColumnDefinition::boolean('is_shared', 'table::columns.is_shared')
-                ->width(100)->priority(6),
             ColumnDefinition::boolean('is_active', 'table::columns.is_active')
-                ->width(100)->priority(7),
+                ->width(100)->priority(6),
             ColumnDefinition::number('sort_order', 'table::columns.sort_order')
-                ->width(80)->priority(8),
+                ->width(80)->priority(7),
         ],
 
         'forms' => [
@@ -59,9 +57,8 @@ return [
                     FormFieldDefinition::text('label')->group('basic')->order(1),
                     FormFieldDefinition::color('color')->group('basic')->order(2),
                     FormFieldDefinition::textarea('subtitle')->group('basic')->order(3)->colSpan(2),
-                    FormFieldDefinition::boolean('is_shared')->group('settings')->order(0),
-                    FormFieldDefinition::boolean('is_active')->group('settings')->order(1)->default(true),
-                    FormFieldDefinition::number('sort_order')->group('settings')->order(2)->default(0),
+                    FormFieldDefinition::boolean('is_active')->group('settings')->order(0)->default(true),
+                    FormFieldDefinition::number('sort_order')->group('settings')->order(1)->default(0),
                 ],
             ],
             'update' => [

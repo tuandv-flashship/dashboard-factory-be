@@ -60,7 +60,6 @@ final class GetLineSummaryController extends ApiController
                     'label' => $data['line']->label,
                     'color' => $data['line']->color,
                     'subtitle' => $data['line']->subtitle,
-                    'is_shared' => $data['line']->is_shared,
                 ],
                 'departments' => $departments->values(),
             ],

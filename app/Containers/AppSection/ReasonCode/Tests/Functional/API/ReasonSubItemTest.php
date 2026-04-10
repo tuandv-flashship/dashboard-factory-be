@@ -109,7 +109,7 @@ final class ReasonSubItemTest extends ApiTestCase
             'code' => 'test-new-sub',
             'label' => 'Test Sub Item',
             'scope_type' => 'per_line_department',
-            'scope_line' => 'dtf1',
+            'scope_line' => 'dtf',
             'scope_dept' => 'print',
             'sort_order' => 99,
             'is_active' => true,
@@ -123,7 +123,7 @@ final class ReasonSubItemTest extends ApiTestCase
                 ->has('data')
                 ->where('data.code', 'test-new-sub')
                 ->where('data.scope_type', 'per_line_department')
-                ->where('data.scope_line', 'dtf1')
+                ->where('data.scope_line', 'dtf')
                 ->where('data.scope_dept', 'print')
                 ->etc(),
             );

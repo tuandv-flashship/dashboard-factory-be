@@ -11,5 +11,5 @@ use App\Containers\AppSection\Production\UI\API\Controllers\GetLineSummaryContro
 use Illuminate\Support\Facades\Route;
 
 Route::get('production/lines/{line}', GetLineSummaryController::class)
-    ->where('line', 'dtf1|dtf2|dtg')
+    ->where('line', '[a-z_]+')
     ->middleware('throttle:60,1');

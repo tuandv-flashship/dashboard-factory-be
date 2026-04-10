@@ -11,13 +11,17 @@ return new class extends Migration
         Schema::create('departments', static function (Blueprint $table) {
             $table->id();
             $table->foreignId('production_line_id')->constrained('production_lines')->cascadeOnDelete();
-            $table->string('code', 30);                  // print, cut, mockup, pack_ship, pick, dtg_print
-            $table->string('label', 50);                  // In ấn, Cắt, Ráp mẫu, Đóng gói & Giao
-            $table->string('label_en', 50);               // Print, Cut, Mock Up, Pack & Ship
-            $table->string('icon', 30);                   // Printer, Scissors, Layers, Package
-            $table->string('unit', 20)->default('files');  // files, áo, prints
+            $table->string('code', 30);                  // print, pick, cut, mockup, pack_ship, apollo, ...
+
+            $table->string('label', 50);                  // In ấn, Pick, Cắt, Ráp mẫu, ...
+            $table->string('label_en', 50);               // Print, Pick, Cut, Mock Up, ...
+            $table->string('description', 255)->nullable();
+            $table->string('icon', 30);                   // Printer, ShoppingCart, Scissors, Layers, Package
+            $table->string('unit', 20)->default('file');   // file, shirt, print
+            $table->unsignedInteger('kpi_per_hour')->default(0);
             $table->unsignedSmallInteger('sort_order')->default(0);
             $table->boolean('is_active')->default(true);
+            $table->string('productivity_type', 20)->default('per_person'); // per_person, per_machine
             $table->timestamps();
 
             $table->unique(['production_line_id', 'code']);

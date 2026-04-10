@@ -9,13 +9,16 @@ use Illuminate\Database\Eloquent\Collection;
 final class GetMachinesByLineTask extends ParentTask
 {
     /**
+     * Get active machines filtered by production line code.
+     * Queries through department → production_line relationship.
+     *
      * @return Collection<int, Machine>
      */
     public function run(string $line): Collection
     {
         return Machine::query()
             ->active()
-            ->forLine($line)
+            ->whereHas('department.productionLine', fn ($q) => $q->where('code', $line))
             ->orderBy('sort_order')
             ->get();
     }

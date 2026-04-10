@@ -74,7 +74,7 @@ final class GetDeptDetailController extends ApiController
                     'factory' => $data['department']->factory,
                     'sort_order' => $data['department']->sort_order,
                     'is_active' => $data['department']->is_active,
-                    'can_increase_productivity' => $data['department']->can_increase_productivity,
+                    'productivity_type' => $data['department']->productivity_type,
                 ] : null,
                 'hours' => $recordsData->values(),
                 'summary' => [

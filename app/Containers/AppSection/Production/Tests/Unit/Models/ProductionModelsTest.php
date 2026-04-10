@@ -15,14 +15,15 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(HourlyIssue::class)]
 final class ProductionModelsTest extends UnitTestCase
 {
-    public function testProductionLineIsShared(): void
+    public function testProductionLineCreation(): void
     {
         $line = ProductionLine::create([
-            'code' => 'test_shared', 'label' => 'Test Shared', 'color' => '#ec4899',
-            'is_shared' => true, 'sort_order' => 15,
+            'code' => 'test_line', 'label' => 'Test Line', 'color' => '#ec4899',
+            'sort_order' => 15,
         ]);
 
-        $this->assertTrue($line->is_shared);
+        $this->assertSame('test_line', $line->code);
+        $this->assertTrue($line->is_active);
     }
 
     public function testHourlyRecordHasIssues(): void

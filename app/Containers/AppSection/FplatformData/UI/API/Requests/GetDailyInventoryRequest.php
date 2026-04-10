@@ -11,7 +11,6 @@ final class GetDailyInventoryRequest extends ParentRequest
         return [
             'date'    => ['sometimes', 'date_format:Y-m-d'],
             'team'    => ['required', 'in:in,cat,pick,mockup,pack_ship,dtg_pick,dtg_print,dtg_print_split'],
-            'factory' => ['required_unless:team,dtg_pick,dtg_print,dtg_print_split', 'nullable', 'in:FLS,PD,fls,pd'],
         ];
     }
 
@@ -23,8 +22,7 @@ final class GetDailyInventoryRequest extends ParentRequest
     public function messages(): array
     {
         return [
-            'team.required'       => 'Vui lòng chọn team (in, cat, pick, mockup, pack_ship, dtg_pick, dtg_print, dtg_print_split).',
-            'factory.required_unless' => 'Vui lòng chọn factory (FLS hoặc PD) cho team DTF.',
+            'team.required' => 'Vui lòng chọn team (in, cat, pick, mockup, pack_ship, dtg_pick, dtg_print, dtg_print_split).',
         ];
     }
 }

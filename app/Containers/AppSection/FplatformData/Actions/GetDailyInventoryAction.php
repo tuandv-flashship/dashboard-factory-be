@@ -31,9 +31,9 @@ final class GetDailyInventoryAction extends ParentAction
     /**
      * Dispatch to the correct Task based on team type.
      */
-    public function run(string $date, Team $team, ?string $factory = null): ?array
+    public function run(string $date, Team $team): ?array
     {
-        $factoryLine = $factory ? FactoryLine::from(strtoupper($factory)) : null;
+        $factoryLine = FactoryLine::current();
 
         return match ($team) {
             Team::In  => $this->dailyInventoryTask->run(

@@ -11,13 +11,12 @@ final class ProductionLine extends ParentModel
     protected $table = 'production_lines';
 
     protected $fillable = [
-        'code', 'label', 'color', 'subtitle', 'sort_order', 'is_active', 'is_shared',
+        'code', 'label', 'color', 'subtitle', 'sort_order', 'is_active',
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
-        'is_active' => 'boolean',
-        'is_shared' => 'boolean',
+        'is_active'  => 'boolean',
     ];
 
     /**

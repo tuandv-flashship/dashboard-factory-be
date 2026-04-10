@@ -9,7 +9,7 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 /**
  * Get daily inventory (tồn đầu/cuối ngày) for team Mockup (DTF).
  *
- * Source: docs/ton_dau_ngay_update.sql lines 154-272
+ * Source: docs/ton_dau_ton_cuoi_mockup.sql
  * Complex: folder_manage → order_check_file_dropbox → log_check_mockup
  */
 final class GetMockupInventoryTask extends ParentTask
@@ -21,30 +21,33 @@ final class GetMockupInventoryTask extends ParentTask
         $extraUnions = $this->buildExtraPrinterUnions($factory);
 
         $sql = "
-            WITH printer AS (
-                SELECT REPLACE(NAME, 'Machine ', 'May') AS printer_name
+            WITH
+            target_printers AS (
+                SELECT REPLACE(name, 'Machine ', 'May') AS printer_id
                 FROM printer_manage
                 WHERE factory = ?
                 {$extraUnions}
+            ),
+            folder_printer AS (
+                SELECT fm.estimate_date, fm.folder
+                FROM folder_manage fm
+                JOIN target_printers p
+                    ON p.printer_id = COALESCE(fm.printer_share, fm.printer_run, fm.printer_default)
+                WHERE fm.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                    AND fm.status_folder <> 2
             ),
             a AS (
                 SELECT
                     f.estimate_date,
                     f.folder,
                     d.file_name_order_code,
-                    COUNT(*) AS num_file,
-                    COALESCE(f.printer_share, f.printer_run, f.printer_default) AS printer
-                FROM folder_manage f
+                    d.file_name_index_number,
+                    COUNT(*) AS num_file
+                FROM folder_printer f
                 JOIN order_check_file_dropbox d
                     ON d.folder = f.folder COLLATE utf8mb4_unicode_ci
-                WHERE f.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
-                    AND f.status_folder <> 2
                     AND d.status <> 2
-                GROUP BY f.estimate_date, f.folder, d.file_name_order_code, printer
-            ),
-            filtered_a AS (
-                SELECT a.* FROM a
-                JOIN printer m_in ON a.printer = m_in.printer_name
+                GROUP BY f.estimate_date, f.folder, d.file_name_order_code, d.file_name_index_number
             ),
             daily_aggregated AS (
                 SELECT
@@ -52,19 +55,14 @@ final class GetMockupInventoryTask extends ParentTask
                     SUM(IF(created IS NULL, num_file, 0)) AS not_done,
                     SUM(num_file) AS total_file
                 FROM (
-                    SELECT
-                        fa.estimate_date,
-                        fa.num_file,
-                        m.created,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY fa.folder, fa.file_name_order_code
-                            ORDER BY m.index_number DESC
-                        ) AS rn
-                    FROM filtered_a fa
-                    LEFT JOIN log_check_mockup m
-                        ON fa.file_name_order_code = m.barcode COLLATE utf8mb4_0900_ai_ci
+                    SELECT a.*, l.created
+                    FROM a
+                    LEFT JOIN log_check_mockup l
+                        ON a.file_name_order_code COLLATE utf8mb4_0900_ai_ci = l.barcode
+                        AND l.created >= ? - INTERVAL 15 DAY
+                        AND a.file_name_index_number = l.index_number
+                    GROUP BY 1, 2, 3, 4
                 ) b
-                WHERE rn = 1
                 GROUP BY estimate_date
             )
             SELECT * FROM (
@@ -82,7 +80,7 @@ final class GetMockupInventoryTask extends ParentTask
 
         $bindings = array_merge(
             $this->printerBindings($factory),
-            [$date, $date, $date],
+            [$date, $date, $date, $date],
         );
 
         return $this->formatResult($this->queryFplatform($sql, $bindings));

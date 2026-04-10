@@ -2,7 +2,8 @@
 
 namespace App\Containers\AppSection\Production\Data\Seeders;
 
-use App\Containers\AppSection\Department\Data\Seeders\DepartmentSeeder_1;
+use App\Containers\AppSection\Department\Data\Seeders\DepartmentSeeder_2;
+use App\Containers\AppSection\Machine\Data\Seeders\MachineSeeder_2;
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Models\HourlyIssue;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
@@ -13,6 +14,8 @@ use App\Ship\Parents\Seeders\Seeder;
 /**
  * Seeds production data: lines, then delegates to DepartmentSeeder,
  * then seeds hourly records and issues.
+ *
+ * Uses config('factory.current') to determine which factory's data to seed.
  *
  * Run: php artisan db:seed --class="App\Containers\AppSection\Production\Data\Seeders\ProductionSeeder_1"
  */
@@ -26,30 +29,34 @@ final class ProductionSeeder_1 extends Seeder
             return;
         }
 
+        $factory = config('factory.current');
         $now = now();
 
         // ═══════════════════════════════════════════════════════
-        // 1. PRODUCTION LINES (batch insert)
+        // 1. PRODUCTION LINES (factory-specific)
         // ═══════════════════════════════════════════════════════
-        ProductionLine::insert([
-            ['code' => 'dtf1', 'label' => 'DTF 1', 'color' => '#f59e0b', 'subtitle' => 'Building 1', 'is_shared' => false, 'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['code' => 'dtf2', 'label' => 'DTF 2', 'color' => '#14b8a6', 'subtitle' => 'Building 2', 'is_shared' => false, 'sort_order' => 2, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['code' => 'dtg', 'label' => 'DTG', 'color' => '#8b5cf6', 'subtitle' => 'Apollo + 2× Atlas', 'is_shared' => false, 'sort_order' => 3, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            ['code' => 'pick', 'label' => 'Pick', 'color' => '#ec4899', 'subtitle' => 'Lấy hàng — Chung cho DTF1 + DTF2 + DTG', 'is_shared' => true, 'sort_order' => 4, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-        ]);
+        $lines = match ($factory) {
+            'FLS' => [
+                ['code' => 'dtf', 'label' => 'DTF', 'color' => '#f59e0b', 'subtitle' => 'Building 1', 'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ],
+            'PD' => [
+                ['code' => 'dtf',       'label' => 'DTF',         'color' => '#14b8a6', 'subtitle' => 'Building 2',        'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                ['code' => 'dtg',       'label' => 'DTG',         'color' => '#8b5cf6', 'subtitle' => 'Apollo + 2× Atlas', 'sort_order' => 2, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                ['code' => 'pack_ship', 'label' => 'Pack & Ship', 'color' => '#ec4899', 'subtitle' => 'Đóng gói & Giao',  'sort_order' => 3, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+            ],
+        };
+
+        ProductionLine::insert($lines);
 
         // ═══════════════════════════════════════════════════════
         // 2. DEPARTMENTS — delegated to Department container
         // ═══════════════════════════════════════════════════════
-        $this->call(DepartmentSeeder_1::class);
+        $this->call(DepartmentSeeder_2::class);
+        $this->call(MachineSeeder_2::class);
 
         // Re-fetch for hourly record seeding
-        $departments = Department::all()->keyBy(fn ($d) => "{$d->production_line_id}-{$d->code}");
-
-        $dtf1 = ProductionLine::where('code', 'dtf1')->first();
-        $dtf2 = ProductionLine::where('code', 'dtf2')->first();
-        $dtg  = ProductionLine::where('code', 'dtg')->first();
-        $pick = ProductionLine::where('code', 'pick')->first();
+        $departments = Department::with('productionLine')->get()
+            ->keyBy(fn ($d) => "{$d->productionLine->code}-{$d->code}");
 
         // ═══════════════════════════════════════════════════════
         // 3. SHIFT — from Shift container seeder (ShiftSeeder_1)
@@ -61,32 +68,40 @@ final class ProductionSeeder_1 extends Seeder
         }
 
         // ═══════════════════════════════════════════════════════
-        // 4. HOURLY RECORDS — batch insert (96 records: 12 depts × 8h)
+        // 4. HOURLY RECORDS — batch insert (factory-specific)
         // ═══════════════════════════════════════════════════════
 
         // [dept_key, staff, efficiency, errorRate, [target, actual] x 8]
-        $hourlyData = [
-            // DTF1
-            ["{$dtf1->id}-print", 12, 94.2, 2.1, [[94,95],[90,94],[97,95],[92,87],[94,82],[97,49],[97,null],[93,null]]],
-            ["{$dtf1->id}-cut", 8, 91.5, 1.4, [[97,92],[99,99],[102,105],[102,98],[98,89],[102,49],[96,null],[97,null]]],
-            ["{$dtf1->id}-mockup", 10, 96.8, 0.8, [[84,92],[93,100],[91,92],[92,91],[86,81],[94,48],[85,null],[90,null]]],
-            ["{$dtf1->id}-pack_ship", 14, 87.3, 3.2, [[83,73],[81,74],[87,83],[86,86],[85,79],[83,41],[89,null],[82,null]]],
-            // DTF2
-            ["{$dtf2->id}-print", 10, 92.1, 1.8, [[88,90],[85,88],[90,87],[87,85],[89,80],[91,45],[88,null],[86,null]]],
-            ["{$dtf2->id}-cut", 6, 93.7, 1.1, [[82,85],[84,86],[86,88],[85,82],[83,78],[87,43],[84,null],[81,null]]],
-            ["{$dtf2->id}-mockup", 8, 95.2, 1.0, [[75,78],[78,80],[76,77],[79,76],[74,70],[80,40],[77,null],[75,null]]],
-            ["{$dtf2->id}-pack_ship", 10, 89.5, 2.5, [[70,65],[72,68],[74,72],[73,71],[71,66],[75,37],[72,null],[70,null]]],
-            // DTG
-            ["{$dtg->id}-print", 6, 88.4, 2.8, [[400,385],[400,392],[400,410],[400,378],[400,365],[400,195],[400,null],[400,null]]],
-            // Pick
-            ["{$pick->id}-dtf1", 3, 92.0, 1.2, [[160,155],[160,162],[165,168],[165,158],[160,150],[160,80],[165,null],[165,null]]],
-            ["{$pick->id}-dtf2", 3, 90.5, 1.8, [[135,130],[135,132],[140,142],[140,135],[135,128],[135,68],[140,null],[140,null]]],
-            ["{$pick->id}-dtg", 2, 91.0, 1.5, [[105,95],[105,101],[95,100],[95,95],[105,92],[105,47],[95,null],[95,null]]],
-        ];
+        $hourlyData = match ($factory) {
+            'FLS' => [
+                // DTF — 5 departments
+                ['dtf-print',     12, 94.2, 2.1, [[94,95],[90,94],[97,95],[92,87],[94,82],[97,49],[97,null],[93,null]]],
+                ['dtf-pick',       3, 92.0, 1.2, [[160,155],[160,162],[165,168],[165,158],[160,150],[160,80],[165,null],[165,null]]],
+                ['dtf-cut',        8, 91.5, 1.4, [[97,92],[99,99],[102,105],[102,98],[98,89],[102,49],[96,null],[97,null]]],
+                ['dtf-mockup',    10, 96.8, 0.8, [[84,92],[93,100],[91,92],[92,91],[86,81],[94,48],[85,null],[90,null]]],
+                ['dtf-pack_ship', 14, 87.3, 3.2, [[83,73],[81,74],[87,83],[86,86],[85,79],[83,41],[89,null],[82,null]]],
+            ],
+            'PD' => [
+                // DTF — 4 departments
+                ['dtf-print',      10, 92.1, 1.8, [[88,90],[85,88],[90,87],[87,85],[89,80],[91,45],[88,null],[86,null]]],
+                ['dtf-pick',        3, 90.5, 1.8, [[135,130],[135,132],[140,142],[140,135],[135,128],[135,68],[140,null],[140,null]]],
+                ['dtf-cut',         6, 93.7, 1.1, [[82,85],[84,86],[86,88],[85,82],[83,78],[87,43],[84,null],[81,null]]],
+                ['dtf-mockup',      8, 95.2, 1.0, [[75,78],[78,80],[76,77],[79,76],[74,70],[80,40],[77,null],[75,null]]],
+                // DTG — 2 departments
+                ['dtg-pick_dtg',    2, 91.0, 1.5, [[105,95],[105,101],[95,100],[95,95],[105,92],[105,47],[95,null],[95,null]]],
+                ['dtg-dtg_print',   2, 88.4, 2.8, [[400,385],[400,392],[400,410],[400,378],[400,365],[400,195],[400,null],[400,null]]],
+                // Pack & Ship
+                ['pack_ship-pack_ship', 10, 89.5, 2.5, [[70,65],[72,68],[74,72],[73,71],[71,66],[75,37],[72,null],[70,null]]],
+            ],
+        };
 
         $hourlyRecords = [];
         foreach ($hourlyData as [$deptKey, $staff, $efficiency, $errorRate, $hours]) {
             $dept = $departments->get($deptKey);
+            if (!$dept) {
+                $this->command?->warn("Department '{$deptKey}' not found, skipping hourly records.");
+                continue;
+            }
             foreach ($hours as $i => [$target, $actual]) {
                 $hourlyRecords[] = [
                     'shift_id' => $shift->id,
@@ -104,11 +119,11 @@ final class ProductionSeeder_1 extends Seeder
             }
         }
 
-        // Single batch insert — 96 records in 1 query
+        // Single batch insert
         HourlyRecord::insert($hourlyRecords);
 
         // ═══════════════════════════════════════════════════════
-        // 5. HOURLY ISSUES — batch insert for missed hours (all depts including pick)
+        // 5. HOURLY ISSUES — batch insert for missed hours
         // ═══════════════════════════════════════════════════════
 
         $allRecords = HourlyRecord::where('shift_id', $shift->id)->get();

@@ -39,7 +39,7 @@ final class OrderSummary extends ParentModel
      */
     public function scopePerLine(Builder $query): Builder
     {
-        return $query->whereNotNull('line')->orderByRaw("CASE line WHEN 'dtf1' THEN 1 WHEN 'dtf2' THEN 2 WHEN 'dtg' THEN 3 ELSE 4 END");
+        return $query->whereNotNull('line')->orderByRaw("CASE line WHEN 'dtf' THEN 1 WHEN 'dtg' THEN 2 WHEN 'pack_ship' THEN 3 ELSE 4 END");
     }
 
     /**

@@ -23,8 +23,8 @@ final class AlertTest extends UnitTestCase
 
     public function testScopeUnresolvedFiltersCorrectly(): void
     {
-        Alert::create(['severity' => 'critical', 'department' => 'Print', 'time' => '10:00', 'message' => 'Active', 'line' => 'dtf1', 'is_resolved' => false]);
-        Alert::create(['severity' => 'info', 'department' => 'Print', 'time' => '09:00', 'message' => 'Resolved', 'line' => 'dtf1', 'is_resolved' => true]);
+        Alert::create(['severity' => 'critical', 'department' => 'Print', 'time' => '10:00', 'message' => 'Active', 'line' => 'dtf', 'is_resolved' => false]);
+        Alert::create(['severity' => 'info', 'department' => 'Print', 'time' => '09:00', 'message' => 'Resolved', 'line' => 'dtf', 'is_resolved' => true]);
 
         $result = Alert::query()->unresolved()->get();
 
@@ -34,23 +34,23 @@ final class AlertTest extends UnitTestCase
 
     public function testScopeForLineIncludesAllAlerts(): void
     {
-        Alert::create(['severity' => 'critical', 'department' => 'Print', 'time' => '10:00', 'message' => 'DTF1 alert', 'line' => 'dtf1']);
+        Alert::create(['severity' => 'critical', 'department' => 'Print', 'time' => '10:00', 'message' => 'DTF alert', 'line' => 'dtf']);
         Alert::create(['severity' => 'info', 'department' => 'QC', 'time' => '09:00', 'message' => 'All alert', 'line' => 'all']);
-        Alert::create(['severity' => 'warning', 'department' => 'Cut', 'time' => '08:00', 'message' => 'DTF2 alert', 'line' => 'dtf2']);
+        Alert::create(['severity' => 'warning', 'department' => 'Cut', 'time' => '08:00', 'message' => 'DTG alert', 'line' => 'dtg']);
 
-        // DTF1 should see dtf1 + all
-        $result = Alert::query()->forLine('dtf1')->get();
+        // DTF should see dtf + all
+        $result = Alert::query()->forLine('dtf')->get();
         $this->assertCount(2, $result);
 
-        // DTF2 should see dtf2 + all
-        $result = Alert::query()->forLine('dtf2')->get();
+        // DTG should see dtg + all
+        $result = Alert::query()->forLine('dtg')->get();
         $this->assertCount(2, $result);
     }
 
     public function testScopeBySeverityFiltersCorrectly(): void
     {
-        Alert::create(['severity' => 'critical', 'department' => 'Print', 'time' => '10:00', 'message' => 'Critical', 'line' => 'dtf1']);
-        Alert::create(['severity' => 'warning', 'department' => 'Print', 'time' => '09:00', 'message' => 'Warning', 'line' => 'dtf1']);
+        Alert::create(['severity' => 'critical', 'department' => 'Print', 'time' => '10:00', 'message' => 'Critical', 'line' => 'dtf']);
+        Alert::create(['severity' => 'warning', 'department' => 'Print', 'time' => '09:00', 'message' => 'Warning', 'line' => 'dtf']);
 
         $result = Alert::query()->bySeverity('critical')->get();
 

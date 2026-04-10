@@ -11,5 +11,5 @@ use App\Containers\AppSection\Machine\UI\API\Controllers\GetMachinesByLineContro
 use Illuminate\Support\Facades\Route;
 
 Route::get('machines/{line}', GetMachinesByLineController::class)
-    ->where('line', 'dtf1|dtf2|dtg')
+    ->where('line', '[a-z_]+')
     ->middleware('throttle:60,1');

@@ -22,7 +22,7 @@ final class OrderSummaryTest extends UnitTestCase
             'estimated_done' => '16:30', 'progress' => 57,
         ]);
         OrderSummary::create([
-            'date' => now()->toDateString(), 'shift_number' => 1, 'line' => 'dtf1', 'line_label' => 'DTF 1',
+            'date' => now()->toDateString(), 'shift_number' => 1, 'line' => 'dtf', 'line_label' => 'DTF',
             'total' => 748, 'completed' => 423, 'remaining' => 325,
             'estimated_done' => '15:45', 'progress' => 57,
         ]);
@@ -42,7 +42,7 @@ final class OrderSummaryTest extends UnitTestCase
             'estimated_done' => '16:30', 'progress' => 56,
         ]);
         OrderSummary::create([
-            'date' => now()->toDateString(), 'shift_number' => 1, 'line' => 'dtf1', 'line_label' => 'DTF 1',
+            'date' => now()->toDateString(), 'shift_number' => 1, 'line' => 'dtf', 'line_label' => 'DTF',
             'total' => 748, 'completed' => 423, 'remaining' => 325,
             'estimated_done' => '15:45', 'progress' => 57,
         ]);
@@ -55,7 +55,7 @@ final class OrderSummaryTest extends UnitTestCase
         $result = OrderSummary::query()->perLine()->get();
 
         $this->assertCount(2, $result); // excludes total (null)
-        $this->assertSame('dtf1', $result->first()->line); // dtf1 before dtg
+        $this->assertSame('dtf', $result->first()->line); // dtf before dtg
         $this->assertSame('dtg', $result->last()->line);
     }
 

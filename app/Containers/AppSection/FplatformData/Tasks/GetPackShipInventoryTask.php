@@ -9,7 +9,7 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 /**
  * Get daily inventory (tồn đầu/cuối ngày) for team Pack & Ship (DTF).
  *
- * Source: docs/ton_dau_ngay_update.sql lines 282-396
+ * Source: docs/ton_dau_ton_cuoi_pack_ship.sql
  * Uses: folder_manage → order_check_file_dropbox → scan_label_history
  */
 final class GetPackShipInventoryTask extends ParentTask
@@ -21,58 +21,60 @@ final class GetPackShipInventoryTask extends ParentTask
         $extraUnions = $this->buildExtraPrinterUnions($factory);
 
         $sql = "
-            WITH printer AS (
-                SELECT REPLACE(NAME, 'Machine ', 'May') AS printer_name
+            WITH
+            target_printers AS (
+                SELECT REPLACE(name, 'Machine ', 'May') AS printer_id
                 FROM printer_manage
                 WHERE factory = ?
                 {$extraUnions}
             ),
+            folder_printer AS (
+                SELECT fm.estimate_date, fm.folder
+                FROM folder_manage fm
+                JOIN target_printers p
+                    ON p.printer_id = COALESCE(fm.printer_share, fm.printer_run, fm.printer_default)
+                WHERE fm.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                    AND fm.status_folder <> 2
+            ),
             a AS (
-                SELECT
-                    f.date,
-                    f.estimate_date,
-                    f.folder,
-                    d.file_name_order_code,
-                    COUNT(DISTINCT d.file_name_index_number) AS num_file
-                FROM folder_manage f
-                JOIN order_check_file_dropbox d
-                    ON d.folder = f.folder COLLATE utf8mb4_unicode_ci
-                JOIN printer tp
-                    ON tp.printer_name = COALESCE(f.printer_share, f.printer_run, f.printer_default)
-                WHERE f.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
-                    AND f.status_folder <> 2
-                    AND d.status <> 2
-                GROUP BY f.date, f.estimate_date, f.folder, d.file_name_order_code
+                SELECT *, COUNT(*) AS num_shirt FROM (
+                    SELECT
+                        f.estimate_date,
+                        f.folder,
+                        d.file_name_order_code,
+                        d.file_name_index_number
+                    FROM order_check_file_dropbox d
+                    JOIN folder_printer f
+                        ON d.folder = f.folder COLLATE utf8mb4_unicode_ci
+                        AND d.status <> 2
+                    GROUP BY f.estimate_date, f.folder, d.file_name_order_code, d.file_name_index_number
+                ) c
+                GROUP BY estimate_date, folder, file_name_order_code, file_name_index_number
             ),
             daily_aggregated AS (
                 SELECT
                     estimate_date,
-                    SUM(IF(created_at IS NULL, num_file, 0)) AS shirt_chua_scan,
-                    SUM(num_file) AS total_shirt
+                    SUM(IF(created_at IS NULL, num_shirt, 0)) AS not_done,
+                    SUM(num_shirt) AS total_shirt
                 FROM (
-                    SELECT
-                        a.estimate_date,
-                        a.num_file,
-                        m.created_at,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY a.folder, a.file_name_order_code
-                            ORDER BY m.id DESC
-                        ) AS rn
+                    SELECT a.*, l.created_at
                     FROM a
-                    LEFT JOIN scan_label_history m
-                        ON a.file_name_order_code = m.barcode COLLATE utf8mb4_0900_ai_ci
+                    LEFT JOIN scan_label_history l
+                        ON a.file_name_order_code COLLATE utf8mb4_0900_ai_ci = l.barcode
+                        AND l.created_at >= ? - INTERVAL 15 DAY
+                        AND a.file_name_index_number = l.index_num
+                    GROUP BY 1, 2, 3, 4
                 ) b
-                WHERE rn = 1
                 GROUP BY estimate_date
             )
             SELECT * FROM (
                 SELECT
                     estimate_date,
-                    total_shirt + COALESCE(SUM(shirt_chua_scan) OVER (
+                    total_shirt + COALESCE(SUM(not_done) OVER (
                         ORDER BY estimate_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
                     ), 0) AS ton_dau,
-                    SUM(shirt_chua_scan) OVER (ORDER BY estimate_date) AS ton_cuoi
+                    SUM(not_done) OVER (ORDER BY estimate_date) AS ton_cuoi
                 FROM daily_aggregated
             ) final_result
             WHERE estimate_date = ?
@@ -80,7 +82,7 @@ final class GetPackShipInventoryTask extends ParentTask
 
         $bindings = array_merge(
             $this->printerBindings($factory),
-            [$date, $date, $date],
+            [$date, $date, $date, $date],
         );
 
         return $this->formatResult($this->queryFplatform($sql, $bindings));

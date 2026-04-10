@@ -16,7 +16,6 @@ final class UpdateProductionLineRequest extends ParentRequest
             'label'      => ['sometimes', 'string', 'max:50'],
             'color'      => ['sometimes', 'string', 'max:20'],
             'subtitle'   => ['sometimes', 'nullable', 'string', 'max:255'],
-            'is_shared'  => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0'],
             'is_active'  => ['sometimes', 'boolean'],
         ];

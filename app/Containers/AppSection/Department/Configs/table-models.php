@@ -2,7 +2,8 @@
 
 use App\Containers\AppSection\Department\Data\Repositories\DepartmentRepository;
 use App\Containers\AppSection\Department\Enums\DepartmentUnit;
-use App\Containers\AppSection\Department\Enums\Factory;
+use App\Containers\AppSection\Department\Enums\ProductivityType;
+
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Department\UI\API\Requests\CreateDepartmentRequest;
 use App\Containers\AppSection\Department\UI\API\Requests\UpdateDepartmentRequest;
@@ -44,15 +45,13 @@ return [
                 ->searchable()->enum(DepartmentUnit::class),
             ColumnDefinition::number('kpi_per_hour', 'table::columns.kpi_per_hour')
                 ->width(100)->align('right')->priority(7),
-            ColumnDefinition::make('factory', 'table::columns.factory')
-                ->width(80)->align('center')->priority(8)
-                ->searchable()->enum(Factory::class),
             ColumnDefinition::boolean('is_active', 'table::columns.is_active')
-                ->width(100)->priority(9),
-            ColumnDefinition::boolean('can_increase_productivity', 'table::columns.can_increase_productivity')
-                ->width(130)->priority(10),
+                ->width(100)->priority(8),
+            ColumnDefinition::make('productivity_type', 'table::columns.productivity_type')
+                ->width(130)->priority(9)
+                ->enum(ProductivityType::class),
             ColumnDefinition::number('sort_order', 'table::columns.sort_order')
-                ->width(80)->priority(11),
+                ->width(80)->priority(10),
         ],
 
         'forms' => [
@@ -77,14 +76,12 @@ return [
                         ->group('basic')->order(5),
                     FormFieldDefinition::number('kpi_per_hour')
                         ->group('settings')->order(0),
-                    FormFieldDefinition::select('factory')
-                        ->group('settings')->order(1),
                     FormFieldDefinition::boolean('is_active')
-                        ->group('settings')->order(2)->default(true),
-                    FormFieldDefinition::boolean('can_increase_productivity')
-                        ->group('settings')->order(3)->default(true),
+                        ->group('settings')->order(1)->default(true),
+                    FormFieldDefinition::select('productivity_type')
+                        ->group('settings')->order(2)->default('per_person'),
                     FormFieldDefinition::number('sort_order')
-                        ->group('settings')->order(4)->default(0),
+                        ->group('settings')->order(3)->default(0),
                 ],
             ],
             'update' => [

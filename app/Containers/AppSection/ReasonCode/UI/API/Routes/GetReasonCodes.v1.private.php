@@ -8,8 +8,8 @@
  *
  * @apiDescription Get all KPI miss reason codes, optionally filtered by line and department context.
  *
- * @apiQuery {String} [line]  Production line filter (dtf1, dtf2, dtg)
- * @apiQuery {String} [dept]  Department filter (print, cut, mockup, pack_ship, pick, dtg_print)
+ * @apiQuery {String} [line]  Production line filter (e.g. dtf, dtg, pack_ship)
+ * @apiQuery {String} [dept]  Department filter (e.g. print, cut, mockup, pack_ship, pick, pick_dtg)
  */
 
 use App\Containers\AppSection\ReasonCode\UI\API\Controllers\GetReasonCodesController;

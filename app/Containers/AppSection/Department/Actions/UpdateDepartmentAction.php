@@ -20,10 +20,9 @@ final class UpdateDepartmentAction extends ParentAction
             'icon'                      => $request->icon,
             'unit'                      => $request->unit,
             'kpi_per_hour'              => $request->kpi_per_hour,
-            'factory'                   => $request->factory,
             'sort_order'                => $request->sort_order,
             'is_active'                 => $request->is_active,
-            'can_increase_productivity' => $request->can_increase_productivity,
+            'productivity_type'         => $request->productivity_type,
         ], fn ($v) => $v !== null);
 
         return app(UpdateDepartmentTask::class)->run($request->id, $data);

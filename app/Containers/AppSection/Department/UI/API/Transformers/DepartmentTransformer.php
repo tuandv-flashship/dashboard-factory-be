@@ -3,10 +3,14 @@
 namespace App\Containers\AppSection\Department\UI\API\Transformers;
 
 use App\Containers\AppSection\Department\Models\Department;
+use App\Containers\AppSection\Machine\UI\API\Transformers\MachineTransformer;
 use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
+use League\Fractal\Resource\Collection;
 
 final class DepartmentTransformer extends ParentTransformer
 {
+    protected array $defaultIncludes = ['machines'];
+
     protected array $availableIncludes = ['production_line'];
 
     public function transform(Department $dept): array
@@ -20,10 +24,9 @@ final class DepartmentTransformer extends ParentTransformer
             'icon' => $dept->icon,
             'unit' => $dept->unit,
             'kpi_per_hour' => $dept->kpi_per_hour,
-            'factory' => $dept->factory,
+            'productivity_type' => $dept->productivity_type,
             'sort_order' => $dept->sort_order,
             'is_active' => $dept->is_active,
-            'can_increase_productivity' => $dept->can_increase_productivity,
             'created_at' => $dept->created_at?->toIsoString(),
             'updated_at' => $dept->updated_at?->toIsoString(),
         ];
@@ -35,6 +38,15 @@ final class DepartmentTransformer extends ParentTransformer
             $dept->productionLine,
             new \App\Containers\AppSection\Production\UI\API\Transformers\ProductionLineTransformer(),
             'production_line',
+        );
+    }
+
+    public function includeMachines(Department $dept): Collection
+    {
+        return $this->collection(
+            $dept->machines,
+            new MachineTransformer(),
+            'machine',
         );
     }
 }

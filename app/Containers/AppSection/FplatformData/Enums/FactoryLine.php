@@ -8,6 +8,15 @@ enum FactoryLine: string
     case PD = 'PD';
 
     /**
+     * Get the FactoryLine for the current deployment.
+     * Reads from config('factory.current') which is set via FACTORY env variable.
+     */
+    public static function current(): self
+    {
+        return self::from(config('factory.current'));
+    }
+
+    /**
      * Get additional hotshot/reprint printer names for this factory line.
      */
     public function extraPrinters(): array
@@ -21,8 +30,8 @@ enum FactoryLine: string
     public function label(): string
     {
         return match ($this) {
-            self::FLS => 'DTF1 - FlashShip',
-            self::PD  => 'DTF2 - PrintDash',
+            self::FLS => 'FlashShip',
+            self::PD  => 'PrintDash',
         };
     }
 }

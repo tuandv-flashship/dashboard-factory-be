@@ -14,9 +14,14 @@ class MediaSettingsStore
      */
     public function all(): array
     {
-        return Cache::rememberForever(self::CACHE_KEY, function (): array {
+        try {
+            return Cache::rememberForever(self::CACHE_KEY, function (): array {
+                return $this->load();
+            });
+        } catch (\Throwable) {
+            // Cache table may not exist yet (e.g. during migrate:fresh)
             return $this->load();
-        });
+        }
     }
 
     public function get(string $key, mixed $default = null): mixed

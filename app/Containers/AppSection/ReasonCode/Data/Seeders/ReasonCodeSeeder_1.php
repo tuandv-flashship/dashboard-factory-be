@@ -48,23 +48,30 @@ final class ReasonCodeSeeder_1 extends Seeder
         // ═══════════════════════════════════════════════════════
         // 2. MACHINE SUB-ITEMS (per line + department)
         // ═══════════════════════════════════════════════════════
-        $machinesByLineDept = [
-            // DTF1
-            ['dtf1', 'print', ['DTF-01', 'DTF-02', 'DTF-03', 'DTF-04', 'HP-01', 'HP-02']],
-            ['dtf1', 'cut', ['CUT-01', 'CUT-02', 'CUT-03']],
-            ['dtf1', 'mockup', ['SEW-01', 'SEW-02', 'SEW-03', 'SEW-04']],
-            ['dtf1', 'pack_ship', ['PKG-01', 'PKG-02', 'LBL-01', 'LBL-02']],
-            ['dtf1', 'pick', ['SCAN-01', 'SCAN-02', 'CART-01', 'CART-02']],
-            // DTF2
-            ['dtf2', 'print', ['DTF-01', 'DTF-02', 'DTF-03', 'HP-01']],
-            ['dtf2', 'cut', ['CUT-01', 'CUT-02']],
-            ['dtf2', 'mockup', ['SEW-01', 'SEW-02', 'SEW-03']],
-            ['dtf2', 'pack_ship', ['PKG-01', 'PKG-02', 'LBL-01']],
-            ['dtf2', 'pick', ['SCAN-03', 'CART-03']],
-            // DTG
-            ['dtg', 'print', ['Apollo', 'Atlas-01', 'Atlas-02']],
-            ['dtg', 'pick', ['SCAN-04', 'CART-04']],
-        ];
+        $factory = config('factory.current');
+
+        $machinesByLineDept = match ($factory) {
+            'FLS' => [
+                // DTF — 5 departments
+                ['dtf', 'print', ['DTF-01', 'DTF-02', 'DTF-03', 'DTF-04', 'HP-01', 'HP-02']],
+                ['dtf', 'pick', ['SCAN-01', 'SCAN-02', 'CART-01', 'CART-02']],
+                ['dtf', 'cut', ['CUT-01', 'CUT-02', 'CUT-03']],
+                ['dtf', 'mockup', ['SEW-01', 'SEW-02', 'SEW-03', 'SEW-04']],
+                ['dtf', 'pack_ship', ['PKG-01', 'PKG-02', 'LBL-01']],
+            ],
+            'PD' => [
+                // DTF — 4 departments
+                ['dtf', 'print', ['DTF-01', 'DTF-02', 'DTF-03', 'HP-01']],
+                ['dtf', 'pick', ['SCAN-03', 'CART-03']],
+                ['dtf', 'cut', ['CUT-01', 'CUT-02']],
+                ['dtf', 'mockup', ['SEW-01', 'SEW-02', 'SEW-03']],
+                // DTG — 2 departments
+                ['dtg', 'pick_dtg', ['SCAN-04', 'CART-04']],
+                ['dtg', 'dtg_print', ['Apollo', 'Atlas-01', 'Atlas-02']],
+                // Pack & Ship — 1 department
+                ['pack_ship', 'pack_ship', ['PKG-01', 'PKG-02', 'LBL-01']],
+            ],
+        };
 
         $order = 1;
         foreach ($machinesByLineDept as [$line, $dept, $machines]) {

@@ -16,9 +16,9 @@ final class DepartmentRepository extends ParentRepository
         'code'               => '=',
         'label'              => 'like',
         'unit'               => '=',
-        'factory'            => '=',
         'is_active'          => '=',
         'production_line_id' => '=',
+        'productivity_type'  => '=',
     ];
 
     public function model(): string

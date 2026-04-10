@@ -73,4 +73,5 @@ php artisan test app/Containers/AppSection/Authentication/Tests
 
 ### Change Log
 
+- `2026-04-09`: Factory split — each factory (FLS/PD) uses its own `.env.fls`/`.env.pd` with dedicated `CLIENT_WEB_ID`/`CLIENT_WEB_SECRET`. No more shared or prefixed keys.
 - `2026-02-07`: Added dedicated Authentication container documentation.

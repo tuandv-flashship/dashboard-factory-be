@@ -16,7 +16,6 @@ final class UpdateProductionLineAction extends ParentAction
             'label'      => $request->label,
             'color'      => $request->color,
             'subtitle'   => $request->subtitle,
-            'is_shared'  => $request->is_shared,
             'sort_order' => $request->sort_order,
             'is_active'  => $request->is_active,
         ], fn ($v) => $v !== null);

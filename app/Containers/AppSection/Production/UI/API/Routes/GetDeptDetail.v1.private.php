@@ -8,8 +8,8 @@
  *
  * @apiDescription Get hourly production data with KPI miss issues for a specific department.
  *
- * @apiParam {String="dtf1","dtf2","dtg"} line Production line code
- * @apiParam {String="print","cut","mockup","pack_ship","pick","dtg_print"} dept Department code
+ * @apiParam {String} line Production line code (e.g. dtf, dtg, pack_ship)
+ * @apiParam {String} dept Department code (e.g. print, cut, mockup, pick, pack_ship)
  */
 
 use App\Containers\AppSection\Production\UI\API\Controllers\GetDeptDetailController;
@@ -17,5 +17,5 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('production/lines/{line}/departments/{dept}', GetDeptDetailController::class)
     ->middleware(['auth:api'])
-    ->whereIn('line', ['dtf1', 'dtf2', 'dtg'])
-    ->whereIn('dept', ['print', 'cut', 'mockup', 'pack_ship', 'pick', 'dtg_print']);
+    ->where('line', '[a-z_]+')
+    ->where('dept', '[a-z_0-9]+');

@@ -38,30 +38,27 @@ final class DepartmentModelsTest extends UnitTestCase
         $dept = Department::create([
             'production_line_id' => $line->id, 'code' => 'dept_enum',
             'label' => 'Dept Enum', 'label_en' => 'Dept Enum', 'icon' => 'Printer',
-            'unit' => 'shirt', 'kpi_per_hour' => 180, 'factory' => 'FLS', 'sort_order' => 1,
+            'unit' => 'shirt', 'kpi_per_hour' => 180, 'sort_order' => 1,
         ]);
 
         $this->assertSame(180, $dept->kpi_per_hour);
-        $this->assertSame('FLS', $dept->factory->value);
         $this->assertSame('shirt', $dept->unit->value);
     }
 
     public function testPickDepartmentAttributes(): void
     {
-        $pick = ProductionLine::create([
-            'code' => 'test_pick', 'label' => 'Test Pick', 'color' => '#ec4899',
-            'subtitle' => 'Lấy hàng', 'is_shared' => true, 'sort_order' => 14,
+        $line = ProductionLine::create([
+            'code' => 'test_dtf', 'label' => 'Test DTF', 'color' => '#ec4899',
+            'subtitle' => 'Building 1', 'sort_order' => 14,
         ]);
         $dept = Department::create([
-            'production_line_id' => $pick->id, 'code' => 'pick_dept1',
-            'label' => 'Pick Dept 1', 'label_en' => 'Pick Dept 1',
+            'production_line_id' => $line->id, 'code' => 'pick',
+            'label' => 'Pick', 'label_en' => 'Pick',
             'icon' => 'ShoppingCart', 'unit' => 'shirt', 'kpi_per_hour' => 180,
-            'factory' => 'FLS', 'sort_order' => 1,
+            'sort_order' => 1,
         ]);
 
-        $this->assertTrue($dept->productionLine->is($pick));
-        $this->assertTrue($pick->is_shared);
+        $this->assertTrue($dept->productionLine->is($line));
         $this->assertSame(180, $dept->kpi_per_hour);
-        $this->assertSame('FLS', $dept->factory->value);
     }
 }

@@ -14,19 +14,19 @@ final class GetAllProductionLinesTaskTest extends UnitTestCase
     public function testReturnsActiveLinesSortedBySortOrder(): void
     {
         ProductionLine::create(['code' => 'dtg', 'label' => 'DTG', 'color' => '#8b5cf6', 'sort_order' => 3]);
-        ProductionLine::create(['code' => 'dtf1', 'label' => 'DTF 1', 'color' => '#f59e0b', 'sort_order' => 1]);
-        ProductionLine::create(['code' => 'dtf2', 'label' => 'DTF 2', 'color' => '#14b8a6', 'sort_order' => 2, 'is_active' => false]);
+        ProductionLine::create(['code' => 'dtf', 'label' => 'DTF', 'color' => '#f59e0b', 'sort_order' => 1]);
+        ProductionLine::create(['code' => 'pack_ship', 'label' => 'Pack & Ship', 'color' => '#14b8a6', 'sort_order' => 2, 'is_active' => false]);
 
         $result = app(GetAllProductionLinesTask::class)->run();
 
-        $this->assertCount(2, $result); // dtf2 is inactive
-        $this->assertSame('dtf1', $result->first()->code);
+        $this->assertCount(2, $result); // pack_ship is inactive
+        $this->assertSame('dtf', $result->first()->code);
         $this->assertSame('dtg', $result->last()->code);
     }
 
     public function testEagerLoadsDepartments(): void
     {
-        $line = ProductionLine::create(['code' => 'dtf1', 'label' => 'DTF 1', 'color' => '#f59e0b', 'sort_order' => 1]);
+        $line = ProductionLine::create(['code' => 'dtf', 'label' => 'DTF', 'color' => '#f59e0b', 'sort_order' => 1]);
         Department::create([
             'production_line_id' => $line->id, 'code' => 'print',
             'label' => 'In ấn', 'label_en' => 'Print', 'icon' => 'Printer', 'unit' => 'file', 'sort_order' => 1,

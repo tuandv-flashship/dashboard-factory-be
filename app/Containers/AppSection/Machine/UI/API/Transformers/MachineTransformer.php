@@ -14,9 +14,11 @@ final class MachineTransformer extends ParentTransformer
             'code' => $machine->code,
             'name' => $machine->name,
             'status' => $machine->status,
-            'department' => $machine->department,
-            'line' => $machine->line,
             'description' => $machine->description,
+            'unit' => $machine->unit,
+            'kpi_per_hour' => $machine->kpi_per_hour,
+            'sort_order' => $machine->sort_order,
+            'is_active' => $machine->is_active,
         ];
     }
 }
