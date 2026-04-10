@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\Tasks;
 
+use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
@@ -20,6 +21,9 @@ use Illuminate\Support\Carbon;
  * – Restores previously soft-deleted records if a department/hour_index
  *   comes back into scope.
  * – Loads only required departments via whereIn (no Department::all()).
+ *
+ * Per-machine target: shift_detail.kpi_per_hour (NOT × headcount).
+ * Per-person  target: department.kpi_per_hour × headcount.
  */
 final class SyncHourlyRecordsTask extends ParentTask
 {
@@ -44,7 +48,18 @@ final class SyncHourlyRecordsTask extends ParentTask
 
         foreach ($shiftDetails as $detail) {
             $deptId     = $detail->department_id;
-            $kpiPerHour = $departments->get($deptId)?->kpi_per_hour ?? 0;
+            $dept       = $departments->get($deptId);
+            $isPerMachine = $dept?->productivity_type === ProductivityType::PerMachine;
+
+            // Per-machine: target = shift_detail.kpi_per_hour (Σ machine KPIs)
+            // Per-person:  target = department.kpi_per_hour × headcount
+            if ($isPerMachine) {
+                $target = $detail->kpi_per_hour ?? 0;
+            } else {
+                $kpiPerHour = $dept?->kpi_per_hour ?? 0;
+                $target = (int) round($kpiPerHour * $detail->headcount);
+            }
+
             $hours      = (int) floor($detail->work_hours);
             $start      = Carbon::createFromFormat('H:i:s', $detail->start_time);
 
@@ -66,7 +81,7 @@ final class SyncHourlyRecordsTask extends ParentTask
                     'hour_slot'            => $hourSlot,
                     'hour_index'           => $idx,
                     'staff'                => $detail->headcount,
-                    'target'               => (int) round($kpiPerHour * $detail->headcount),
+                    'target'               => $target,
                     // ── Preserve actual data when it exists ──
                     'actual'               => $prev?->actual,
                     'hour_start_inventory' => $prev?->hour_start_inventory ?? 0,

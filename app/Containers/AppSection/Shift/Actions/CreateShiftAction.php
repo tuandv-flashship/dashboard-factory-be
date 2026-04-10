@@ -89,7 +89,7 @@ final class CreateShiftAction extends ParentAction
                 $lastShift = $shift;
             }
 
-            return $lastShift->load(['details.department.productionLine', 'template', 'hourlyRecords']);
+            return $lastShift->load(['details.department.productionLine', 'details.machines.machine', 'template', 'hourlyRecords']);
         });
     }
 }

@@ -12,6 +12,7 @@ final class FindShiftWithDetailsAction extends ParentAction
         return Shift::with([
             'template:id,name,color',
             'details.department.productionLine',
+            'details.machines.machine',
             'hourlyRecords' => fn ($q) => $q->orderBy('department_id')->orderBy('hour_index'),
         ])->findOrFail($id);
     }

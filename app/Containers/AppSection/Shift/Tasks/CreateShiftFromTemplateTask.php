@@ -2,8 +2,11 @@
 
 namespace App\Containers\AppSection\Shift\Tasks;
 
+use App\Containers\AppSection\Department\Enums\ProductivityType;
+use App\Containers\AppSection\Machine\Models\Machine;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
+use App\Containers\AppSection\Shift\Models\ShiftDetailMachine;
 use App\Containers\AppSection\Shift\Models\ShiftTemplateDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
@@ -15,6 +18,11 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
  * thì merge override vào trước khi lưu.
  *
  * Override được key theo "department_id|shift_number".
+ *
+ * Per-machine departments (e.g. DTG Print):
+ *   - FE gửi machine_ids → server lookup KPI từng máy
+ *   - kpi_per_hour = Σ(machine.kpi_per_hour) — tổng KPI máy được chọn
+ *   - Tạo pivot records shift_detail_machines với snapshot KPI
  *
  * Optimized: bulk insert instead of N separate create() calls.
  */
@@ -42,14 +50,19 @@ final class CreateShiftFromTemplateTask extends ParentTask
             $key      = "{$td->department_id}|{$td->shift_number}";
             $override = $overrideMap->get($key, []);
 
+            // Per-machine: kpi_per_hour will be computed after insert (from machine_ids)
+            // Per-person: snapshot from department as before
+            $isPerMachine = $td->department?->productivity_type === ProductivityType::PerMachine;
+            $kpiPerHour   = $isPerMachine ? 0 : ($td->department?->kpi_per_hour ?? 0);
+
             return [
                 'shift_id'           => $shift->id,
                 'department_id'      => $td->department_id,
                 'shift_number'       => $td->shift_number,
                 // headcount: KHÔNG cho FE override — luôn copy từ template (cell màu vàng, read-only)
                 'headcount'          => $td->headcount,
-                // Snapshot năng suất 1h từ department tại thời điểm tạo ca
-                'kpi_per_hour'       => $td->department?->kpi_per_hour,
+                // Snapshot năng suất 1h — per_machine = 0 initially (updated below)
+                'kpi_per_hour'       => $kpiPerHour,
                 // Tồn đầu ngày — FE gửi kèm, mặc định 0
                 'day_start_inventory'=> $override['day_start_inventory'] ?? 0,
                 'start_time'         => $override['start_time']         ?? $td->start_time,
@@ -69,5 +82,75 @@ final class CreateShiftFromTemplateTask extends ParentTask
         })->toArray();
 
         ShiftDetail::insert($rows);
+
+        // ── Per-machine: attach machines & update kpi_per_hour ──
+        $this->attachMachines($shift, $templateDetails, $overrideMap, $now);
+    }
+
+    /**
+     * For per_machine departments: create shift_detail_machines pivot + update kpi_per_hour.
+     */
+    private function attachMachines(
+        Shift $shift,
+        \Illuminate\Support\Collection $templateDetails,
+        \Illuminate\Support\Collection $overrideMap,
+        \DateTimeInterface $now,
+    ): void {
+        // Collect per_machine departments
+        $perMachineDepts = $templateDetails->filter(
+            fn ($td) => $td->department?->productivity_type === ProductivityType::PerMachine
+        );
+
+        if ($perMachineDepts->isEmpty()) {
+            return;
+        }
+
+        // Re-fetch the newly created shift_details for these departments
+        $deptIds = $perMachineDepts->pluck('department_id')->unique()->toArray();
+        $shiftDetails = ShiftDetail::where('shift_id', $shift->id)
+            ->whereIn('department_id', $deptIds)
+            ->get()
+            ->keyBy(fn ($sd) => "{$sd->department_id}|{$sd->shift_number}");
+
+        $pivotRows = [];
+
+        foreach ($perMachineDepts as $td) {
+            $key      = "{$td->department_id}|{$td->shift_number}";
+            $override = $overrideMap->get($key, []);
+
+            $machineIds = $override['machine_ids'] ?? [];
+            if (empty($machineIds)) {
+                continue; // No machines selected → kpi stays 0
+            }
+
+            $shiftDetail = $shiftDetails->get($key);
+            if (!$shiftDetail) {
+                continue;
+            }
+
+            // Load machines with KPI
+            $machines = Machine::whereIn('id', $machineIds)
+                ->where('department_id', $td->department_id) // Safety: only machines from this dept
+                ->get();
+
+            $totalKpi = 0;
+            foreach ($machines as $machine) {
+                $pivotRows[] = [
+                    'shift_detail_id' => $shiftDetail->id,
+                    'machine_id'      => $machine->id,
+                    'kpi_per_hour'    => $machine->kpi_per_hour,
+                    'created_at'      => $now,
+                    'updated_at'      => $now,
+                ];
+                $totalKpi += $machine->kpi_per_hour;
+            }
+
+            // Update shift_detail.kpi_per_hour = Σ(machine KPI)
+            $shiftDetail->update(['kpi_per_hour' => $totalKpi]);
+        }
+
+        if (!empty($pivotRows)) {
+            ShiftDetailMachine::insert($pivotRows);
+        }
     }
 }

@@ -130,19 +130,42 @@ Cùng structure với `shift_template_details` nhưng FK vào `shifts`, bổ sun
 | shift_id | FK → shifts | ❌ | | Cascade on delete |
 | department_id | FK → departments | ❌ | | Cascade on delete |
 | shift_number | tinyint | ❌ | | 1 = Ca 1, 2 = Ca 2 |
-| headcount | smallint | ❌ | `0` | Số nhân sự |
-| **kpi_per_hour** | **unsignedInt** | ✅ | `null` | **Snapshot năng suất 1h từ `departments.kpi_per_hour` tại thời điểm tạo ca** |
+| headcount | smallint | ❌ | `0` | Số nhân sự (per_machine: số người vận hành, info only) |
+| **kpi_per_hour** | **unsignedInt** | ✅ | `null` | **Per-person: snapshot từ `departments.kpi_per_hour`. Per-machine: Σ(machine.kpi_per_hour) của các máy được chọn** |
 | **day_start_inventory** | **unsignedInt** | ❌ | `0` | **Tồn đầu ngày — FE gửi kèm khi tạo ca, mặc định 0** |
 | start_time | time | ❌ | | Giờ bắt đầu |
 | work_hours | decimal(4,1) | ❌ | | Số giờ làm |
 | prep_minutes | smallint | ❌ | `0` | Phút chuẩn bị |
 | break1_start..break3_minutes | | | | (giống shift_template_details) |
 
-> 💡 **Snapshot logic:** `kpi_per_hour` được copy từ `departments.kpi_per_hour` lúc `CreateShiftFromTemplateTask` chạy — giữ nguyên lịch sử dù department KPI thay đổi sau.
+> 💡 **Snapshot logic:**
+> - **Per-person:** `kpi_per_hour` = copy từ `departments.kpi_per_hour` lúc tạo ca
+> - **Per-machine:** `kpi_per_hour` = Σ(machine.kpi_per_hour) của các máy FE chọn. Chi tiết máy lưu trong `shift_detail_machines`.
+
+**Relationships:** `machines()` → HasMany ShiftDetailMachine
 
 **Virtual field:** `end_time` = `start_time + work_hours + meal_break_minutes`
 
 **Unique constraint:** `(shift_id, department_id, shift_number)`
+
+### `shift_detail_machines` — Máy được chọn cho per_machine departments
+
+Bảng pivot lưu máy nào hoạt động trong ca cho các bộ phận có `productivity_type = per_machine` (VD: DTG Print).
+
+| Column | Type | Nullable | Default | Mô tả |
+|---|---|---|---|---|
+| id | bigint PK | | | Auto increment |
+| shift_detail_id | FK → shift_details | ❌ | | Cascade on delete |
+| machine_id | FK → machines | ❌ | | Cascade on delete |
+| kpi_per_hour | unsignedInt | ❌ | `0` | Snapshot KPI máy tại thời điểm tạo ca |
+| created_at | timestamp | | | |
+| updated_at | timestamp | | | |
+
+**Unique constraint:** `(shift_detail_id, machine_id)`
+
+> 💡 **Công thức target cho hourly_records:**
+> - **Per-person:** `target = department.kpi_per_hour × headcount`
+> - **Per-machine:** `target = shift_detail.kpi_per_hour` (Σ KPI máy, KHÔNG nhân headcount)
 
 ---
 
@@ -527,6 +550,7 @@ Response bao gồm shift header + details (with department info) + hourly_record
           "department_label": "In DTF1",
           "line_code": "dtf1",
           "line_label": "DTF 1",
+          "productivity_type": "per_person",
           "shift_number": 1,
           "headcount": 8,
           "kpi_per_hour": 48,
@@ -534,7 +558,28 @@ Response bao gồm shift header + details (with department info) + hourly_record
           "start_time": "06:30",
           "end_time": "15:00",
           "work_hours": 8,
-          "prep_minutes": 23
+          "prep_minutes": 23,
+          "machines": []
+        },
+        {
+          "id": "HASHED_ID",
+          "department_code": "dtg_print",
+          "department_label": "DTG Print",
+          "line_code": "dtg",
+          "line_label": "DTG",
+          "productivity_type": "per_machine",
+          "shift_number": 1,
+          "headcount": 3,
+          "kpi_per_hour": 325,
+          "day_start_inventory": 100,
+          "start_time": "06:30",
+          "end_time": "15:00",
+          "work_hours": 8,
+          "prep_minutes": 0,
+          "machines": [
+            { "id": "HASHED", "code": "apollo", "name": "Apollo", "kpi_per_hour": 250 },
+            { "id": "HASHED", "code": "atlas_01", "name": "Atlas-01", "kpi_per_hour": 75 }
+          ]
         }
       ]
     },
@@ -569,9 +614,9 @@ Response bao gồm shift header + details (with department info) + hourly_record
 Server tự động:
 1. Tạo bản ghi `shifts`
 2. Copy `shift_template_details` → `shift_details` (**chỉ đúng `shift_number`**, filter theo ca được chọn)
-3. Snapshot `kpi_per_hour` từ department vào từng shift_detail
-4. Nếu FE gửi kèm `details[]` override → **merge** trước khi lưu (bao gồm `day_start_inventory`)
-5. Generate `hourly_records` (`target = kpi_per_hour × headcount`, `hour_start_inventory = 0`)
+3. Snapshot `kpi_per_hour`: per_person = từ department, per_machine = Σ(machine KPI được chọn)
+4. Nếu FE gửi kèm `details[]` override → **merge** trước khi lưu (bao gồm `day_start_inventory`, `machine_ids`)
+5. Generate `hourly_records`: per_person: `target = kpi × headcount`, per_machine: `target = Σ(machine KPI)`
 
 **Request body — Tối giản (không override):**
 ```json
@@ -622,10 +667,29 @@ Server tự động:
       "break2_minutes": 15,
       "break3_start": "16:30",
       "break3_minutes": 15
+    },
+    {
+      "department_id": 7,
+      "shift_number": 1,
+      "day_start_inventory": 100,
+      "machine_ids": [1, 2],
+      "start_time": "06:30",
+      "work_hours": 8,
+      "prep_minutes": 0,
+      "break1_start": "09:00",
+      "break1_minutes": 15,
+      "meal_break_start": "11:30",
+      "meal_break_minutes": 30,
+      "break2_start": "14:00",
+      "break2_minutes": 15,
+      "break3_start": "16:30",
+      "break3_minutes": 15
     }
   ]
 }
 ```
+
+> 💡 **`machine_ids`**: Chỉ gửi cho departments có `productivity_type = per_machine`. Server tự lookup KPI từng máy → `kpi_per_hour = Σ(machine.kpi_per_hour)`. VD: chọn Apollo (250) + Atlas-01 (75) → `kpi_per_hour = 325`.
 
 **Validation rules:**
 
@@ -641,6 +705,8 @@ Server tự động:
 | `details[].shift_number` | required\_with:details, integer, in:1,2 |
 | ~~`details[].headcount`~~ | **Read-only** — luôn copy từ template, FE không gửi |
 | **`details[].day_start_inventory`** | **sometimes, integer, min:0** — **Tồn đầu ngày. Mặc định `0`** |
+| **`details[].machine_ids`** | **sometimes, array** — **Chỉ cho per_machine dept. Mảng machine ID được chọn** |
+| **`details[].machine_ids.*`** | **integer, exists:machines,id** — **Phải thuộc đúng department** |
 | `details[].start_time` | required\_with:details, **date\_format:H:i** VD: `"06:30"` |
 | `details[].work_hours` | required\_with:details, numeric, min:0, max:24 |
 | `details[].prep_minutes` | sometimes, integer, min:0 |

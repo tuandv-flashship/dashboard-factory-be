@@ -32,7 +32,7 @@ final class UpdateShiftAction extends ParentAction
                 app(SyncHourlyRecordsTask::class)->run($shift);
             }
 
-            return $shift->load(['details.department.productionLine', 'template', 'hourlyRecords']);
+            return $shift->load(['details.department.productionLine', 'details.machines.machine', 'template', 'hourlyRecords']);
         });
     }
 }

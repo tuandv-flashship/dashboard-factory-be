@@ -24,8 +24,8 @@ final class GetShiftTemplateDefaultsController extends ApiController
     {
         $defaults = config('appSection-shift.defaults');
 
-        // Resolve departments keyed by "lineCode-deptCode"
-        $departments = Department::with('productionLine')->get()
+        // Resolve departments keyed by "lineCode-deptCode" (with machines for per_machine)
+        $departments = Department::with(['productionLine', 'machines'])->get()
             ->keyBy(fn ($d) => "{$d->productionLine->code}-{$d->code}");
 
         $details = collect();

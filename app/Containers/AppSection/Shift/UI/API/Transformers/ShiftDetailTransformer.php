@@ -4,6 +4,7 @@ namespace App\Containers\AppSection\Shift\UI\API\Transformers;
 
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
+use App\Containers\AppSection\Shift\Models\ShiftDetailMachine;
 use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
 
 final class ShiftDetailTransformer extends ParentTransformer
@@ -17,13 +18,14 @@ final class ShiftDetailTransformer extends ParentTransformer
         $dept = $detail->relationLoaded('department') ? $detail->department : null;
         $line = $dept?->relationLoaded('productionLine') ? $dept->productionLine : null;
 
-        return [
+        $data = [
             'id'                 => $detail->getHashedKey(),
             'department_id'      => $dept?->getHashedKey(),
             'department_code'    => $dept?->code,
             'department_label'   => $dept?->label,
             'line_code'          => $line?->code,
             'line_label'         => $line?->label,
+            'productivity_type'  => $dept?->productivity_type?->value,
             'shift_number'       => $detail->shift_number,
             'headcount'          => $detail->headcount,
             'kpi_per_hour'       => $detail->kpi_per_hour ?: ($detail->department?->kpi_per_hour ?? 0),
@@ -43,6 +45,23 @@ final class ShiftDetailTransformer extends ParentTransformer
             'kpi_hours'          => $this->computeKpiHours($detail),
             'required_headcount' => $this->computeRequiredHeadcount($detail),
         ];
+
+        // Per-machine departments: include selected machines with snapshot KPI
+        if ($detail->relationLoaded('machines') && $detail->machines->isNotEmpty()) {
+            $data['machines'] = $detail->machines->map(function (ShiftDetailMachine $sdm) {
+                $machine = $sdm->relationLoaded('machine') ? $sdm->machine : null;
+                return [
+                    'id'           => $machine?->getHashedKey(),
+                    'code'         => $machine?->code,
+                    'name'         => $machine?->name,
+                    'kpi_per_hour' => $sdm->kpi_per_hour,
+                ];
+            })->values()->toArray();
+        } else {
+            $data['machines'] = [];
+        }
+
+        return $data;
     }
 
 

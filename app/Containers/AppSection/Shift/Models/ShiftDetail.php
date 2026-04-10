@@ -6,6 +6,7 @@ use App\Containers\AppSection\Department\Models\Department;
 use App\Ship\Parents\Models\Model as ParentModel;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 final class ShiftDetail extends ParentModel
@@ -55,6 +56,11 @@ final class ShiftDetail extends ParentModel
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    public function machines(): HasMany
+    {
+        return $this->hasMany(ShiftDetailMachine::class, 'shift_detail_id');
     }
 
     // ── Accessors ────────────────────────────────────────

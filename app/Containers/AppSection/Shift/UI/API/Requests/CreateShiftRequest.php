@@ -35,6 +35,9 @@ final class CreateShiftRequest extends ParentRequest
             'details.*.break3_start'       => 'nullable|date_format:H:i',
             'details.*.break3_minutes'     => 'sometimes|integer|min:0',
             'details.*.day_start_inventory'=> 'sometimes|integer|min:0',
+            // Per-machine departments (e.g. DTG Print): FE gửi máy được chọn
+            'details.*.machine_ids'        => 'sometimes|array',
+            'details.*.machine_ids.*'      => 'integer|exists:machines,id',
         ];
     }
 
