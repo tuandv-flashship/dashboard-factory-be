@@ -105,6 +105,24 @@ final class CreateShiftFromTemplateTask extends ParentTask
             return;
         }
 
+        // Collect ALL machine_ids from all per_machine overrides for batch query
+        $allMachineIds = [];
+        foreach ($perMachineDepts as $td) {
+            $key      = "{$td->department_id}|{$td->shift_number}";
+            $override = $overrideMap->get($key, []);
+            $machineIds = $override['machine_ids'] ?? [];
+            if (!empty($machineIds)) {
+                $allMachineIds = array_merge($allMachineIds, $machineIds);
+            }
+        }
+
+        if (empty($allMachineIds)) {
+            return; // No machines selected for any per_machine dept
+        }
+
+        // Single batch query: load all selected machines at once
+        $allMachines = Machine::whereIn('id', array_unique($allMachineIds))->get()->keyBy('id');
+
         // Re-fetch the newly created shift_details for these departments
         $deptIds = $perMachineDepts->pluck('department_id')->unique()->toArray();
         $shiftDetails = ShiftDetail::where('shift_id', $shift->id)
@@ -128,13 +146,13 @@ final class CreateShiftFromTemplateTask extends ParentTask
                 continue;
             }
 
-            // Load machines with KPI
-            $machines = Machine::whereIn('id', $machineIds)
-                ->where('department_id', $td->department_id) // Safety: only machines from this dept
-                ->get();
-
+            // Filter from pre-loaded collection (safety: only machines from this dept)
             $totalKpi = 0;
-            foreach ($machines as $machine) {
+            foreach ($machineIds as $machineId) {
+                $machine = $allMachines->get($machineId);
+                if (!$machine || $machine->department_id !== $td->department_id) {
+                    continue; // Skip invalid: wrong dept or non-existent
+                }
                 $pivotRows[] = [
                     'shift_detail_id' => $shiftDetail->id,
                     'machine_id'      => $machine->id,

@@ -36,6 +36,24 @@ final class FormFieldDefinition
         $this->label = $label ?: "table::fields.{$key}";
     }
 
+    /**
+     * Restore from var_export() — required for `php artisan config:cache`.
+     *
+     * @param  array<string, mixed>  $state
+     */
+    public static function __set_state(array $state): self
+    {
+        $instance = new self($state['key'], $state['type'], $state['label'] ?? '');
+
+        foreach ($state as $prop => $value) {
+            if (property_exists($instance, $prop)) {
+                $instance->{$prop} = $value;
+            }
+        }
+
+        return $instance;
+    }
+
     // ─── Factory Methods ──────────────────────────────────────────
 
     public static function make(string $key, string $label = '', string $type = 'text'): self

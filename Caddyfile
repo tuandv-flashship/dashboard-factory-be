@@ -1,12 +1,11 @@
 # Caddy HTTPS Proxy for local factory development
 # Usage: ./bin/caddy run --config Caddyfile
 #
+# Proxies HTTPS → Octane (FrankenPHP)
 # Requires /etc/hosts entries:
 #   127.0.0.1  api-dashboard-fls.local api-dashboard-pd.local
 #
 # Uses port 2443 (MAMP occupies 443)
-# API_URL is overridden per-factory in factory-env.sh (without port)
-# so Laravel Route::domain() matches the Host header Caddy sends.
 
 {
 	https_port 2443

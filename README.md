@@ -2,16 +2,18 @@
 
 Backend API cho Dashboard giám sát sản xuất realtime — hỗ trợ multi-factory (FlashShip + PrintDash) trên cùng một codebase.
 
-**Stack**: Laravel Apiato (Porto SAP) + Passport + Reverb (WebSocket)
+**Stack**: Laravel Apiato (Porto SAP) + Octane (FrankenPHP) + Passport + Reverb (WebSocket)
 
 ## Architecture
 
-Mỗi factory chạy trên một process riêng biệt, sử dụng file `.env` riêng:
+Mỗi factory chạy trên một **Octane process** riêng biệt, sử dụng file `.env` riêng:
 
 | Factory    | Env file   | DB                    | Port | HTTPS Domain                           |
 |------------|------------|-----------------------|------|----------------------------------------|
 | FlashShip  | `.env.fls` | `dashboard_fls_local` | 8000 | `https://api-dashboard-fls.local:2443` |
 | PrintDash  | `.env.pd`  | `dashboard_pd_local`  | 8001 | `https://api-dashboard-pd.local:2443`  |
+
+> **Octane** giữ app in-memory, không bootstrap mỗi request → response time ~50ms (thay vì ~200ms với PHP-FPM/artisan serve).
 
 Caddy reverse proxy cung cấp HTTPS local cho cả 2 domain.
 
@@ -62,31 +64,38 @@ pd artisan passport:client --password --name="PrintDash Password Grant Client" -
 ### 7. Start development servers
 
 ```bash
-serve-https    # Start cả 2 Laravel servers + Caddy HTTPS proxy
+serve-https    # Start cả 2 Octane servers + Caddy HTTPS proxy
 ```
+
+Hoặc với auto-reload khi thay đổi code:
+```bash
+serve-watch    # Start cả 2 Octane servers với file watching
+```
+
+> **Lưu ý:** `serve-watch` cần `chokidar` — cài bằng: `npm install --save-dev chokidar`
 
 ## Factory Helper Commands
 
 Load helpers: `source scripts/factory-env.sh`
 
-| Command       | Description                                    |
-|---------------|------------------------------------------------|
-| `fls <cmd>`   | Chạy command dưới context FlashShip            |
-| `pd <cmd>`    | Chạy command dưới context PrintDash            |
-| `serve-all`   | Start cả 2 servers (HTTP only, port 8000+8001) |
-| `serve-https` | Start servers + Caddy HTTPS proxy              |
-| `proxy-start` | Chỉ start Caddy proxy                          |
-| `proxy-stop`  | Stop Caddy proxy                               |
-| `migrate-all` | Migrate cả 2 DB (non-destructive)              |
-| `seed-all`    | Seed cả 2 DB (non-destructive)                 |
-| `fresh-all`   | ⚠️ Drop + recreate + seed cả 2 DB              |
+| Command       | Description                                     |
+|---------------|-------------------------------------------------|
+| `fls <cmd>`   | Chạy command dưới context FlashShip             |
+| `pd <cmd>`    | Chạy command dưới context PrintDash             |
+| `serve-all`   | Start Octane + Horizon cho cả 2 factory          |
+| `serve-watch` | Start Octane + Horizon + auto-reload              |
+| `serve-https` | Start Octane + Horizon + Caddy HTTPS              |
+| `migrate-all` | Migrate cả 2 DB (non-destructive)               |
+| `seed-all`    | Seed cả 2 DB (non-destructive)                  |
+| `fresh-all`   | ⚠️ Drop + recreate + seed cả 2 DB               |
 
 ### Examples
 
 ```bash
 fls artisan tinker              # Tinker với DB FlashShip
 pd artisan migrate:status       # Xem migration status của PrintDash
-fls artisan queue:work          # Queue worker cho FlashShip
+fls artisan horizon             # Horizon queue dashboard cho FlashShip
+fls artisan octane:status       # Kiểm tra Octane server status
 ```
 
 ## API Testing

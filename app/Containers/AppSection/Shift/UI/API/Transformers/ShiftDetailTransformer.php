@@ -79,8 +79,9 @@ final class ShiftDetailTransformer extends ParentTransformer
     }
 
     /**
-     * Tính số nhân sự yêu cầu:
-     *   Số nhân sự = RoundUp( day_start_inventory / kpi_per_hour / kpi_hours )
+     * Tính số nhân sự / máy yêu cầu:
+     *   Per-person:  RoundUp( day_start_inventory / kpi_per_hour / kpi_hours ) = số người cần
+     *   Per-machine: Cùng công thức, nhưng kpi_per_hour = Σ(machine KPI) → kết quả ≤ 1 nghĩa là đủ máy
      */
     private function computeRequiredHeadcount(ShiftDetail $detail): int
     {

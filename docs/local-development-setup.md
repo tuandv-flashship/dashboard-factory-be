@@ -9,7 +9,8 @@
 | PHP | ≥ 8.2 | `php -v` |
 | Composer | ≥ 2.x | `composer -V` |
 | MySQL | ≥ 8.0 | MAMP hoặc native |
-| Node.js | ≥ 18 | (nếu chạy FE) |
+| Redis | ≥ 7.x | `brew install redis && brew services start redis` |
+| Node.js | ≥ 18 | Cần cho `--watch` mode |
 
 ---
 
@@ -73,10 +74,9 @@ source scripts/factory-env.sh
 |------|--------|:---------:|
 | `fls <cmd>` | Chạy lệnh với context FlashShip | — |
 | `pd <cmd>` | Chạy lệnh với context PrintDash | — |
-| `serve-all` | Start 2 server HTTP (`:8000` + `:8001`) | ❌ |
-| `serve-https` | Start 2 server + Caddy HTTPS proxy | ❌ |
-| `proxy-start` | Chỉ start Caddy HTTPS proxy | ❌ |
-| `proxy-stop` | Dừng Caddy HTTPS proxy | ❌ |
+| `serve-all` | Start Octane + Horizon cho cả 2 factory | ❌ |
+| `serve-watch` | Start Octane + Horizon + auto-reload khi code đổi | ❌ |
+| `serve-https` | Start Octane + Horizon + Caddy HTTPS proxy | ❌ |
 | `migrate-all` | Chạy migrations mới (pending) cho cả 2 DB | ❌ |
 | `seed-all` | Chạy seeders (skip nếu data đã có) | ❌ |
 | `fresh-all` | ⚠️ Drop + recreate + seed cả 2 DB | ✅ Yes |
@@ -113,6 +113,8 @@ seed-all
 
 ## 5. Chạy server
 
+Hệ thống dùng **Laravel Octane** với **FrankenPHP** — app được boot 1 lần và giữ in-memory, giúp response time nhanh hơn ~5-10x so với `artisan serve` truyền thống.
+
 ### HTTP only (đơn giản)
 
 ```bash
@@ -120,12 +122,20 @@ serve-all
 ```
 
 ```
-  🏭 Starting both factory instances...
+  🏭 Starting both factory instances (Octane FrankenPHP)...
   ┌──────────────────────────────────────────────┐
   │  FLS (FlashShip)  → http://localhost:8000    │
   │  PD  (PrintDash)  → http://localhost:8001    │
   └──────────────────────────────────────────────┘
 ```
+
+### HTTP + Auto-reload khi code thay đổi
+
+```bash
+serve-watch
+```
+
+> Cần cài `chokidar` (1 lần): `npm install --save-dev chokidar`
 
 ### HTTPS (production-like)
 
@@ -147,9 +157,55 @@ serve-https
 
 Nhấn `Ctrl+C` — tất cả instance dừng cùng lúc.
 
+### Octane utility commands
+
+```bash
+# Xem trạng thái server
+fls artisan octane:status
+
+# Reload workers (sau khi sửa config, .env)
+fls artisan octane:reload
+
+# Dừng Octane server cho factory
+fls artisan octane:stop
+```
+
+### Queue Dashboard (Horizon)
+
+Horizon **tự động start** cùng với `serve-all` / `serve-watch` / `serve-https`. Dashboard truy cập tại:
+- **FLS:** `http://localhost:8000/horizon`
+- **PD:** `http://localhost:8001/horizon`
+
+> Horizon tự quản lý queue workers — không cần chạy `queue:work` riêng.
+
 ---
 
-## 6. Cài đặt HTTPS Local (Caddy)
+## 6. Redis (Queue + Cache)
+
+Redis được dùng cho **queue** (Horizon) và **cache** (thay MySQL).
+
+### Cài đặt (1 lần)
+
+```bash
+brew install redis
+brew services start redis    # Auto-start khi boot
+
+# Verify
+redis-cli ping   # → PONG
+```
+
+### Kiểm tra config
+
+```bash
+fls artisan tinker --execute="echo app('redis')->ping();"
+# → PONG
+```
+
+> `.env.fls`/`.env.pd` đã config sẵn: `QUEUE_CONNECTION=redis`, `CACHE_STORE=redis`, `REDIS_PREFIX=fls_`/`pd_` để isolate data giữa 2 factory.
+
+---
+
+## 7. Cài đặt HTTPS Local (Caddy)
 
 ### 6.1 Cài Caddy binary
 
@@ -192,17 +248,15 @@ Sau đó dùng `serve-https` bình thường — không hỏi password nữa.
 
 ### 6.4 Giải thích hoạt động
 
-Caddy **rewrite `Host` header** trước khi forward request đến Laravel:
-
 ```
 Browser → https://api-dashboard-fls.local:2443
-              ↓  Caddy: header_up Host→ api-dashboard-factory.flashtech.local
-Laravel  ← Host: api-dashboard-factory.flashtech.local  ← khớp API_URL trong .env
+              ↓  Caddy: reverse_proxy → localhost:8000
+Octane   ← Host: api-dashboard-fls.local  ← FrankenPHP process (in-memory)
               ↓
-         Routes resolve → 200 OK
+         Routes resolve → 200 OK (~50ms)
 ```
 
-Nhờ đó **không cần sửa `.env`** hay bất kỳ config nào khi chuyển từ domain cũ sang domain mới.
+Caddy proxy tới Octane FrankenPHP server đang chạy trên port 8000/8001.
 
 ### 6.5 Kiểm tra
 
@@ -219,7 +273,7 @@ Mở browser:
 
 ---
 
-## 7. Chạy lệnh riêng cho từng factory
+## 8. Chạy lệnh riêng cho từng factory
 
 ```bash
 # Chạy artisan cho FLS
@@ -231,11 +285,14 @@ pd artisan test
 # Xem factory info
 fls artisan factory:info
 pd artisan factory:info
+
+# Octane status
+fls artisan octane:status
 ```
 
 ---
 
-## 8. Cấu trúc Factory
+## 9. Cấu trúc Factory
 
 ### FLS (FlashShip) — 1 line, 5 departments
 
@@ -269,7 +326,7 @@ Pack & Ship
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 ### "Table 'cache' doesn't exist"
 Database chưa migrate. Chạy:
@@ -299,19 +356,43 @@ Chưa trust Caddy CA:
 
 ### Port 8000/8001 đã bị chiếm
 ```bash
+# Stop Octane servers
+fls artisan octane:stop
+pd artisan octane:stop
+
+# Hoặc kill trực tiếp
 lsof -ti :8000 | xargs kill -9
 lsof -ti :8001 | xargs kill -9
 ```
 
+### Octane không phản ánh code mới
+App đang giữ in-memory — cần reload:
+```bash
+fls artisan octane:reload
+pd artisan octane:reload
+```
+
+Hoặc dùng `serve-watch` để tự động reload khi code thay đổi.
+
+### Memory tăng dần theo thời gian
+Octane tự restart worker sau 500 requests (default). Nếu vẫn leak, kiểm tra static properties:
+```bash
+# Điều chỉnh max requests
+php artisan octane:start --max-requests=250
+```
+
 ---
 
-## 10. File liên quan
+## 11. File liên quan
 
 | File | Mô tả |
 |------|--------|
 | `scripts/factory-env.sh` | Helper script (source vào shell) |
 | `Caddyfile` | Caddy HTTPS proxy config |
+| `config/octane.php` | Octane server config (FrankenPHP, listeners, flush bindings) |
 | `bin/caddy` | Caddy binary (gitignored) |
+| `frankenphp` | FrankenPHP binary (gitignored, auto-downloaded by Octane) |
 | `config/factory.php` | Factory config (`FACTORY` env) |
 | `docs/api-factory-decoupling.md` | API documentation cho FE |
+| `docs/production-deployment.md` | Production deployment guide |
 | `postman/DashboardFactory.postman_collection.json` | Postman collection |

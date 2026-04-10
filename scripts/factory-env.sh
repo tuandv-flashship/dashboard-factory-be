@@ -10,12 +10,12 @@
 # Commands:
 #   fls <command>        Run any command as FlashShip
 #   pd  <command>        Run any command as PrintDash
-#   serve-all            Start both servers (port 8000 + 8001)
-#   serve-https          Start both servers + Caddy HTTPS proxy
-#   proxy-start          Start only the Caddy HTTPS proxy
-#   proxy-stop           Stop the Caddy HTTPS proxy
+#   serve-all            Start both Octane servers (HTTP)
+#   serve-watch          Start both Octane servers with auto-reload
+#   serve-https          Start both Octane servers + Caddy HTTPS proxy
+#   horizon-all          Start Horizon queue dashboard for both factories
 #   migrate-all          Run pending migrations on both DBs (safe)
-#   seed-all             Run only seeders on both DBs (safe, skips existing)
+#   seed-all             Run only seeders on both DBs (safe)
 #   fresh-all            ⚠️  Drop + recreate + seed both DBs (destructive)
 
 # ── Configuration ──────────────────────────────────────
@@ -30,7 +30,6 @@ FLS_HTTPS="https://api-dashboard-fls.local:2443"
 PD_HTTPS="https://api-dashboard-pd.local:2443"
 
 # ── Core helpers ───────────────────────────────────────
-# APP_ENV tells Laravel to load .env.fls or .env.pd instead of .env
 
 fls() {
     APP_ENV=fls "$@"
@@ -44,49 +43,66 @@ artisan() {
     php artisan "$@"
 }
 
-# ── Serve ──────────────────────────────────────────────
+# ── Internal helpers ───────────────────────────────────
 
 _kill_stale_servers() {
     local stale_pids
-    stale_pids=$(pgrep -f 'artisan serve' 2>/dev/null)
+    stale_pids=$(pgrep -f 'artisan serve|artisan octane|frankenphp' 2>/dev/null)
     if [ -n "$stale_pids" ]; then
-        echo "  🧹 Killing stale artisan serve processes..."
+        echo "  🧹 Killing stale server processes..."
         echo "$stale_pids" | xargs kill 2>/dev/null
         sleep 1
     fi
 }
 
-serve-all() {
-    _kill_stale_servers
-    echo ""
-    echo "  🏭 Starting both factory instances..."
-    echo "  ┌──────────────────────────────────────────────┐"
-    echo "  │  FLS (FlashShip)  → http://localhost:$FLS_PORT  │"
-    echo "  │  PD  (PrintDash)  → http://localhost:$PD_PORT  │"
-    echo "  └──────────────────────────────────────────────┘"
-    echo "  Press Ctrl+C to stop both."
-    echo ""
+# Start both Octane servers with optional flags and cleanup callback
+# Usage: _start_octane_pair [extra_artisan_flags...] [-- cleanup_fn]
+_start_octane_pair() {
+    local extra_flags=()
+    local cleanup_fn=""
 
-    APP_ENV=fls php artisan serve --port=$FLS_PORT > >(sed 's/^/  [FLS] /') 2>&1 &
+    # Parse args: flags before --, cleanup fn after --
+    while [[ $# -gt 0 ]]; do
+        if [[ "$1" == "--" ]]; then
+            shift
+            cleanup_fn="$1"
+            break
+        fi
+        extra_flags+=("$1")
+        shift
+    done
+
+    # Start Octane servers
+    APP_ENV=fls php artisan octane:start --server=frankenphp --host=localhost --port=$FLS_PORT "${extra_flags[@]}" > >(sed 's/^/  [FLS] /') 2>&1 &
     local fls_pid=$!
 
-    APP_ENV=pd php artisan serve --port=$PD_PORT > >(sed 's/^/  [PD]  /') 2>&1 &
+    APP_ENV=pd php artisan octane:start --server=frankenphp --host=localhost --port=$PD_PORT "${extra_flags[@]}" > >(sed 's/^/  [PD]  /') 2>&1 &
     local pd_pid=$!
 
-    trap "echo ''; echo '  🛑 Stopping...'; kill $fls_pid $pd_pid 2>/dev/null; trap - INT; return" INT
+    # Start Horizon queue workers (auto-start with server)
+    APP_ENV=fls php artisan horizon > /dev/null 2>&1 &
+    local fls_horizon_pid=$!
+
+    APP_ENV=pd php artisan horizon > /dev/null 2>&1 &
+    local pd_horizon_pid=$!
+
+    local all_pids="$fls_pid $pd_pid $fls_horizon_pid $pd_horizon_pid"
+
+    if [ -n "$cleanup_fn" ]; then
+        trap "echo ''; echo '  🛑 Stopping all...'; kill $all_pids 2>/dev/null; $cleanup_fn; trap - INT; return" INT
+    else
+        trap "echo ''; echo '  🛑 Stopping all...'; kill $all_pids 2>/dev/null; trap - INT; return" INT
+    fi
     wait $fls_pid $pd_pid
 }
 
-# ── HTTPS Proxy (Caddy) ────────────────────────────────
-
-proxy-start() {
+_caddy_start() {
     if ! [ -f "$CADDY_BIN" ]; then
         echo "  ❌ Caddy not found at $CADDY_BIN"
         echo "  Run: curl -L https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_mac_arm64.tar.gz | tar xz -C bin/"
         return 1
     fi
 
-    # Check /etc/hosts
     if ! grep -q 'api-dashboard-fls.local' /etc/hosts 2>/dev/null; then
         echo "  ⚠️  Add to /etc/hosts (requires sudo):"
         echo "     sudo sh -c 'echo \"127.0.0.1  api-dashboard-fls.local api-dashboard-pd.local\" >> /etc/hosts'"
@@ -94,42 +110,83 @@ proxy-start() {
     fi
 
     echo "  🔒 Starting Caddy HTTPS proxy..."
-    echo "  ┌──────────────────────────────────────────────┐"
-    echo "  │  FLS (FlashShip)  → $FLS_HTTPS  │"
-    echo "  │  PD  (PrintDash)  → $PD_HTTPS   │"
-    echo "  └──────────────────────────────────────────────┘"
-
     "$CADDY_BIN" start --config "$CADDYFILE" 2>&1
 }
 
-proxy-stop() {
+_caddy_stop() {
     if [ -f "$CADDY_BIN" ]; then
         "$CADDY_BIN" stop 2>&1
         echo "  🛑 Caddy proxy stopped."
     fi
 }
 
-# Start both Laravel servers + Caddy HTTPS proxy
-serve-https() {
+# ── Serve Commands ─────────────────────────────────────
+
+serve-all() {
     _kill_stale_servers
-    proxy-start
+    echo ""
+    echo "  🏭 Starting both factory instances (Octane + Horizon)..."
+    echo "  ┌──────────────────────────────────────────────┐"
+    echo "  │  FLS (FlashShip)  → http://localhost:$FLS_PORT    │"
+    echo "  │  PD  (PrintDash)  → http://localhost:$PD_PORT    │"
+    echo "  │  📊 Horizon queue workers auto-started        │"
+    echo "  └──────────────────────────────────────────────┘"
+    echo "  Press Ctrl+C to stop all."
     echo ""
 
-    echo "  🏭 Starting both factory instances (HTTPS mode)..."
+    _start_octane_pair
+}
+
+serve-watch() {
+    _kill_stale_servers
+    echo ""
+    echo "  🏭 Starting both factory instances (Octane + watch + Horizon)..."
     echo "  ┌──────────────────────────────────────────────┐"
+    echo "  │  FLS (FlashShip)  → http://localhost:$FLS_PORT    │"
+    echo "  │  PD  (PrintDash)  → http://localhost:$PD_PORT    │"
+    echo "  │  📊 Horizon queue workers auto-started        │"
+    echo "  └──────────────────────────────────────────────┘"
+    echo "  📂 Watching for file changes..."
+    echo "  Press Ctrl+C to stop all."
+    echo ""
+
+    _start_octane_pair --watch
+}
+
+serve-https() {
+    _kill_stale_servers
+    _caddy_start || return 1
+    echo ""
+    echo "  🏭 Starting both factory instances (Octane + HTTPS)..."
+    echo "  ┌────────────────────────────────────────────────────────┐"
     echo "  │  FLS (FlashShip)  → $FLS_HTTPS  │"
     echo "  │  PD  (PrintDash)  → $PD_HTTPS   │"
+    echo "  └────────────────────────────────────────────────────────┘"
+    echo "  Press Ctrl+C to stop both."
+    echo ""
+
+    _start_octane_pair -- _caddy_stop
+}
+
+# ── Horizon ────────────────────────────────────────────
+
+horizon-all() {
+    echo ""
+    echo "  📊 Starting Horizon for both factories..."
+    echo "  ┌──────────────────────────────────────────────┐"
+    echo "  │  FLS (FlashShip)  → /horizon on :$FLS_PORT   │"
+    echo "  │  PD  (PrintDash)  → /horizon on :$PD_PORT   │"
     echo "  └──────────────────────────────────────────────┘"
     echo "  Press Ctrl+C to stop both."
     echo ""
 
-    APP_ENV=fls php artisan serve --port=$FLS_PORT > >(sed 's/^/  [FLS] /') 2>&1 &
+    APP_ENV=fls php artisan horizon > >(sed 's/^/  [FLS] /') 2>&1 &
     local fls_pid=$!
 
-    APP_ENV=pd php artisan serve --port=$PD_PORT > >(sed 's/^/  [PD]  /') 2>&1 &
+    APP_ENV=pd php artisan horizon > >(sed 's/^/  [PD]  /') 2>&1 &
     local pd_pid=$!
 
-    trap "echo ''; echo '  🛑 Stopping all...'; kill $fls_pid $pd_pid 2>/dev/null; proxy-stop; trap - INT; return" INT
+    trap "echo ''; echo '  🛑 Stopping Horizon...'; kill $fls_pid $pd_pid 2>/dev/null; trap - INT; return" INT
     wait $fls_pid $pd_pid
 }
 
@@ -147,11 +204,9 @@ _ensure_db() {
 }
 
 _db_name_for() {
-    # Read DB_DATABASE from the factory's .env file
     grep '^DB_DATABASE=' ".env.$1" 2>/dev/null | cut -d= -f2
 }
 
-# Run pending migrations only (non-destructive)
 migrate-all() {
     local fls_db=$(_db_name_for fls)
     local pd_db=$(_db_name_for pd)
@@ -171,7 +226,6 @@ migrate-all() {
     echo "  ✅ Both databases migrated!"
 }
 
-# Run seeders only (non-destructive, seeders have if count>0 guards)
 seed-all() {
     echo ""
     echo "  🌱 Seeding FLS..."
@@ -183,7 +237,6 @@ seed-all() {
     echo "  ✅ Both databases seeded!"
 }
 
-# ⚠️ Drop + recreate + seed (destructive)
 fresh-all() {
     echo ""
     echo "  ⚠️  This will DROP and RECREATE both databases!"
@@ -212,5 +265,8 @@ fresh-all() {
     echo "  ✅ Both databases recreated!"
 }
 
-echo "🏭 Factory helpers loaded: fls, pd, serve-all, serve-https, proxy-start, proxy-stop, migrate-all, seed-all, fresh-all"
+# ── Load message ───────────────────────────────────────
+
+echo "🏭 Factory helpers loaded: fls, pd, serve-all, serve-watch, serve-https, migrate-all, seed-all, fresh-all"
 echo "   Using per-factory env: .env.fls (FLS) / .env.pd (PD)"
+echo "   Server: Laravel Octane (FrankenPHP) | Queue: Redis + Horizon"

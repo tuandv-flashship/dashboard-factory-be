@@ -1,0 +1,141 @@
+{
+  "info": {
+    "name": "FplatformData",
+    "description": "## FplatformData Container\n\nLấy dữ liệu **tồn đầu/cuối ngày** từ database `fplatform` (external, read-only).\n\n**Base:** `/v1/fplatform`\n**Auth:** Public — không cần Bearer Token\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `in` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cat` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Pick (DTG) | `dtg_pick` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n\n### Response Format\n\nMỗi team trả về:\n- `ton_dau` — tồn đầu ngày (inventory at start of day)\n- `ton_cuoi` — tồn cuối ngày (inventory at end of day)\n- `estimate_date` — ngày estimate\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "API_URL",
+      "value": "https://api-dashboard-fls.local:2443",
+      "type": "string",
+      "description": "Active factory URL"
+    }
+  ],
+  "item": [
+    {
+      "name": "Get Daily Inventory (1 team)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=in&date=2026-04-10",
+          "host": [
+            "{{API_URL}}"
+          ],
+          "path": [
+            "v1",
+            "fplatform",
+            "daily-inventory"
+          ],
+          "query": [
+            {
+              "key": "team",
+              "value": "in",
+              "description": "Required. Team: in, cat, pick, mockup, pack_ship, dtg_pick, dtg_print, dtg_print_split"
+            },
+            {
+              "key": "date",
+              "value": "2026-04-10",
+              "description": "Optional. YYYY-MM-DD, default = today"
+            }
+          ]
+        },
+        "description": "✅ **Public** — Lấy tồn đầu/cuối ngày cho **1 team cụ thể**.\n\n| Param | Type | Required | Values |\n|---|---|---|---|\n| team | string | ✅ | `in`, `cat`, `pick`, `mockup`, `pack_ship`, `dtg_pick`, `dtg_print`, `dtg_print_split` |\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** `{ ton_dau, ton_cuoi, estimate_date, team, factory }`\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có dữ liệu cho ngày đó."
+      },
+      "response": [
+        {
+          "name": "200 OK — Team In (DTF)",
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-10\",\n    \"ton_dau\": 1250,\n    \"ton_cuoi\": 380,\n    \"team\": \"in\",\n    \"factory\": \"FLS\"\n  }\n}"
+        },
+        {
+          "name": "404 — Không có dữ liệu",
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Không có dữ liệu tồn cho ngày này.\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get All Teams Inventory",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{API_URL}}/v1/admin/fplatform/inventory?date=2026-04-10",
+          "host": [
+            "{{API_URL}}"
+          ],
+          "path": [
+            "v1",
+            "admin",
+            "fplatform",
+            "inventory"
+          ],
+          "query": [
+            {
+              "key": "date",
+              "value": "2026-04-10",
+              "description": "Optional. YYYY-MM-DD, default = today"
+            }
+          ]
+        },
+        "description": "🔒 **Private** — Lấy tồn đầu/cuối ngày cho **tất cả bộ phận** của factory hiện tại.\n\n**Auth:** Bearer Token\n**Permission:** `shifts.index` hoặc role `admin`\n\nQueries chạy song song (concurrent) cho tất cả teams.\n\n| Param | Type | Required | Mô tả |\n|---|---|---|---|\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** Object `teams` chứa inventory cho từng team.\n\n**Teams trả về:**\n- **FLS:** 5 teams DTF (in, cat, pick, mockup, pack_ship)\n- **PD:** 5 teams DTF + 2 teams DTG (dtg_pick, dtg_print_split)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**Dùng bởi:** Job `CreateDailyShiftJob` để fetch `day_start_inventory` cho Ca 1."
+      },
+      "response": [
+        {
+          "name": "200 OK — FLS (5 teams DTF)",
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"date\": \"2026-04-10\",\n    \"teams\": {\n      \"in\": {\n        \"label\": \"In (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1250,\n        \"ton_cuoi\": 380\n      },\n      \"cat\": {\n        \"label\": \"Cắt (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 980,\n        \"ton_cuoi\": 220\n      },\n      \"pick\": {\n        \"label\": \"Pick (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1500,\n        \"ton_cuoi\": 450\n      },\n      \"mockup\": {\n        \"label\": \"Mockup (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 2100,\n        \"ton_cuoi\": 680\n      },\n      \"pack_ship\": {\n        \"label\": \"Pack & Ship (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1800,\n        \"ton_cuoi\": 520\n      }\n    }\n  }\n}"
+        },
+        {
+          "name": "200 OK — PD (5 DTF + 2 DTG)",
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"date\": \"2026-04-10\",\n    \"teams\": {\n      \"in\": {\n        \"label\": \"In (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 850,\n        \"ton_cuoi\": 190\n      },\n      \"cat\": {\n        \"label\": \"Cắt (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 720,\n        \"ton_cuoi\": 150\n      },\n      \"pick\": {\n        \"label\": \"Pick (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1100,\n        \"ton_cuoi\": 310\n      },\n      \"mockup\": {\n        \"label\": \"Mockup (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1400,\n        \"ton_cuoi\": 420\n      },\n      \"pack_ship\": {\n        \"label\": \"Pack & Ship (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1200,\n        \"ton_cuoi\": 350\n      },\n      \"dtg_pick\": {\n        \"label\": \"Pick (DTG)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 280,\n        \"ton_cuoi\": 65\n      },\n      \"dtg_print_split\": {\n        \"label\": \"In (DTG) - Machine Split\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 180,\n        \"ton_cuoi\": 42,\n        \"machines\": {\n          \"apollo\": { \"ton_dau\": 80, \"ton_cuoi\": 18 },\n          \"atlas_01\": { \"ton_dau\": 50, \"ton_cuoi\": 12 },\n          \"atlas_02\": { \"ton_dau\": 50, \"ton_cuoi\": 12 }\n        }\n      }\n    }\n  }\n}"
+        }
+      ]
+    }
+  ]
+}

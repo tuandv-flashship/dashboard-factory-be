@@ -7,20 +7,19 @@ use App\Containers\AppSection\FplatformData\Enums\FactoryLine;
 use App\Containers\AppSection\FplatformData\Enums\Team;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Concurrency;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Get inventory (tồn đầu/cuối ngày) for ALL teams in parallel.
+ * Get inventory (tồn đầu/cuối ngày) for ALL teams.
  *
- * Uses Laravel Concurrency (fork driver via pcntl) to execute
- * 12 queries simultaneously:
- *   - 5 DTF teams × 2 factories (FLS, PD) = 10 queries
- *   - 2 DTG teams (dtg_pick, dtg_print_split) = 2 queries
+ * Queries run sequentially — with Redis cache (5min/1h TTL),
+ * 99%+ of requests are served from cache in <1ms.
+ * Cold queries (~5-7 teams) take ~10-15s total but only
+ * occur once per cache TTL window.
  *
- * Results are cached:
- *   - Today's data: 5 minutes
- *   - Historical data: 1 hour
+ * Team counts:
+ *   - FLS: 5 DTF teams
+ *   - PD:  5 DTF + 2 DTG = 7 teams
  */
 final class GetAllTeamsInventoryTask extends ParentTask
 {
@@ -44,11 +43,6 @@ final class GetAllTeamsInventoryTask extends ParentTask
         Team::DtgPrintSplit,
     ];
 
-    public function __construct(
-        private readonly GetDailyInventoryAction $action,
-    ) {
-    }
-
     /**
      * @return array{date: string, teams: array}
      */
@@ -64,77 +58,70 @@ final class GetAllTeamsInventoryTask extends ParentTask
     }
 
     /**
-     * Execute all inventory queries in parallel via Concurrency::run().
+     * Execute inventory queries sequentially for each team.
+     *
+     * Why sequential instead of Concurrency::run()?
+     * - process driver spawns child artisan processes (~2-3s bootstrap each)
+     * - With Octane in-memory, children DON'T share the warm state
+     * - Benchmark showed concurrent (17s) was SLOWER than sequential (15s)
+     * - fork driver doesn't work in web requests
+     * - Octane::concurrently() requires Swoole (we use FrankenPHP)
+     * - With Redis cache, cold calls are rare (once per 5min/1h)
      */
     private function fetchAllTeams(string $date): array
     {
-        // Build closures — each closure = 1 query
-        $jobs = [];
         $factory = FactoryLine::current();
+        $action = app(GetDailyInventoryAction::class);
 
-        foreach (self::DTF_TEAMS as $team) {
-            $jobs[$team->value] = fn () => $this->safeRun($date, $team);
-        }
+        $teams = array_merge(
+            self::DTF_TEAMS,
+            $factory === FactoryLine::PD ? self::DTG_TEAMS : [],
+        );
 
-        // DTG teams only exist in PD factory
-        if ($factory === FactoryLine::PD) {
-            foreach (self::DTG_TEAMS as $team) {
-                $jobs[$team->value] = fn () => $this->safeRun($date, $team);
+        $results = [];
+        foreach ($teams as $team) {
+            try {
+                $results[$team->value] = $action->run($date, $team);
+            } catch (\Throwable $e) {
+                Log::warning('[FplatformData] Inventory query failed', [
+                    'team'  => $team->value,
+                    'date'  => $date,
+                    'error' => $e->getMessage(),
+                ]);
+                $results[$team->value] = null;
             }
         }
 
-        // Run all queries concurrently (fork driver via pcntl)
-        $results = Concurrency::run($jobs);
-
-        // Format into structured response
         return $this->formatResponse($date, $results);
     }
 
     /**
-     * Safely execute a single team inventory query.
-     * Returns null on failure instead of throwing.
-     */
-    private function safeRun(string $date, Team $team): ?array
-    {
-        try {
-            return $this->action->run($date, $team);
-        } catch (\Throwable $e) {
-            Log::warning('[FplatformData] Inventory query failed', [
-                'team'    => $team->value,
-                'factory' => FactoryLine::current()->value,
-                'date'    => $date,
-                'error'   => $e->getMessage(),
-            ]);
-
-            return null;
-        }
-    }
-
-    /**
-     * Format concurrent results into the API response structure.
+     * Format results into the API response structure.
+     * Always returns full format (ton_dau=0, ton_cuoi=0 when no data).
      */
     private function formatResponse(string $date, array $results): array
     {
         $teams = [];
         $factory = FactoryLine::current();
+        $defaults = ['estimate_date' => $date, 'ton_dau' => 0, 'ton_cuoi' => 0];
 
         // DTF teams: flat structure (one factory per deployment)
         foreach (self::DTF_TEAMS as $team) {
             $result = $results[$team->value] ?? null;
-
-            $teams[$team->value] = $result
-                ? array_merge(['label' => $team->label()], $result)
-                : ['label' => $team->label()];
+            $teams[$team->value] = array_merge(
+                ['label' => $team->label()],
+                $result ?: $defaults,
+            );
         }
 
         // DTG teams: only in PD factory
         if ($factory === FactoryLine::PD) {
             foreach (self::DTG_TEAMS as $team) {
                 $result = $results[$team->value] ?? null;
-
-                $teams[$team->value] = $result
-                    ? array_merge(['label' => $team->label()], $result)
-                    : ['label' => $team->label()];
+                $teams[$team->value] = array_merge(
+                    ['label' => $team->label()],
+                    $result ?: $defaults,
+                );
             }
         }
 

@@ -2,12 +2,12 @@
 
 namespace App\Containers\AppSection\Shift\Tasks;
 
-use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
+use App\Containers\AppSection\Shift\Traits\ComputesHourlyTarget;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Carbon;
 
@@ -15,18 +15,14 @@ use Illuminate\Support\Carbon;
  * Smart-sync hourly_records after shift_details have been updated.
  *
  * – Preserves actual, hour_start_inventory, efficiency, error_rate
- *   for records that still match the new shift configuration.
- * – Soft-deletes records that no longer match (e.g. work_hours reduced,
- *   department removed) so historical data is retained.
- * – Restores previously soft-deleted records if a department/hour_index
- *   comes back into scope.
- * – Loads only required departments via whereIn (no Department::all()).
- *
- * Per-machine target: shift_detail.kpi_per_hour (NOT × headcount).
- * Per-person  target: department.kpi_per_hour × headcount.
+ * – Soft-deletes stale records via bulk query (not N loops)
+ * – Restores previously soft-deleted records via upsert
+ * – Target calculation via ComputesHourlyTarget trait
  */
 final class SyncHourlyRecordsTask extends ParentTask
 {
+    use ComputesHourlyTarget;
+
     public function run(Shift $shift): void
     {
         // ── 1. Snapshot existing records (including soft-deleted) ──
@@ -35,33 +31,25 @@ final class SyncHourlyRecordsTask extends ParentTask
             ->get()
             ->keyBy(fn ($r) => "{$r->department_id}_{$r->hour_index}");
 
-        // ── 2. Load only required departments ──
+        // ── 2. Load shift_details + departments ──
         $shiftDetails = ShiftDetail::where('shift_id', $shift->id)->get();
-        $deptIds = $shiftDetails->pluck('department_id')->unique();
-        $departments = Department::whereIn('id', $deptIds)->get()->keyBy('id');
+        $departments  = Department::whereIn('id', $shiftDetails->pluck('department_id')->unique())
+            ->get()
+            ->keyBy('id');
 
         // ── 3. Compute new record set ──
-        $newKeys = [];
-        $records = [];
+        $newKeys       = [];
+        $records       = [];
         $deptHourIndex = [];
-        $now = now();
+        $now           = now();
 
         foreach ($shiftDetails as $detail) {
-            $deptId     = $detail->department_id;
-            $dept       = $departments->get($deptId);
-            $isPerMachine = $dept?->productivity_type === ProductivityType::PerMachine;
+            $deptId = $detail->department_id;
+            $dept   = $departments->get($deptId);
+            $target = $this->computeTarget($dept, $detail, $detail->headcount);
 
-            // Per-machine: target = shift_detail.kpi_per_hour (Σ machine KPIs)
-            // Per-person:  target = department.kpi_per_hour × headcount
-            if ($isPerMachine) {
-                $target = $detail->kpi_per_hour ?? 0;
-            } else {
-                $kpiPerHour = $dept?->kpi_per_hour ?? 0;
-                $target = (int) round($kpiPerHour * $detail->headcount);
-            }
-
-            $hours      = (int) floor($detail->work_hours);
-            $start      = Carbon::createFromFormat('H:i:s', $detail->start_time);
+            $hours = (int) floor($detail->work_hours);
+            $start = Carbon::createFromFormat('H:i:s', $detail->start_time);
 
             for ($i = 0; $i < $hours; $i++) {
                 $deptHourIndex[$deptId] = ($deptHourIndex[$deptId] ?? -1) + 1;
@@ -71,14 +59,13 @@ final class SyncHourlyRecordsTask extends ParentTask
 
                 $slotStart = $start->copy()->addHours($i);
                 $slotEnd   = $slotStart->copy()->addHour();
-                $hourSlot  = $slotStart->format('G') . 'h-' . $slotEnd->format('G') . 'h';
 
                 $prev = $existing->get($key);
 
                 $records[$key] = [
                     'shift_id'             => $shift->id,
                     'department_id'        => $deptId,
-                    'hour_slot'            => $hourSlot,
+                    'hour_slot'            => $slotStart->format('G') . 'h-' . $slotEnd->format('G') . 'h',
                     'hour_index'           => $idx,
                     'staff'                => $detail->headcount,
                     'target'               => $target,
@@ -95,13 +82,15 @@ final class SyncHourlyRecordsTask extends ParentTask
             }
         }
 
-        // ── 4. Soft-delete records no longer in the new set ──
-        $existing->each(function ($record) use ($newKeys) {
-            $key = "{$record->department_id}_{$record->hour_index}";
-            if (!in_array($key, $newKeys, true) && $record->deleted_at === null) {
-                $record->delete(); // soft delete — preserves historical data
-            }
-        });
+        // ── 4. Bulk soft-delete stale records (1 query instead of N) ──
+        $staleIds = $existing
+            ->filter(fn ($r, $key) => !in_array($key, $newKeys, true) && $r->deleted_at === null)
+            ->pluck('id')
+            ->toArray();
+
+        if (!empty($staleIds)) {
+            HourlyRecord::whereIn('id', $staleIds)->update(['deleted_at' => $now]);
+        }
 
         // ── 5. Upsert all records (insert new, update existing, restore soft-deleted) ──
         if (!empty($records)) {

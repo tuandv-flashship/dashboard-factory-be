@@ -1223,3 +1223,173 @@ Shift/
         ├── ShiftTemplateTransformer.php
         └── ShiftTransformer.php            ← includes: details, hourlyRecords
 ```
+
+---
+
+## FE Integration Guide — Machine Selection (Per-Machine Departments)
+
+### Tổng quan
+
+Bộ phận có `productivity_type = per_machine` (hiện tại: **DTG Print**) tính năng suất theo **máy**, không theo người. FE cần:
+1. Hiển thị UI chọn máy (checkbox/dropdown) thay vì input headcount cho những department này
+2. Gửi `machine_ids` khi tạo/sửa ca
+
+### Luồng hoạt động
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. FE gọi GET /shift-templates/{id}                        │
+│    hoặc GET /shift-templates/defaults                      │
+│                                                             │
+│ 2. Response trả về cho mỗi department:                      │
+│    ├── productivity_type: "per_person" | "per_machine"      │
+│    └── available_machines: [...]  (chỉ per_machine)         │
+│                                                             │
+│ 3. FE render UI theo productivity_type:                     │
+│    ├── per_person  → input headcount (số người)             │
+│    └── per_machine → checkbox chọn máy từ available_machines│
+│                                                             │
+│ 4. FE gọi POST /shifts (tạo ca)                            │
+│    ├── details[].machine_ids = [1, 2]  ← per_machine dept  │
+│    └── details[] (không có machine_ids) ← per_person dept   │
+│                                                             │
+│ 5. Server tính:                                             │
+│    ├── per_person:  kpi = dept.kpi_per_hour                 │
+│    │                target = kpi × headcount                │
+│    └── per_machine: kpi = Σ(selected machine KPIs)          │
+│                     target = kpi (không nhân headcount)     │
+│                                                             │
+│ 6. Response trả về:                                         │
+│    ├── details[].machines: [{id, code, name, kpi_per_hour}] │
+│    └── hourlyRecords[].target: 325 (per_machine example)    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### API Fields mới — Chi tiết
+
+#### Response: `GET /shift-templates/{id}` và `GET /shift-templates/defaults`
+
+Mỗi detail row bây giờ có thêm:
+
+```json
+{
+  "department_code": "dtg_print",
+  "productivity_type": "per_machine",
+  "kpi_per_hour": 0,
+  "available_machines": [
+    { "id": "HASHED_M1", "code": "apollo",   "name": "Apollo",   "kpi_per_hour": 250 },
+    { "id": "HASHED_M2", "code": "atlas_01", "name": "Atlas-01", "kpi_per_hour": 75 },
+    { "id": "HASHED_M3", "code": "atlas_02", "name": "Atlas-02", "kpi_per_hour": 75 }
+  ]
+}
+```
+
+> ⚠️ `kpi_per_hour = 0` cho per_machine departments trong template response — đây là KPI department (= 0 vì DTG Print tính theo máy). KPI thực tế được tính sau khi chọn máy.
+
+#### Request: `POST /shifts` — Tạo ca
+
+Gửi `machine_ids` (mảng integer, machine real IDs) cho dept per_machine:
+
+```json
+{
+  "date": "2026-04-10",
+  "shift_template_id": "HASHED_TPL_ID",
+  "shift_numbers": [1],
+  "supervisor": "Nguyễn Văn Minh",
+  "details": [
+    {
+      "department_id": 5,
+      "shift_number": 1,
+      "day_start_inventory": 150
+    },
+    {
+      "department_id": 7,
+      "shift_number": 1,
+      "day_start_inventory": 100,
+      "machine_ids": [1, 2]
+    }
+  ]
+}
+```
+
+> 💡 `machine_ids` chỉ cần gửi cho departments có `productivity_type = per_machine`. Departments per_person bỏ qua field này.
+
+#### Response: `GET /shifts/{id}` — Chi tiết ca
+
+```json
+{
+  "details": {
+    "data": [
+      {
+        "department_code": "dtg_print",
+        "productivity_type": "per_machine",
+        "headcount": 3,
+        "kpi_per_hour": 325,
+        "machines": [
+          { "id": "HASHED_M1", "code": "apollo",   "name": "Apollo",   "kpi_per_hour": 250 },
+          { "id": "HASHED_M2", "code": "atlas_01", "name": "Atlas-01", "kpi_per_hour": 75 }
+        ]
+      },
+      {
+        "department_code": "dtf1_print",
+        "productivity_type": "per_person",
+        "headcount": 8,
+        "kpi_per_hour": 48,
+        "machines": []
+      }
+    ]
+  }
+}
+```
+
+#### Request: `PATCH /shifts/{id}` — Sửa ca (thay đổi máy)
+
+```json
+{
+  "details": [
+    {
+      "department_id": 7,
+      "shift_number": 1,
+      "machine_ids": [1, 3],
+      "day_start_inventory": 100,
+      "start_time": "06:30",
+      "work_hours": 8,
+      "..."
+    }
+  ]
+}
+```
+
+**Hành vi `machine_ids` khi update:**
+
+| Trường hợp | Hành vi |
+|---|---|
+| Gửi `machine_ids: [1, 2]` | Thay máy mới → `kpi = Σ(machine KPIs)` |
+| Gửi `machine_ids: []` | Bỏ tất cả máy → `kpi = 0`, `target = 0` |
+| **Không gửi** `machine_ids` | Giữ nguyên máy cũ (partial update) |
+
+### Headcount cho Per-Machine
+
+`headcount` cho per_machine departments = **số người vận hành máy** (info only):
+- **KHÔNG ảnh hưởng `target`** — target cố định = Σ(machine KPIs)
+- FE hiển thị headcount bên cạnh danh sách máy (read-only hoặc editable tùy UI)
+- Khi FE gọi `PATCH /shifts/{id}/hourly` (Update Hourly Staff), thay đổi `staff` cho per_machine → target giữ nguyên
+
+### Máy DTG Print hiện tại (PD)
+
+| Code | Tên | KPI/giờ |
+|---|---|---|
+| `apollo` | Apollo | 250 mặt in/giờ |
+| `atlas_01` | Atlas-01 | 75 mặt in/giờ |
+| `atlas_02` | Atlas-02 | 75 mặt in/giờ |
+
+**Ví dụ tổ hợp:**
+
+| Máy chọn | kpi_per_hour | target/giờ |
+|---|---|---|
+| Apollo + Atlas-01 | 325 | 325 |
+| Apollo + Atlas-01 + Atlas-02 | 400 | 400 |
+| Apollo only | 250 | 250 |
+| Atlas-01 only | 75 | 75 |
+| Không chọn | 0 | 0 |
+

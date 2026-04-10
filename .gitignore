@@ -50,3 +50,7 @@ CLAUDE.md
 /.gemini
 # Local tools
 bin/
+
+**/caddy
+frankenphp
+frankenphp-worker.php
