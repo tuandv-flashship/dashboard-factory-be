@@ -7,6 +7,7 @@ use App\Containers\AppSection\Authentication\UI\WEB\Controllers\HomePageControll
 use App\Containers\AppSection\Authentication\UI\WEB\Controllers\LoginController;
 use App\Containers\AppSection\RequestLog\Middleware\LogRequestErrors;
 use App\Ship\Middleware\ValidateAppId;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,10 +17,19 @@ use Illuminate\Http\Request;
 $basePath = dirname(__DIR__);
 $apiato = Apiato::configure(basePath: $basePath)->create();
 
+// Conditionally load Telescope only when enabled (zero overhead when disabled)
+$extraProviders = [
+    \App\Providers\HorizonServiceProvider::class,
+];
+
+if (env('TELESCOPE_ENABLED', false)) {
+    $extraProviders[] = \App\Providers\TelescopeServiceProvider::class;
+}
+
 return Application::configure(basePath: $basePath)
     ->withProviders([
         ...$apiato->providers(),
-        \App\Providers\HorizonServiceProvider::class,
+        ...$extraProviders,
     ])
     ->withEvents($apiato->events())
     ->withRouting(
@@ -47,6 +57,12 @@ return Application::configure(basePath: $basePath)
         });
     })
     ->withCommands($apiato->commands())
+    ->withSchedule(function (Schedule $schedule) {
+        // Prune Telescope entries older than 48 hours to prevent DB bloat
+        if (config('telescope.enabled')) {
+            $schedule->command('telescope:prune --hours=48')->daily();
+        }
+    })
     ->withExceptions(static function (Exceptions $exceptions) {})
     ->create();
 
