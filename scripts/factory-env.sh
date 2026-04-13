@@ -13,6 +13,7 @@
 #   serve-all            Start both Octane servers (HTTP)
 #   serve-watch          Start both Octane servers with auto-reload
 #   serve-https          Start both Octane servers + Caddy HTTPS proxy
+#   serve-https-watch    Start both Octane servers + Caddy HTTPS + auto-reload
 #   horizon-all          Start Horizon queue dashboard for both factories
 #   migrate-all          Run pending migrations on both DBs (safe)
 #   seed-all             Run only seeders on both DBs (safe)
@@ -72,11 +73,11 @@ _start_octane_pair() {
         shift
     done
 
-    # Start Octane servers
-    APP_ENV=fls php artisan octane:start --server=frankenphp --host=localhost --port=$FLS_PORT "${extra_flags[@]}" > >(sed 's/^/  [FLS] /') 2>&1 &
+    # Start Octane servers (filter FrankenPHP internal Caddy warnings)
+    APP_ENV=fls php artisan octane:start --server=frankenphp --host=localhost --port=$FLS_PORT "${extra_flags[@]}" 2>&1 | grep -v 'Caddyfile input is not formatted\|HTTP/2 skipped\|HTTP/3 skipped' | sed 's/^/  [FLS] /' &
     local fls_pid=$!
 
-    APP_ENV=pd php artisan octane:start --server=frankenphp --host=localhost --port=$PD_PORT "${extra_flags[@]}" > >(sed 's/^/  [PD]  /') 2>&1 &
+    APP_ENV=pd php artisan octane:start --server=frankenphp --host=localhost --port=$PD_PORT "${extra_flags[@]}" 2>&1 | grep -v 'Caddyfile input is not formatted\|HTTP/2 skipped\|HTTP/3 skipped' | sed 's/^/  [PD]  /' &
     local pd_pid=$!
 
     # Start Horizon queue workers (auto-start with server)
@@ -86,7 +87,14 @@ _start_octane_pair() {
     APP_ENV=pd php artisan horizon > /dev/null 2>&1 &
     local pd_horizon_pid=$!
 
-    local all_pids="$fls_pid $pd_pid $fls_horizon_pid $pd_horizon_pid"
+    # Start Scheduler (runs schedule:run every minute)
+    APP_ENV=fls php artisan schedule:work > /dev/null 2>&1 &
+    local fls_scheduler_pid=$!
+
+    APP_ENV=pd php artisan schedule:work > /dev/null 2>&1 &
+    local pd_scheduler_pid=$!
+
+    local all_pids="$fls_pid $pd_pid $fls_horizon_pid $pd_horizon_pid $fls_scheduler_pid $pd_scheduler_pid"
 
     if [ -n "$cleanup_fn" ]; then
         trap "echo ''; echo '  🛑 Stopping all...'; kill $all_pids 2>/dev/null; $cleanup_fn; trap - INT; return" INT
@@ -125,11 +133,11 @@ _caddy_stop() {
 serve-all() {
     _kill_stale_servers
     echo ""
-    echo "  🏭 Starting both factory instances (Octane + Horizon)..."
+    echo "  🏭 Starting both factory instances (Octane + Horizon + Scheduler)..."
     echo "  ┌──────────────────────────────────────────────┐"
     echo "  │  FLS (FlashShip)  → http://localhost:$FLS_PORT    │"
     echo "  │  PD  (PrintDash)  → http://localhost:$PD_PORT    │"
-    echo "  │  📊 Horizon queue workers auto-started        │"
+    echo "  │  📊 Horizon + ⏰ Scheduler auto-started       │"
     echo "  └──────────────────────────────────────────────┘"
     echo "  Press Ctrl+C to stop all."
     echo ""
@@ -140,11 +148,11 @@ serve-all() {
 serve-watch() {
     _kill_stale_servers
     echo ""
-    echo "  🏭 Starting both factory instances (Octane + watch + Horizon)..."
+    echo "  🏭 Starting both factory instances (Octane + watch + Horizon + Scheduler)..."
     echo "  ┌──────────────────────────────────────────────┐"
     echo "  │  FLS (FlashShip)  → http://localhost:$FLS_PORT    │"
     echo "  │  PD  (PrintDash)  → http://localhost:$PD_PORT    │"
-    echo "  │  📊 Horizon queue workers auto-started        │"
+    echo "  │  📊 Horizon + ⏰ Scheduler auto-started       │"
     echo "  └──────────────────────────────────────────────┘"
     echo "  📂 Watching for file changes..."
     echo "  Press Ctrl+C to stop all."
@@ -166,6 +174,22 @@ serve-https() {
     echo ""
 
     _start_octane_pair -- _caddy_stop
+}
+
+serve-https-watch() {
+    _kill_stale_servers
+    _caddy_start || return 1
+    echo ""
+    echo "  🏭 Starting both factory instances (Octane + HTTPS + watch)..."
+    echo "  ┌────────────────────────────────────────────────────────┐"
+    echo "  │  FLS (FlashShip)  → $FLS_HTTPS  │"
+    echo "  │  PD  (PrintDash)  → $PD_HTTPS   │"
+    echo "  └────────────────────────────────────────────────────────┘"
+    echo "  📂 Watching for file changes..."
+    echo "  Press Ctrl+C to stop all."
+    echo ""
+
+    _start_octane_pair --watch -- _caddy_stop
 }
 
 # ── Horizon ────────────────────────────────────────────
@@ -267,6 +291,6 @@ fresh-all() {
 
 # ── Load message ───────────────────────────────────────
 
-echo "🏭 Factory helpers loaded: fls, pd, serve-all, serve-watch, serve-https, migrate-all, seed-all, fresh-all"
+echo "🏭 Factory helpers loaded: fls, pd, serve-all, serve-watch, serve-https, serve-https-watch, migrate-all, seed-all, fresh-all"
 echo "   Using per-factory env: .env.fls (FLS) / .env.pd (PD)"
-echo "   Server: Laravel Octane (FrankenPHP) | Queue: Redis + Horizon"
+echo "   Server: Laravel Octane (FrankenPHP) | Queue: Redis + Horizon | ⏰ Scheduler"

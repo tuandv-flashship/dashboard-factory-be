@@ -54,3 +54,4 @@ bin/
 **/caddy
 frankenphp
 frankenphp-worker.php
+.envrc

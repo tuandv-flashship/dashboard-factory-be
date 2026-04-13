@@ -6,7 +6,7 @@
 
 | Tool | Version | Ghi chú |
 |------|---------|---------|
-| PHP | ≥ 8.2 | `php -v` |
+| PHP | ≥ 8.4 | `php -v` (khuyên dùng Homebrew: `brew install php@8.5`) |
 | Composer | ≥ 2.x | `composer -V` |
 | MySQL | ≥ 8.0 | MAMP hoặc native |
 | Redis | ≥ 7.x | `brew install redis && brew services start redis` |
@@ -77,6 +77,7 @@ source scripts/factory-env.sh
 | `serve-all` | Start Octane + Horizon cho cả 2 factory | ❌ |
 | `serve-watch` | Start Octane + Horizon + auto-reload khi code đổi | ❌ |
 | `serve-https` | Start Octane + Horizon + Caddy HTTPS proxy | ❌ |
+| `serve-https-watch` | Start Octane + Horizon + Caddy HTTPS + auto-reload | ❌ |
 | `migrate-all` | Chạy migrations mới (pending) cho cả 2 DB | ❌ |
 | `seed-all` | Chạy seeders (skip nếu data đã có) | ❌ |
 | `fresh-all` | ⚠️ Drop + recreate + seed cả 2 DB | ✅ Yes |
@@ -152,6 +153,14 @@ serve-https
   │  PD   → https://api-dashboard-pd.local:2443                 │
   └────────────────────────────────────────────────────────┘
 ```
+
+### HTTPS + Auto-reload (khuyên dùng khi dev với FE)
+
+```bash
+serve-https-watch
+```
+
+Kết hợp Caddy HTTPS proxy + auto-reload khi code thay đổi. Ideal khi chạy FE local cần gọi API qua HTTPS.
 
 ### Dừng server
 

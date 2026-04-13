@@ -19,6 +19,7 @@ $apiato = Apiato::configure(basePath: $basePath)->create();
 return Application::configure(basePath: $basePath)
     ->withProviders([
         ...$apiato->providers(),
+        \App\Providers\HorizonServiceProvider::class,
     ])
     ->withEvents($apiato->events())
     ->withRouting(

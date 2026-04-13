@@ -20,6 +20,23 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
     }
 
     /**
+     * Configure the Horizon authorization services.
+     *
+     * Override parent to include 'fls' and 'pd' environments in the
+     * Horizon::auth fallback. The parent only checks for 'local',
+     * causing 403 when APP_ENV is 'fls' or 'pd'.
+     */
+    protected function authorization(): void
+    {
+        $this->gate();
+
+        Horizon::auth(function ($request) {
+            return app()->environment('local', 'fls', 'pd')
+                || Gate::check('viewHorizon', [$request->user()]);
+        });
+    }
+
+    /**
      * Register the Horizon gate.
      *
      * This gate determines who can access Horizon in non-local environments.
@@ -27,13 +44,7 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
      */
     protected function gate(): void
     {
-        Gate::define('viewHorizon', function ($user = null) {
-            // In local environment, always allow access
-            if (app()->environment('local', 'fls', 'pd')) {
-                return true;
-            }
-
-            // In production, restrict to admin users
+        Gate::define('viewHorizon', function ($user) {
             return $user && $user->hasRole('admin');
         });
     }
