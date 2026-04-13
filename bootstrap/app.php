@@ -17,19 +17,11 @@ use Illuminate\Http\Request;
 $basePath = dirname(__DIR__);
 $apiato = Apiato::configure(basePath: $basePath)->create();
 
-// Conditionally load Telescope only when enabled (zero overhead when disabled)
-$extraProviders = [
-    \App\Providers\HorizonServiceProvider::class,
-];
-
-if (env('TELESCOPE_ENABLED', false)) {
-    $extraProviders[] = \App\Providers\TelescopeServiceProvider::class;
-}
-
 return Application::configure(basePath: $basePath)
     ->withProviders([
         ...$apiato->providers(),
-        ...$extraProviders,
+        \App\Providers\HorizonServiceProvider::class,
+        \App\Providers\TelescopeServiceProvider::class,
     ])
     ->withEvents($apiato->events())
     ->withRouting(

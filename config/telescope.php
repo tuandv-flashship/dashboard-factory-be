@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'enabled' => env('TELESCOPE_ENABLED', false),
+    'enabled' => env('TELESCOPE_ENABLED', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -118,16 +118,10 @@ return [
         'pulse*',
         '_boost*',
         '.well-known*',
-        'horizon*',
-        'telescope*',
-        '_debugbar*',
     ],
 
     'ignore_commands' => [
-        'schedule:run',
-        'schedule:finish',
-        'package:discover',
-        'vendor:publish',
+        //
     ],
 
     /*
@@ -200,7 +194,7 @@ return [
             'enabled' => env('TELESCOPE_QUERY_WATCHER', true),
             'ignore_packages' => true,
             'ignore_paths' => [],
-            'slow' => 200,
+            'slow' => 100,
         ],
 
         Watchers\RedisWatcher::class => env('TELESCOPE_REDIS_WATCHER', true),

@@ -14,6 +14,11 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
      */
     public function register(): void
     {
+        // Skip setup entirely when Telescope is disabled (zero overhead)
+        if (! config('telescope.enabled')) {
+            return;
+        }
+
         Telescope::night();
 
         $this->hideSensitiveRequestDetails();
@@ -72,8 +77,8 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
         $this->gate();
 
         Telescope::auth(function ($request) {
-            // Allow access in local and staging environments
-            if (app()->environment('local', 'fls')) {
+            // Allow access in local, staging, and production-local environments
+            if (app()->environment('local', 'fls', 'pd')) {
                 return true;
             }
 
