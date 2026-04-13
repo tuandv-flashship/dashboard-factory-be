@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Laravel\Horizon\Horizon;
 use Laravel\Horizon\HorizonApplicationServiceProvider;
 
@@ -36,6 +37,16 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
             }
 
             $user = $request->user('web');
+
+            Log::info('Horizon auth debug', [
+                'env' => app()->environment(),
+                'has_session' => $request->hasSession(),
+                'session_id' => $request->session()?->getId(),
+                'user_web' => $user?->email,
+                'user_default' => $request->user()?->email,
+                'has_admin_role' => $user?->hasRole('admin'),
+                'user_roles' => $user?->getRoleNames()->toArray(),
+            ]);
 
             return $user && $user->hasRole('admin');
         });
