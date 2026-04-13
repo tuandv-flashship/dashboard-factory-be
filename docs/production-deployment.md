@@ -30,25 +30,25 @@
 
 Hệ thống chạy **cùng 1 codebase** nhưng deploy thành **2 instance riêng biệt**:
 
-| | FlashShip (FLS) | PrintDash (PD) |
-|---|---|---|
-| **Directory** | `/var/www/dashboard-fls` | `/var/www/dashboard-pd` |
-| **Database** | `dashboard_fls` | `dashboard_pd` |
-| **Octane port** | `8000` | `8001` |
-| **Redis prefix** | `fls_` | `pd_` |
-| **Domain** | `fls-api.example.com` | `pd-api.example.com` |
+|                  | FlashShip (FLS)          | PrintDash (PD)          |
+| ---------------- | ------------------------ | ----------------------- |
+| **Directory**    | `/var/www/dashboard-fls` | `/var/www/dashboard-pd` |
+| **Database**     | `dashboard_fls`          | `dashboard_pd`          |
+| **Octane port**  | `8000`                   | `8001`                  |
+| **Redis prefix** | `fls_`                   | `pd_`                   |
+| **Domain**       | `fls-api.example.com`    | `pd-api.example.com`    |
 
 ### Technology Stack
 
-| Component | Technology | Vai trò |
-|---|---|---|
-| **Web Server** | Laravel Octane + FrankenPHP | Persistent in-memory app server |
-| **Reverse Proxy** | Nginx | SSL termination, static assets, load balancing |
-| **Queue** | Redis + Laravel Horizon | Background jobs, auto-scaling workers |
-| **Cache** | Redis | Application cache (<1ms response) |
-| **Database** | MySQL 8.0+ | Primary data store |
-| **Scheduler** | Crontab + Laravel Scheduler | Periodic tasks |
-| **Process Manager** | Supervisor | Keep Octane + Horizon alive |
+| Component           | Technology                  | Vai trò                                        |
+| ------------------- | --------------------------- | ---------------------------------------------- |
+| **Web Server**      | Laravel Octane + FrankenPHP | Persistent in-memory app server                |
+| **Reverse Proxy**   | Nginx                       | SSL termination, static assets, load balancing |
+| **Queue**           | Redis + Laravel Horizon     | Background jobs, auto-scaling workers          |
+| **Cache**           | Redis                       | Application cache (<1ms response)              |
+| **Database**        | MySQL 8.0+                  | Primary data store                             |
+| **Scheduler**       | Crontab + Laravel Scheduler | Periodic tasks                                 |
+| **Process Manager** | Supervisor                  | Keep Octane + Horizon alive                    |
 
 ### Request Flow
 
@@ -120,24 +120,24 @@ Client (HTTPS)
 
 ### Hardware tối thiểu
 
-| Resource | Minimum | Recommended |
-|---|---|---|
-| CPU | 2 cores | 4+ cores |
-| RAM | 2 GB | 4+ GB |
-| Disk | 20 GB SSD | 50+ GB SSD |
+| Resource | Minimum   | Recommended |
+| -------- | --------- | ----------- |
+| CPU      | 2 cores   | 4+ cores    |
+| RAM      | 2 GB      | 4+ GB       |
+| Disk     | 20 GB SSD | 50+ GB SSD  |
 
 ### Software
 
-| Package | Version | Lệnh kiểm tra |
-|---|---|---|
-| Ubuntu | 22.04+ | `lsb_release -a` |
-| PHP | 8.2+ | `php -v` |
-| MySQL | 8.0+ | `mysql -V` |
-| Redis | 7.0+ | `redis-server -v` |
-| Nginx | 1.18+ | `nginx -v` |
-| Supervisor | 4.0+ | `supervisorctl version` |
-| Composer | 2.x | `composer -V` |
-| Git | 2.x | `git --version` |
+| Package    | Version | Lệnh kiểm tra           |
+| ---------- | ------- | ----------------------- |
+| Ubuntu     | 22.04+  | `lsb_release -a`        |
+| PHP        | 8.2+    | `php -v`                |
+| MySQL      | 8.0+    | `mysql -V`              |
+| Redis      | 7.0+    | `redis-server -v`       |
+| Nginx      | 1.18+   | `nginx -v`              |
+| Supervisor | 4.0+    | `supervisorctl version` |
+| Composer   | 2.x     | `composer -V`           |
+| Git        | 2.x     | `git --version`         |
 
 ### PHP Extensions cần thiết
 
@@ -334,7 +334,38 @@ MAIL_FROM_NAME="${APP_NAME}"
 
 # ── Shift Schedule ───────────────────────
 DAILY_SHIFT_JOB_AT=05:50      # Chạy 10 phút trước ca sớm nhất
+
+# ── Passport OAuth Client ────────────────
+# Credentials để Frontend (Next.js) xác thực với API
+CLIENT_WEB_ID=<uuid-từ-bảng-oauth_clients>
+CLIENT_WEB_SECRET=<secret-từ-bảng-oauth_clients>
 ```
+
+> **⚠️ `CLIENT_WEB_ID` / `CLIENT_WEB_SECRET`:**
+> **Laravel Passport OAuth client credentials**.
+> Mỗi factory **phải có cặp credentials riêng** vì chúng nằm trong database riêng biệt.
+
+#### Cách tạo Passport Client cho Production
+
+```bash
+# FLS — Tạo Password Grant Client
+cd /var/www/dashboard-fls
+php artisan passport:client --password --name="FLS Web Client"
+# → Ghi lại Client ID và Client Secret hiển thị
+# → Điền vào .env: CLIENT_WEB_ID=<id>  CLIENT_WEB_SECRET=<secret>
+
+# PD — Tạo Password Grant Client
+cd /var/www/dashboard-pd
+php artisan passport:client --password --name="PD Web Client"
+# → Ghi lại Client ID và Client Secret hiển thị
+# → Điền vào .env: CLIENT_WEB_ID=<id>  CLIENT_WEB_SECRET=<secret>
+```
+
+> **📝 Lưu ý:**
+>
+> - Client credentials được lưu trong bảng `oauth_clients` của **mỗi database factory**.
+> - **Không dùng lẫn** credentials giữa FLS và PD (khác database → khác bảng `oauth_clients`).
+> - Nếu mất secret → tạo client mới và cập nhật `.env` + `config:cache`.
 
 #### `/var/www/dashboard-pd/.env`
 
@@ -349,6 +380,8 @@ FRONTEND_URL=https://pd-dashboard.example.com
 DB_DATABASE=dashboard_pd
 REDIS_PREFIX=pd_               # ← KHÁC FLS
 CACHE_PREFIX=pd_cache_
+CLIENT_WEB_ID=<pd-client-id>   # ← TẠO RIÊNG cho PD
+CLIENT_WEB_SECRET=<pd-secret>  # ← TẠO RIÊNG cho PD
 ```
 
 > **⚠️ CRITICAL:** `REDIS_PREFIX` **phải khác nhau** giữa FLS và PD. Nếu trùng → queue jobs, cache data, Horizon metrics sẽ bị cross-contamination.
@@ -418,6 +451,7 @@ cd /var/www/dashboard-pd && php artisan db:seed --force
 ## 5. Cấu hình Supervisor
 
 Supervisor quản lý 2 loại long-running process:
+
 - **Octane** — web server (in-memory)
 - **Horizon** — queue worker manager (auto-scaling)
 
@@ -511,22 +545,22 @@ environment=APP_ENV="production",FACTORY="PD"
 
 #### Octane
 
-| Tham số | Giá trị | Giải thích |
-|---|---|---|
-| `command` | `octane:start --server=frankenphp` | FrankenPHP app server — giữ Laravel in-memory |
-| `--host=127.0.0.1` | | Chỉ listen local (Nginx proxy phía trước) |
-| `--port` | `8000` / `8001` | Port riêng cho mỗi factory |
-| `numprocs` | `1` | 1 Octane master process (tự quản lý workers bên trong) |
-| `stopwaitsecs` | `10` | Thời gian chờ graceful shutdown |
+| Tham số            | Giá trị                            | Giải thích                                             |
+| ------------------ | ---------------------------------- | ------------------------------------------------------ |
+| `command`          | `octane:start --server=frankenphp` | FrankenPHP app server — giữ Laravel in-memory          |
+| `--host=127.0.0.1` |                                    | Chỉ listen local (Nginx proxy phía trước)              |
+| `--port`           | `8000` / `8001`                    | Port riêng cho mỗi factory                             |
+| `numprocs`         | `1`                                | 1 Octane master process (tự quản lý workers bên trong) |
+| `stopwaitsecs`     | `10`                               | Thời gian chờ graceful shutdown                        |
 
 #### Horizon
 
-| Tham số | Giá trị | Giải thích |
-|---|---|---|
-| `command` | `horizon` | Horizon master — tự spawn/balance queue workers |
-| `numprocs` | `1` | Chỉ cần 1 Horizon process (tự quản lý workers bên trong) |
-| `stopwaitsecs` | `3600` | Đợi job hiện tại xong trước khi kill (max 1h) |
-| Workers config | `config/horizon.php` | Số workers, strategy, queues — config bằng code |
+| Tham số        | Giá trị              | Giải thích                                               |
+| -------------- | -------------------- | -------------------------------------------------------- |
+| `command`      | `horizon`            | Horizon master — tự spawn/balance queue workers          |
+| `numprocs`     | `1`                  | Chỉ cần 1 Horizon process (tự quản lý workers bên trong) |
+| `stopwaitsecs` | `3600`               | Đợi job hiện tại xong trước khi kill (max 1h)            |
+| Workers config | `config/horizon.php` | Số workers, strategy, queues — config bằng code          |
 
 > **Horizon vs queue:work:** Horizon **thay thế** `queue:work`. Không chạy cả 2. Horizon cung cấp: web dashboard `/horizon`, auto-scaling, job metrics, failed job management.
 
@@ -564,11 +598,11 @@ Thêm:
 
 ### Scheduled Jobs hiện tại
 
-| Job | Schedule | Mô tả |
-|---|---|---|
-| `ActivateHourlyRecordsJob` | Mỗi giờ (`:00`) | Chuyển status hourly records: pending → active → completed |
-| `CreateDailyShiftJob` | `05:50` hàng ngày | Tự tạo Ca 1, fetch tồn đầu ngày từ Fplatform |
-| `horizon:snapshot` | Mỗi 5 phút | Capture metrics cho Horizon dashboard graphs |
+| Job                        | Schedule          | Mô tả                                                      |
+| -------------------------- | ----------------- | ---------------------------------------------------------- |
+| `ActivateHourlyRecordsJob` | Mỗi giờ (`:00`)   | Chuyển status hourly records: pending → active → completed |
+| `CreateDailyShiftJob`      | `05:50` hàng ngày | Tự tạo Ca 1, fetch tồn đầu ngày từ Fplatform               |
+| `horizon:snapshot`         | Mỗi 5 phút        | Capture metrics cho Horizon dashboard graphs               |
 
 ### Verify
 
@@ -583,11 +617,11 @@ cd /var/www/dashboard-pd && php artisan schedule:list
 
 ### Tại sao Crontab thay vì Supervisor?
 
-| Tiêu chí | Crontab ✅ | Supervisor ❌ |
-|---|---|---|
-| **Timing** | OS kernel trigger chính xác | `sleep 60` bị drift |
-| **Resource** | Spawn khi cần, tự exit | Giữ process idle 24/7 |
-| **Best practice** | Laravel docs chính thức | Workaround |
+| Tiêu chí          | Crontab ✅                  | Supervisor ❌         |
+| ----------------- | --------------------------- | --------------------- |
+| **Timing**        | OS kernel trigger chính xác | `sleep 60` bị drift   |
+| **Resource**      | Spawn khi cần, tự exit      | Giữ process idle 24/7 |
+| **Best practice** | Laravel docs chính thức     | Workaround            |
 
 > **Quy tắc:** Supervisor cho **long-running** (Octane, Horizon). Crontab cho **periodic** (Scheduler).
 
@@ -596,6 +630,7 @@ cd /var/www/dashboard-pd && php artisan schedule:list
 ## 7. Cấu hình Nginx
 
 Nginx đóng vai trò reverse proxy:
+
 - SSL termination (HTTPS)
 - Serve static assets trực tiếp (images, CSS, JS)
 - WebSocket proxy (nếu cần Reverb)
@@ -685,6 +720,7 @@ server {
 ### 7.2 PD Config
 
 Copy FLS config, thay đổi:
+
 - `server_name` → `pd-api.example.com`
 - `root` → `/var/www/dashboard-pd/public`
 - `proxy_pass` → `http://127.0.0.1:8001`
@@ -747,6 +783,8 @@ sudo certbot renew --dry-run
 □ php artisan key:generate đã chạy
 □ php artisan migrate --force đã chạy
 □ php artisan db:seed --force đã chạy
+□ Passport clients đã tạo (passport:client --password) cho cả FLS + PD
+□ CLIENT_WEB_ID / CLIENT_WEB_SECRET đã điền vào .env cả 2 factory
 □ php artisan config:cache đã chạy
 □ php artisan route:cache đã chạy
 □ Permissions storage + bootstrap/cache đã set
@@ -946,12 +984,13 @@ php artisan cache:clear
 
 ### Horizon Dashboard
 
-| Factory | URL |
-|---|---|
-| FLS | `https://fls-api.example.com/horizon` |
-| PD | `https://pd-api.example.com/horizon` |
+| Factory | URL                                   |
+| ------- | ------------------------------------- |
+| FLS     | `https://fls-api.example.com/horizon` |
+| PD      | `https://pd-api.example.com/horizon`  |
 
 Dashboard hiển thị:
+
 - **Jobs:** Recent, pending, completed, failed
 - **Metrics:** Throughput, runtime, wait time (graphs)
 - **Workers:** Active processes, balancing status
@@ -1055,21 +1094,21 @@ sudo supervisorctl restart dashboard-fls-octane dashboard-fls-horizon
 
 ### Bảng lỗi thường gặp
 
-| Triệu chứng | Nguyên nhân | Giải pháp |
-|---|---|---|
-| `FATAL: no such process` | Supervisor config chưa load | `supervisorctl reread && update` |
-| Octane crash loop | PHP error / OOM | `tail -f storage/logs/octane.log` |
-| Horizon not running | Redis connection refused | `systemctl status redis-server` |
-| Job không chạy | `QUEUE_CONNECTION=sync` | Đổi sang `redis` trong `.env` + `config:cache` |
-| Permission denied | Sai user/permission | `chown -R www-data:www-data storage` |
-| Redis connection refused | Redis chưa chạy | `systemctl start redis-server` |
-| Code mới không phản ánh | Octane giữ code in-memory | `php artisan octane:reload` |
-| Config mới không apply | Config đã cache | `php artisan config:cache` (rebuild) |
-| Memory tăng liên tục | Leaky singleton/static | Thêm class vào `flush` trong `config/octane.php` |
-| Queue FLS nhận job PD | `REDIS_PREFIX` trùng | Đảm bảo prefix khác nhau giữa 2 factory |
-| Horizon dashboard 403 | User không có role admin | Kiểm tra `HorizonServiceProvider::gate()` |
-| SSL certificate expired | Certbot renewal fail | `sudo certbot renew` |
-| Scheduler không chạy | Crontab thiếu | `sudo crontab -u www-data -l` |
+| Triệu chứng              | Nguyên nhân                 | Giải pháp                                        |
+| ------------------------ | --------------------------- | ------------------------------------------------ |
+| `FATAL: no such process` | Supervisor config chưa load | `supervisorctl reread && update`                 |
+| Octane crash loop        | PHP error / OOM             | `tail -f storage/logs/octane.log`                |
+| Horizon not running      | Redis connection refused    | `systemctl status redis-server`                  |
+| Job không chạy           | `QUEUE_CONNECTION=sync`     | Đổi sang `redis` trong `.env` + `config:cache`   |
+| Permission denied        | Sai user/permission         | `chown -R www-data:www-data storage`             |
+| Redis connection refused | Redis chưa chạy             | `systemctl start redis-server`                   |
+| Code mới không phản ánh  | Octane giữ code in-memory   | `php artisan octane:reload`                      |
+| Config mới không apply   | Config đã cache             | `php artisan config:cache` (rebuild)             |
+| Memory tăng liên tục     | Leaky singleton/static      | Thêm class vào `flush` trong `config/octane.php` |
+| Queue FLS nhận job PD    | `REDIS_PREFIX` trùng        | Đảm bảo prefix khác nhau giữa 2 factory          |
+| Horizon dashboard 403    | User không có role admin    | Kiểm tra `HorizonServiceProvider::gate()`        |
+| SSL certificate expired  | Certbot renewal fail        | `sudo certbot renew`                             |
+| Scheduler không chạy     | Crontab thiếu               | `sudo crontab -u www-data -l`                    |
 
 ### Debug checklist
 
@@ -1112,13 +1151,13 @@ ps aux | grep php | grep -v grep
 
 ### A. Scaling Guide
 
-| Khi nào | Hành động |
-|---|---|
+| Khi nào              | Hành động                                                   |
+| -------------------- | ----------------------------------------------------------- |
 | API response > 500ms | Tăng Octane workers: `--workers=8` trong supervisor command |
-| Queue backlog tăng | Tăng `maxProcesses` trong `config/horizon.php` → deploy |
-| Redis memory > 200MB | Tăng `maxmemory` trong `/etc/redis/redis.conf` |
-| MySQL queries chậm | Thêm indexes, check slow query log |
-| Disk > 85% | Xóa old logs, tăng disk |
+| Queue backlog tăng   | Tăng `maxProcesses` trong `config/horizon.php` → deploy     |
+| Redis memory > 200MB | Tăng `maxmemory` trong `/etc/redis/redis.conf`              |
+| MySQL queries chậm   | Thêm indexes, check slow query log                          |
+| Disk > 85%           | Xóa old logs, tăng disk                                     |
 
 ### B. Horizon Worker Tuning
 
@@ -1136,23 +1175,25 @@ Config tại `config/horizon.php`:
 ],
 ```
 
-| Param | Default | Mô tả |
-|---|---|---|
-| `maxProcesses` | `5` | Giới hạn tổng số workers |
-| `balance` | `auto` | Auto-scale dựa trên queue backlog |
-| `autoScalingStrategy` | `time` | Scale theo wait time (không phải job count) |
-| `tries` | `3` | Retry job 3 lần trước khi mark failed |
-| `timeout` | `120` | Kill job sau 120s |
+| Param                 | Default | Mô tả                                       |
+| --------------------- | ------- | ------------------------------------------- |
+| `maxProcesses`        | `5`     | Giới hạn tổng số workers                    |
+| `balance`             | `auto`  | Auto-scale dựa trên queue backlog           |
+| `autoScalingStrategy` | `time`  | Scale theo wait time (không phải job count) |
+| `tries`               | `3`     | Retry job 3 lần trước khi mark failed       |
+| `timeout`             | `120`   | Kill job sau 120s                           |
 
 ### C. File quan trọng
 
-| File | Mô tả |
-|---|---|
-| `config/horizon.php` | Queue worker config (processes, queues, retry) |
-| `config/octane.php` | Octane warm/flush config (singleton management) |
-| `config/database.php` | Redis connection + prefix config |
-| `app/Providers/HorizonServiceProvider.php` | Horizon dashboard authorization |
-| `app/Containers/AppSection/Shift/Providers/ShiftServiceProvider.php` | Scheduled jobs registration |
+| File                                                                             | Mô tả                                                 |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `config/horizon.php`                                                             | Queue worker config (processes, queues, retry)        |
+| `config/octane.php`                                                              | Octane warm/flush config (singleton management)       |
+| `config/database.php`                                                            | Redis connection + prefix config                      |
+| `app/Providers/HorizonServiceProvider.php`                                       | Horizon dashboard authorization                       |
+| `app/Providers/TelescopeServiceProvider.php`                                     | Telescope debug dashboard authorization               |
+| `app/Containers/AppSection/Authentication/Configs/appSection-authentication.php` | Passport OAuth client config (`CLIENT_WEB_ID/SECRET`) |
+| `app/Containers/AppSection/Shift/Providers/ShiftServiceProvider.php`             | Scheduled jobs registration                           |
 
 ### D. Useful Artisan Commands
 
