@@ -25,6 +25,8 @@ final class FindShiftController extends ApiController
 
         $response = Response::create($shift, ShiftTransformer::class);
 
+        $supervisors = config('appSection-shift.supervisors.' . config('factory.current'), []);
+
         // Add inventory data to meta when include=inventory is requested
         if ($wantsInventory) {
             $shiftDate = $shift->date->toDateString();
@@ -36,11 +38,16 @@ final class FindShiftController extends ApiController
                 : null;
 
             $response->addMeta([
-                'include'   => array_merge(
+                'include'     => array_merge(
                     (new ShiftTransformer())->getAvailableIncludes(),
                     ['inventory'],
                 ),
-                'inventory' => $inventory,
+                'inventory'   => $inventory,
+                'supervisors' => $supervisors,
+            ]);
+        } else {
+            $response->addMeta([
+                'supervisors' => $supervisors,
             ]);
         }
 

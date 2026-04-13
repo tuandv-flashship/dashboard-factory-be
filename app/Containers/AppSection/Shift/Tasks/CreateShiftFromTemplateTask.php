@@ -59,8 +59,7 @@ final class CreateShiftFromTemplateTask extends ParentTask
                 'shift_id'           => $shift->id,
                 'department_id'      => $td->department_id,
                 'shift_number'       => $td->shift_number,
-                // headcount: KHÔNG cho FE override — luôn copy từ template (cell màu vàng, read-only)
-                'headcount'          => $td->headcount,
+                'headcount'          => $override['headcount'] ?? $td->headcount,
                 // Snapshot năng suất 1h — per_machine = 0 initially (updated below)
                 'kpi_per_hour'       => $kpiPerHour,
                 // Tồn đầu ngày — FE gửi kèm, mặc định 0

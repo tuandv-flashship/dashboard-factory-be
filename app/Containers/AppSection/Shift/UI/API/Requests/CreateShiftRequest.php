@@ -22,7 +22,7 @@ final class CreateShiftRequest extends ParentRequest
             'details'                      => 'sometimes|array',
             'details.*.department_id'      => 'required_with:details|integer|exists:departments,id',
             'details.*.shift_number'       => 'required_with:details|integer|in:1,2',
-            // headcount: KHÔNG cho FE override — luôn lấy từ template (cell màu vàng, read-only trên UI)
+            'details.*.headcount'          => 'sometimes|integer|min:0',
             'details.*.start_time'         => 'required_with:details|date_format:H:i',
             'details.*.work_hours'         => 'required_with:details|numeric|min:0|max:24',
             'details.*.prep_minutes'       => 'sometimes|integer|min:0',

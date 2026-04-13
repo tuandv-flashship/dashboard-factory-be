@@ -13,6 +13,6 @@ final class ListAllDepartmentsTask extends ParentTask
 
     public function run(): mixed
     {
-        return $this->repository->with('productionLine')->orderBy('sort_order')->paginate();
+        return $this->repository->with(['productionLine', 'machines'])->orderBy('sort_order')->paginate();
     }
 }

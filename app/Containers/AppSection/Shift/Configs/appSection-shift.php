@@ -16,9 +16,14 @@ return [
         '#800080', // Tím
     ],
 
-    // Default supervisor list for FE dropdown
+    // Supervisor list per factory (dùng cho FE dropdown)
     'supervisors' => [
-        'Nguyễn Văn Minh',
+        'FLS' => [
+            'Nguyễn Văn Minh',
+        ],
+        'PD' => [
+            'Nguyễn Văn Minh',
+        ],
     ],
 
     /*

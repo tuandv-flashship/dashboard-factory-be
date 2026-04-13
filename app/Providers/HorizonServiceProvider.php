@@ -32,7 +32,7 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
 
         Horizon::auth(function ($request) {
             return app()->environment('local', 'fls', 'pd')
-                || Gate::check('viewHorizon', [$request->user()]);
+                || Gate::check('viewHorizon', [$request->user('web')]);
         });
     }
 

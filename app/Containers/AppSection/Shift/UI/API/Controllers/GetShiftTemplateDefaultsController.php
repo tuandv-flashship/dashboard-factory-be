@@ -83,7 +83,7 @@ final class GetShiftTemplateDefaultsController extends ApiController
 
         $response = $manager->createData($resource)->toArray();
         $response['meta'] = [
-            'supervisors' => config('appSection-shift.supervisors', []),
+            'supervisors' => config('appSection-shift.supervisors.' . config('factory.current'), []),
         ];
 
         return new JsonResponse($response);

@@ -30,6 +30,16 @@ CADDYFILE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && cd .. && pwd)/Caddyfile"
 FLS_HTTPS="https://api-dashboard-fls.local:2443"
 PD_HTTPS="https://api-dashboard-pd.local:2443"
 
+# ── PHP binary (prefer Homebrew over MAMP) ─────────────
+if [ -x "/opt/homebrew/bin/php" ]; then
+    PHP_BIN="/opt/homebrew/bin/php"
+elif command -v php &>/dev/null; then
+    PHP_BIN="$(command -v php)"
+else
+    echo "⚠️  PHP not found! Please install PHP >= 8.4"
+    PHP_BIN="php"
+fi
+
 # ── Core helpers ───────────────────────────────────────
 
 fls() {
@@ -41,7 +51,7 @@ pd() {
 }
 
 artisan() {
-    php artisan "$@"
+    "$PHP_BIN" artisan "$@"
 }
 
 # ── Internal helpers ───────────────────────────────────
@@ -74,24 +84,24 @@ _start_octane_pair() {
     done
 
     # Start Octane servers (filter FrankenPHP internal Caddy warnings)
-    APP_ENV=fls php artisan octane:start --server=frankenphp --host=localhost --port=$FLS_PORT "${extra_flags[@]}" 2>&1 | grep -v 'Caddyfile input is not formatted\|HTTP/2 skipped\|HTTP/3 skipped' | sed 's/^/  [FLS] /' &
+    APP_ENV=fls "$PHP_BIN" artisan octane:start --server=frankenphp --host=localhost --port=$FLS_PORT "${extra_flags[@]}" 2>&1 | grep -v 'Caddyfile input is not formatted\|HTTP/2 skipped\|HTTP/3 skipped' | sed 's/^/  [FLS] /' &
     local fls_pid=$!
 
-    APP_ENV=pd php artisan octane:start --server=frankenphp --host=localhost --port=$PD_PORT "${extra_flags[@]}" 2>&1 | grep -v 'Caddyfile input is not formatted\|HTTP/2 skipped\|HTTP/3 skipped' | sed 's/^/  [PD]  /' &
+    APP_ENV=pd "$PHP_BIN" artisan octane:start --server=frankenphp --host=localhost --port=$PD_PORT "${extra_flags[@]}" 2>&1 | grep -v 'Caddyfile input is not formatted\|HTTP/2 skipped\|HTTP/3 skipped' | sed 's/^/  [PD]  /' &
     local pd_pid=$!
 
     # Start Horizon queue workers (auto-start with server)
-    APP_ENV=fls php artisan horizon > /dev/null 2>&1 &
+    APP_ENV=fls "$PHP_BIN" artisan horizon > /dev/null 2>&1 &
     local fls_horizon_pid=$!
 
-    APP_ENV=pd php artisan horizon > /dev/null 2>&1 &
+    APP_ENV=pd "$PHP_BIN" artisan horizon > /dev/null 2>&1 &
     local pd_horizon_pid=$!
 
     # Start Scheduler (runs schedule:run every minute)
-    APP_ENV=fls php artisan schedule:work > /dev/null 2>&1 &
+    APP_ENV=fls "$PHP_BIN" artisan schedule:work > /dev/null 2>&1 &
     local fls_scheduler_pid=$!
 
-    APP_ENV=pd php artisan schedule:work > /dev/null 2>&1 &
+    APP_ENV=pd "$PHP_BIN" artisan schedule:work > /dev/null 2>&1 &
     local pd_scheduler_pid=$!
 
     local all_pids="$fls_pid $pd_pid $fls_horizon_pid $pd_horizon_pid $fls_scheduler_pid $pd_scheduler_pid"
@@ -204,10 +214,10 @@ horizon-all() {
     echo "  Press Ctrl+C to stop both."
     echo ""
 
-    APP_ENV=fls php artisan horizon > >(sed 's/^/  [FLS] /') 2>&1 &
+    APP_ENV=fls "$PHP_BIN" artisan horizon > >(sed 's/^/  [FLS] /') 2>&1 &
     local fls_pid=$!
 
-    APP_ENV=pd php artisan horizon > >(sed 's/^/  [PD]  /') 2>&1 &
+    APP_ENV=pd "$PHP_BIN" artisan horizon > >(sed 's/^/  [PD]  /') 2>&1 &
     local pd_pid=$!
 
     trap "echo ''; echo '  🛑 Stopping Horizon...'; kill $fls_pid $pd_pid 2>/dev/null; trap - INT; return" INT
@@ -294,3 +304,4 @@ fresh-all() {
 echo "🏭 Factory helpers loaded: fls, pd, serve-all, serve-watch, serve-https, serve-https-watch, migrate-all, seed-all, fresh-all"
 echo "   Using per-factory env: .env.fls (FLS) / .env.pd (PD)"
 echo "   Server: Laravel Octane (FrankenPHP) | Queue: Redis + Horizon | ⏰ Scheduler"
+echo "   PHP: $PHP_BIN ($($PHP_BIN -r 'echo PHP_VERSION;' 2>/dev/null || echo 'unknown'))"

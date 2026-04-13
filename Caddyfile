@@ -5,6 +5,9 @@
 # Requires /etc/hosts entries:
 #   127.0.0.1  api-dashboard-fls.local api-dashboard-pd.local
 #
+# LAN access: On the OTHER machine, add to /etc/hosts:
+#   <THIS_MACHINE_LAN_IP>  api-dashboard-fls.local api-dashboard-pd.local
+#
 # Uses port 2443 (MAMP occupies 443)
 {
 	https_port 2443
@@ -12,6 +15,7 @@
 }
 
 api-dashboard-fls.local {
+	bind 0.0.0.0
 	reverse_proxy localhost:8000 {
 		header_up Host api-dashboard-fls.local
 	}
@@ -19,6 +23,7 @@ api-dashboard-fls.local {
 }
 
 api-dashboard-pd.local {
+	bind 0.0.0.0
 	reverse_proxy localhost:8001 {
 		header_up Host api-dashboard-pd.local
 	}

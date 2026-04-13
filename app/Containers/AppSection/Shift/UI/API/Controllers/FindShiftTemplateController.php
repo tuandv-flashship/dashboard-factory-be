@@ -18,7 +18,7 @@ final class FindShiftTemplateController extends ApiController
         return Response::create($template, ShiftTemplateTransformer::class)
             ->parseIncludes('details')
             ->addMeta([
-                'supervisors' => config('appSection-shift.supervisors', []),
+                'supervisors' => config('appSection-shift.supervisors.' . config('factory.current'), []),
             ])
             ->ok();
     }
