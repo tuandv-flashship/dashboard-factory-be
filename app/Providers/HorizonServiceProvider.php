@@ -31,8 +31,13 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
         $this->gate();
 
         Horizon::auth(function ($request) {
-            return app()->environment('local', 'fls', 'pd')
-                || Gate::check('viewHorizon', [$request->user('web')]);
+            if (app()->environment('local', 'fls', 'pd')) {
+                return true;
+            }
+
+            $user = $request->user('web');
+
+            return $user && $user->hasRole('admin');
         });
     }
 
