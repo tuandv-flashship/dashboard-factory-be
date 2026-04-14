@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Cache;
 
 final class GetOrderSummaryController extends ApiController
 {
+    private const CACHE_TTL_HISTORICAL = 3600;  // 1 hour
+    private const CACHE_TTL_TODAY      = 300;    // 5 minutes
+
     public function __construct(
         private readonly GetOrderSummaryAction $action,
     ) {
@@ -20,27 +23,26 @@ final class GetOrderSummaryController extends ApiController
     {
         $date = $request->filterDate();
         $shift = $request->filterShift();
-        $isHistorical = $date !== null;
-
-        $cacheKey = $isHistorical ? "order-summary:{$date}:{$shift}" : null;
-
-        if ($cacheKey && Cache::has($cacheKey)) {
-            return response()->json(Cache::get($cacheKey));
-        }
+        $isToday = $date === null || $date === now()->toDateString();
 
         $data = $this->action->run($date, $shift);
-        $transformer = new OrderSummaryTransformer();
 
-        $response = [
-            'data' => [
-                'total' => $data['total'] ? $transformer->transform($data['total']) : null,
-                'per_line' => $data['per_line']->map(fn ($o) => $transformer->transform($o))->values(),
-            ],
-        ];
+        // Cache key uses resolved date+shift (not input params)
+        $cacheKey = "order-summary:{$data['date']}:{$data['shift_number']}";
+        $ttl = $isToday ? self::CACHE_TTL_TODAY : self::CACHE_TTL_HISTORICAL;
 
-        if ($cacheKey) {
-            Cache::put($cacheKey, $response, now()->addHour());
-        }
+        $response = Cache::remember($cacheKey, $ttl, function () use ($data) {
+            $transformer = new OrderSummaryTransformer();
+
+            return [
+                'data' => [
+                    'date'         => $data['date'],
+                    'shift_number' => $data['shift_number'],
+                    'total'        => $data['total'] ? $transformer->transform($data['total']) : null,
+                    'per_line'     => $data['per_line']->map(fn ($o) => $transformer->transform($o))->values(),
+                ],
+            ];
+        });
 
         return response()->json($response);
     }
