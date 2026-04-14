@@ -32,13 +32,9 @@ final class GetDailyInventoryController extends ApiController
 
         $isToday = $date === now()->toDateString();
         $cacheKey = "fplatform:inventory:{$team->value}:{$factory}:{$date}";
+        $ttl = $isToday ? self::CACHE_TTL_TODAY : self::CACHE_TTL_HISTORICAL;
 
-        // Return cached response if available
-        if (Cache::has($cacheKey)) {
-            return response()->json(Cache::get($cacheKey));
-        }
-
-        $result = $this->action->run($date, $team, $factory);
+        $result = Cache::remember($cacheKey, $ttl, fn () => $this->action->run($date, $team));
 
         if (!$result) {
             return response()->json([
@@ -46,17 +42,11 @@ final class GetDailyInventoryController extends ApiController
             ], 404);
         }
 
-        $response = [
+        return response()->json([
             'data' => array_merge($result, [
                 'team'    => $team->value,
                 'factory' => $factory ? strtoupper($factory) : null,
             ]),
-        ];
-
-        // Cache the response
-        $ttl = $isToday ? self::CACHE_TTL_TODAY : self::CACHE_TTL_HISTORICAL;
-        Cache::put($cacheKey, $response, $ttl);
-
-        return response()->json($response);
+        ]);
     }
 }

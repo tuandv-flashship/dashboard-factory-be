@@ -55,6 +55,26 @@ trait QueriesFplatform
     }
 
     /**
+     * Execute a SELECT query that returns multiple rows.
+     *
+     * Used by hourly metrics queries (productivity, staff count, etc.).
+     * Returns empty array on failure instead of null.
+     */
+    protected function queryFplatformAll(string $sql, array $bindings): array
+    {
+        try {
+            return DB::connection('fplatform')->select($sql, $bindings);
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::warning('[FplatformData] Query failed', [
+                'error'    => $e->getMessage(),
+                'bindings' => $bindings,
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
      * Format a standard inventory result (estimate_date, ton_dau, ton_cuoi).
      */
     protected function formatResult(?object $result, string $dateField = 'estimate_date'): ?array
@@ -68,5 +88,24 @@ trait QueriesFplatform
             'ton_dau'       => (int) $result->ton_dau,
             'ton_cuoi'      => (int) $result->ton_cuoi,
         ];
+    }
+
+    /**
+     * Format hourly results into a standardized array.
+     *
+     * Converts stdClass rows into clean arrays with proper types.
+     */
+    protected function formatHourlyResults(array $rows, array $intFields = []): array
+    {
+        return array_map(function (object $row) use ($intFields) {
+            $item = (array) $row;
+            foreach ($intFields as $field) {
+                if (isset($item[$field])) {
+                    $item[$field] = (int) $item[$field];
+                }
+            }
+
+            return $item;
+        }, $rows);
     }
 }

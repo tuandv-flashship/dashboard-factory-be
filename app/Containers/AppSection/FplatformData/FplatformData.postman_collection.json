@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "FplatformData",
-    "description": "## FplatformData Container\n\nLấy dữ liệu **tồn đầu/cuối ngày** từ database `fplatform` (external, read-only).\n\n**Base:** `/v1/fplatform`\n**Auth:** Public — không cần Bearer Token\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `in` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cat` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Pick (DTG) | `dtg_pick` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n\n### Response Format\n\nMỗi team trả về:\n- `ton_dau` — tồn đầu ngày (inventory at start of day)\n- `ton_cuoi` — tồn cuối ngày (inventory at end of day)\n- `estimate_date` — ngày estimate\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ",
+    "description": "## FplatformData Container\n\nLấy dữ liệu **tồn đầu/cuối ngày**, **hiệu suất theo giờ**, **số nhân viên**, **hiệu suất máy in** và **đơn hotshot** từ database `fplatform` (external, read-only).\n\n**Base:** `/v1/fplatform` (public), `/v1/admin/fplatform` (private)\n\n### Authentication\n\n- **Public endpoints**: Không cần Bearer Token — dành cho TV dashboard\n- **Private endpoints**: Yêu cầu `Authorization: Bearer {{access_token}}` + permission `shifts.index` hoặc role `admin`\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `in` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cat` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Tồn đơn | `order_inventory` | FLS/PD | Tồn theo đơn hàng (mới) |\n| Pick (DTG) | `dtg_pick` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n\n### Hourly Metric Types\n\n| Metric | Code | Mô tả |\n|---|---|---|\n| Hiệu suất SX | `productivity` | Sản lượng theo giờ |\n| Số nhân viên | `staff_count` | Đếm NV hoạt động theo giờ |\n| HS nhân viên | `staff_productivity` | Sản lượng từng NV theo giờ |\n| HS máy in | `machine_productivity` | Sản lượng từng máy theo giờ |\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ\n- Hourly metrics: cache 5 phút",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -10,130 +10,527 @@
       "value": "https://api-dashboard-fls.local:2443",
       "type": "string",
       "description": "Active factory URL"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string",
+      "description": "Bearer token — cần cho private endpoints"
     }
   ],
   "item": [
     {
-      "name": "Get Daily Inventory (1 team)",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          }
-        ],
-        "url": {
-          "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=in&date=2026-04-10",
-          "host": [
-            "{{API_URL}}"
-          ],
-          "path": [
-            "v1",
-            "fplatform",
-            "daily-inventory"
-          ],
-          "query": [
+      "name": "Inventory (Tồn đầu/cuối)",
+      "description": "## Tồn đầu/cuối ngày\n\nDữ liệu inventory từ FPlatform. Query theo ngày estimate_date, tính tích lũy 10 ngày.\n\n**Đơn vị tính theo team:**\n- In, Cắt, Mockup: `file`\n- Pick, Pack & Ship: `shirt` (product)\n- Order Inventory: `order` (đơn hàng unique)\n- DTG Print: `file`\n- DTG Pick: `shirt`",
+      "item": [
+        {
+          "name": "Get Daily Inventory — Team In",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=in&date=2026-04-14",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "fplatform", "daily-inventory"],
+              "query": [
+                { "key": "team", "value": "in", "description": "Required. Team code" },
+                { "key": "date", "value": "2026-04-14", "description": "Optional. YYYY-MM-DD, default = today" }
+              ]
+            },
+            "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **In (DTF)**.\n\n`work_type=0, work_status=1` — đếm file đã in xong.\n\n| Param | Type | Required | Values |\n|---|---|---|---|\n| team | string | ✅ | `in`, `cat`, `pick`, `mockup`, `pack_ship`, `order_inventory`, `dtg_pick`, `dtg_print`, `dtg_print_split` |\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** `{ ton_dau, ton_cuoi, estimate_date, team, factory }`\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có dữ liệu cho ngày đó."
+          },
+          "response": [
             {
-              "key": "team",
-              "value": "in",
-              "description": "Required. Team: in, cat, pick, mockup, pack_ship, dtg_pick, dtg_print, dtg_print_split"
+              "name": "200 OK — Team In (DTF)",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 1250,\n    \"ton_cuoi\": 380,\n    \"team\": \"in\",\n    \"factory\": \"FLS\"\n  }\n}"
             },
             {
-              "key": "date",
-              "value": "2026-04-10",
-              "description": "Optional. YYYY-MM-DD, default = today"
+              "name": "404 — Không có dữ liệu",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Không có dữ liệu tồn cho ngày này.\"\n}"
             }
           ]
         },
-        "description": "✅ **Public** — Lấy tồn đầu/cuối ngày cho **1 team cụ thể**.\n\n| Param | Type | Required | Values |\n|---|---|---|---|\n| team | string | ✅ | `in`, `cat`, `pick`, `mockup`, `pack_ship`, `dtg_pick`, `dtg_print`, `dtg_print_split` |\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** `{ ton_dau, ton_cuoi, estimate_date, team, factory }`\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có dữ liệu cho ngày đó."
-      },
-      "response": [
         {
-          "name": "200 OK — Team In (DTF)",
-          "status": "OK",
-          "code": 200,
-          "header": [
+          "name": "Get Daily Inventory — Team Cắt",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=cat&date=2026-04-14",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "fplatform", "daily-inventory"],
+              "query": [
+                { "key": "team", "value": "cat" },
+                { "key": "date", "value": "2026-04-14" }
+              ]
+            },
+            "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **Cắt (DTF)**.\n\n`work_type=2, work_status=0` — đếm file đã nhận vào cắt.\n\n⚠️ **Lưu ý:** CẮT dùng `work_status=0` (khác với In dùng `work_status=1`)."
+          },
+          "response": [
             {
-              "key": "Content-Type",
-              "value": "application/json"
+              "name": "200 OK — Team Cắt",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 980,\n    \"ton_cuoi\": 220,\n    \"team\": \"cat\",\n    \"factory\": \"FLS\"\n  }\n}"
             }
-          ],
-          "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-10\",\n    \"ton_dau\": 1250,\n    \"ton_cuoi\": 380,\n    \"team\": \"in\",\n    \"factory\": \"FLS\"\n  }\n}"
+          ]
         },
         {
-          "name": "404 — Không có dữ liệu",
-          "status": "Not Found",
-          "code": 404,
-          "header": [
+          "name": "Get Daily Inventory — Team Pick",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=pick&date=2026-04-14",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "fplatform", "daily-inventory"],
+              "query": [
+                { "key": "team", "value": "pick" },
+                { "key": "date", "value": "2026-04-14" }
+              ]
+            },
+            "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **Pick (DTF)**.\n\n`work_type=100, copy_job=0` — đếm theo `total_product`."
+          },
+          "response": [
             {
-              "key": "Content-Type",
-              "value": "application/json"
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 1500,\n    \"ton_cuoi\": 450,\n    \"team\": \"pick\",\n    \"factory\": \"FLS\"\n  }\n}"
             }
-          ],
-          "body": "{\n  \"message\": \"Không có dữ liệu tồn cho ngày này.\"\n}"
+          ]
+        },
+        {
+          "name": "Get Daily Inventory — Team Mockup",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=mockup&date=2026-04-14",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "fplatform", "daily-inventory"],
+              "query": [
+                { "key": "team", "value": "mockup" },
+                { "key": "date", "value": "2026-04-14" }
+              ]
+            },
+            "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **Mockup (DTF)**.\n\nJoin `folder_manage` → `order_check_file_dropbox` → `log_check_mockup`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 2100,\n    \"ton_cuoi\": 680,\n    \"team\": \"mockup\",\n    \"factory\": \"FLS\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Daily Inventory — Team Pack & Ship",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=pack_ship&date=2026-04-14",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "fplatform", "daily-inventory"],
+              "query": [
+                { "key": "team", "value": "pack_ship" },
+                { "key": "date", "value": "2026-04-14" }
+              ]
+            },
+            "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **Pack & Ship (DTF)**.\n\nJoin `folder_manage` → `order_check_file_dropbox` → `scan_label_history`.\n\n⚠️ **PD factory:** Kết quả UNION với dữ liệu DTG từ `dtg_item_detail`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 1800,\n    \"ton_cuoi\": 520,\n    \"team\": \"pack_ship\",\n    \"factory\": \"FLS\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Daily Inventory — Tồn đơn hàng (NEW)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=order_inventory&date=2026-04-14",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "fplatform", "daily-inventory"],
+              "query": [
+                { "key": "team", "value": "order_inventory" },
+                { "key": "date", "value": "2026-04-14" }
+              ]
+            },
+            "description": "✅ **Public** — Tồn đầu/cuối **đơn hàng** (COUNT DISTINCT order_code).\n\n🆕 **Mới trong v4** — Đếm đơn hàng unique thay vì áo.\n\n**PD factory:** Tự động cộng thêm đơn DTG."
+          },
+          "response": [
+            {
+              "name": "200 OK — Tồn đơn hàng",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 320,\n    \"ton_cuoi\": 85,\n    \"team\": \"order_inventory\",\n    \"factory\": \"FLS\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Daily Inventory — DTG Pick",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=dtg_pick&date=2026-04-14",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "fplatform", "daily-inventory"],
+              "query": [
+                { "key": "team", "value": "dtg_pick" },
+                { "key": "date", "value": "2026-04-14" }
+              ]
+            },
+            "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **Pick DTG**.\n\nKhông cần factory — DTG chỉ ở PD."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 280,\n    \"ton_cuoi\": 65,\n    \"team\": \"dtg_pick\",\n    \"factory\": null\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Daily Inventory — DTG Print Split",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=dtg_print_split&date=2026-04-14",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "fplatform", "daily-inventory"],
+              "query": [
+                { "key": "team", "value": "dtg_print_split" },
+                { "key": "date", "value": "2026-04-14" }
+              ]
+            },
+            "description": "✅ **Public** — Tồn đầu/cuối DTG Print chia theo máy.\n\n**Tỷ lệ:** Apollo 62.5%, ATLAS_1 18.75%, ATLAS_2 18.75%"
+          },
+          "response": [
+            {
+              "name": "200 OK — Machine Split",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"machines\": {\n      \"apollo\": { \"ratio\": \"62.5%\", \"ton_dau\": 781, \"ton_cuoi\": 212 },\n      \"atlas_1\": { \"ratio\": \"18.75%\", \"ton_dau\": 234, \"ton_cuoi\": 63 },\n      \"atlas_2\": { \"ratio\": \"18.75%\", \"ton_dau\": 235, \"ton_cuoi\": 65 }\n    },\n    \"team\": \"dtg_print_split\",\n    \"factory\": null\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get All Teams Inventory",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{API_URL}}/v1/admin/fplatform/inventory?date=2026-04-14",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "admin", "fplatform", "inventory"],
+              "query": [
+                { "key": "date", "value": "2026-04-14", "description": "Optional. YYYY-MM-DD" }
+              ]
+            },
+            "description": "🔒 **Private** — Tồn đầu/cuối ngày cho **tất cả bộ phận** của factory hiện tại.\n\n**Permission:** `shifts.index` hoặc role `admin`\n\n**Teams trả về:**\n- **FLS:** 6 teams DTF (in, cat, pick, mockup, pack_ship, order_inventory)\n- **PD:** 6 teams DTF + 2 teams DTG (dtg_pick, dtg_print_split)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)"
+          },
+          "response": [
+            {
+              "name": "200 OK — FLS (6 teams DTF)",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"date\": \"2026-04-14\",\n    \"teams\": {\n      \"in\": { \"label\": \"In (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1250, \"ton_cuoi\": 380 },\n      \"cat\": { \"label\": \"Cắt (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 980, \"ton_cuoi\": 220 },\n      \"pick\": { \"label\": \"Pick (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1500, \"ton_cuoi\": 450 },\n      \"mockup\": { \"label\": \"Mockup (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 2100, \"ton_cuoi\": 680 },\n      \"pack_ship\": { \"label\": \"Pack & Ship (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1800, \"ton_cuoi\": 520 },\n      \"order_inventory\": { \"label\": \"Tồn đơn hàng\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 320, \"ton_cuoi\": 85 }\n    }\n  }\n}"
+            }
+          ]
         }
       ]
     },
     {
-      "name": "Get All Teams Inventory",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
+      "name": "Hourly Metrics (Hiệu suất theo giờ)",
+      "description": "## 🆕 Hiệu suất theo giờ\n\nEndpoint mới — lấy dữ liệu sản lượng, nhân viên, và máy in theo giờ từ FPlatform.\n\n**Auth:** 🔒 Private — cần Bearer Token\n**Permission:** `shifts.index` hoặc role `admin`\n\n### Team × Metric Compatibility\n\n| Team | productivity | staff_count | staff_productivity | machine_productivity |\n|---|---|---|---|---|\n| in | ✅ | ✅ | ❌ | ✅ |\n| cat | ✅ | ✅ | ✅ | ❌ |\n| pick | ✅ | ✅ | ✅ | ❌ |\n| mockup | ✅ | ✅ | ✅ | ❌ |\n| pack_ship | ✅ | ✅ | ✅ | ❌ |\n| dtg_print | ✅ | ❌ | ❌ | ✅ |\n| dtg_pick | ✅ | ✅ | ✅ | ❌ |\n\n### Timezone\n\nTham số `start_shift` và `end_shift` dùng timezone **US/Central** (múi giờ xưởng).",
+      "item": [
+        {
+          "name": "Hourly Productivity — Team In",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=in&metric=productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "admin", "fplatform", "hourly-metrics"],
+              "query": [
+                { "key": "team", "value": "in", "description": "Required. in, cat, pick, mockup, pack_ship, dtg_print, dtg_pick" },
+                { "key": "metric", "value": "productivity", "description": "Required. productivity, staff_count, staff_productivity, machine_productivity" },
+                { "key": "start_shift", "value": "2026-04-14 06:00:00", "description": "Required. Shift start (US/Central)" },
+                { "key": "end_shift", "value": "2026-04-14 14:00:00", "description": "Required. Shift end (US/Central)" }
+              ]
+            },
+            "description": "🔒 **Private** — Sản lượng team IN theo giờ.\n\nĐếm `SUM(total_file)` từ `user_group_scan` với `work_type=0, work_status=1`."
           },
-          {
-            "key": "Authorization",
-            "value": "Bearer {{access_token}}"
-          }
-        ],
-        "url": {
-          "raw": "{{API_URL}}/v1/admin/fplatform/inventory?date=2026-04-10",
-          "host": [
-            "{{API_URL}}"
-          ],
-          "path": [
-            "v1",
-            "admin",
-            "fplatform",
-            "inventory"
-          ],
-          "query": [
+          "response": [
             {
-              "key": "date",
-              "value": "2026-04-10",
-              "description": "Optional. YYYY-MM-DD, default = today"
+              "name": "200 OK — Productivity",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"team\": \"in\",\n    \"metric\": \"productivity\",\n    \"hours\": [\n      { \"date_hour\": \"2026-04-14 06\", \"value\": 125 },\n      { \"date_hour\": \"2026-04-14 07\", \"value\": 340 },\n      { \"date_hour\": \"2026-04-14 08\", \"value\": 285 },\n      { \"date_hour\": \"2026-04-14 09\", \"value\": 310 },\n      { \"date_hour\": \"2026-04-14 10\", \"value\": 298 },\n      { \"date_hour\": \"2026-04-14 11\", \"value\": 275 },\n      { \"date_hour\": \"2026-04-14 12\", \"value\": 320 },\n      { \"date_hour\": \"2026-04-14 13\", \"value\": 305 }\n    ]\n  }\n}"
             }
           ]
         },
-        "description": "🔒 **Private** — Lấy tồn đầu/cuối ngày cho **tất cả bộ phận** của factory hiện tại.\n\n**Auth:** Bearer Token\n**Permission:** `shifts.index` hoặc role `admin`\n\nQueries chạy song song (concurrent) cho tất cả teams.\n\n| Param | Type | Required | Mô tả |\n|---|---|---|---|\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** Object `teams` chứa inventory cho từng team.\n\n**Teams trả về:**\n- **FLS:** 5 teams DTF (in, cat, pick, mockup, pack_ship)\n- **PD:** 5 teams DTF + 2 teams DTG (dtg_pick, dtg_print_split)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**Dùng bởi:** Job `CreateDailyShiftJob` để fetch `day_start_inventory` cho Ca 1."
-      },
-      "response": [
         {
-          "name": "200 OK — FLS (5 teams DTF)",
-          "status": "OK",
-          "code": 200,
-          "header": [
+          "name": "Hourly Staff Count — Team Pick",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=pick&metric=staff_count&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "admin", "fplatform", "hourly-metrics"],
+              "query": [
+                { "key": "team", "value": "pick" },
+                { "key": "metric", "value": "staff_count" },
+                { "key": "start_shift", "value": "2026-04-14 06:00:00" },
+                { "key": "end_shift", "value": "2026-04-14 14:00:00" }
+              ]
+            },
+            "description": "🔒 **Private** — Số nhân viên team PICK hoạt động theo giờ.\n\nĐếm `COUNT(DISTINCT user_id)` từ `user_group_scan`."
+          },
+          "response": [
             {
-              "key": "Content-Type",
-              "value": "application/json"
+              "name": "200 OK — Staff Count",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"team\": \"pick\",\n    \"metric\": \"staff_count\",\n    \"hours\": [\n      { \"date_hour\": \"2026-04-14 06\", \"num_staff\": 5 },\n      { \"date_hour\": \"2026-04-14 07\", \"num_staff\": 8 },\n      { \"date_hour\": \"2026-04-14 08\", \"num_staff\": 10 },\n      { \"date_hour\": \"2026-04-14 09\", \"num_staff\": 10 },\n      { \"date_hour\": \"2026-04-14 10\", \"num_staff\": 9 },\n      { \"date_hour\": \"2026-04-14 11\", \"num_staff\": 10 },\n      { \"date_hour\": \"2026-04-14 12\", \"num_staff\": 8 },\n      { \"date_hour\": \"2026-04-14 13\", \"num_staff\": 10 }\n    ]\n  }\n}"
             }
-          ],
-          "body": "{\n  \"data\": {\n    \"date\": \"2026-04-10\",\n    \"teams\": {\n      \"in\": {\n        \"label\": \"In (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1250,\n        \"ton_cuoi\": 380\n      },\n      \"cat\": {\n        \"label\": \"Cắt (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 980,\n        \"ton_cuoi\": 220\n      },\n      \"pick\": {\n        \"label\": \"Pick (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1500,\n        \"ton_cuoi\": 450\n      },\n      \"mockup\": {\n        \"label\": \"Mockup (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 2100,\n        \"ton_cuoi\": 680\n      },\n      \"pack_ship\": {\n        \"label\": \"Pack & Ship (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1800,\n        \"ton_cuoi\": 520\n      }\n    }\n  }\n}"
+          ]
         },
         {
-          "name": "200 OK — PD (5 DTF + 2 DTG)",
-          "status": "OK",
-          "code": 200,
-          "header": [
+          "name": "Hourly Staff Productivity — Team Cắt",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=cat&metric=staff_productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "admin", "fplatform", "hourly-metrics"],
+              "query": [
+                { "key": "team", "value": "cat" },
+                { "key": "metric", "value": "staff_productivity" },
+                { "key": "start_shift", "value": "2026-04-14 06:00:00" },
+                { "key": "end_shift", "value": "2026-04-14 14:00:00" }
+              ]
+            },
+            "description": "🔒 **Private** — Sản lượng **từng nhân viên** team CẮT theo giờ.\n\nGrouped by `username`. Mỗi row = 1 NV × 1 giờ."
+          },
+          "response": [
             {
-              "key": "Content-Type",
-              "value": "application/json"
+              "name": "200 OK — Staff Productivity",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"team\": \"cat\",\n    \"metric\": \"staff_productivity\",\n    \"hours\": [\n      { \"date_hour\": \"2026-04-14 06\", \"username\": \"nguyen.van.a\", \"value\": 45 },\n      { \"date_hour\": \"2026-04-14 06\", \"username\": \"tran.thi.b\", \"value\": 38 },\n      { \"date_hour\": \"2026-04-14 07\", \"username\": \"nguyen.van.a\", \"value\": 52 },\n      { \"date_hour\": \"2026-04-14 07\", \"username\": \"tran.thi.b\", \"value\": 41 }\n    ]\n  }\n}"
             }
-          ],
-          "body": "{\n  \"data\": {\n    \"date\": \"2026-04-10\",\n    \"teams\": {\n      \"in\": {\n        \"label\": \"In (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 850,\n        \"ton_cuoi\": 190\n      },\n      \"cat\": {\n        \"label\": \"Cắt (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 720,\n        \"ton_cuoi\": 150\n      },\n      \"pick\": {\n        \"label\": \"Pick (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1100,\n        \"ton_cuoi\": 310\n      },\n      \"mockup\": {\n        \"label\": \"Mockup (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1400,\n        \"ton_cuoi\": 420\n      },\n      \"pack_ship\": {\n        \"label\": \"Pack & Ship (DTF)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 1200,\n        \"ton_cuoi\": 350\n      },\n      \"dtg_pick\": {\n        \"label\": \"Pick (DTG)\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 280,\n        \"ton_cuoi\": 65\n      },\n      \"dtg_print_split\": {\n        \"label\": \"In (DTG) - Machine Split\",\n        \"estimate_date\": \"2026-04-10\",\n        \"ton_dau\": 180,\n        \"ton_cuoi\": 42,\n        \"machines\": {\n          \"apollo\": { \"ton_dau\": 80, \"ton_cuoi\": 18 },\n          \"atlas_01\": { \"ton_dau\": 50, \"ton_cuoi\": 12 },\n          \"atlas_02\": { \"ton_dau\": 50, \"ton_cuoi\": 12 }\n        }\n      }\n    }\n  }\n}"
+          ]
+        },
+        {
+          "name": "Hourly Machine Productivity — Team In",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=in&metric=machine_productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "admin", "fplatform", "hourly-metrics"],
+              "query": [
+                { "key": "team", "value": "in" },
+                { "key": "metric", "value": "machine_productivity" },
+                { "key": "start_shift", "value": "2026-04-14 06:00:00" },
+                { "key": "end_shift", "value": "2026-04-14 14:00:00" }
+              ]
+            },
+            "description": "🔒 **Private** — Sản lượng **từng máy in** DTF theo giờ.\n\nGrouped by `machine` (printer name). Chỉ hỗ trợ team `in` và `dtg_print`."
+          },
+          "response": [
+            {
+              "name": "200 OK — Machine Productivity",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"team\": \"in\",\n    \"metric\": \"machine_productivity\",\n    \"hours\": [\n      { \"date_hour\": \"2026-04-14 06\", \"machine\": \"May1\", \"value\": 50 },\n      { \"date_hour\": \"2026-04-14 06\", \"machine\": \"May2\", \"value\": 75 },\n      { \"date_hour\": \"2026-04-14 06\", \"machine\": \"MayHOTSHOT\", \"value\": 12 },\n      { \"date_hour\": \"2026-04-14 07\", \"machine\": \"May1\", \"value\": 55 },\n      { \"date_hour\": \"2026-04-14 07\", \"machine\": \"May2\", \"value\": 80 }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Hourly Productivity — Team Mockup",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=mockup&metric=productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "admin", "fplatform", "hourly-metrics"],
+              "query": [
+                { "key": "team", "value": "mockup" },
+                { "key": "metric", "value": "productivity" },
+                { "key": "start_shift", "value": "2026-04-14 06:00:00" },
+                { "key": "end_shift", "value": "2026-04-14 14:00:00" }
+              ]
+            },
+            "description": "🔒 **Private** — Sản lượng team MOCKUP theo giờ.\n\nĐếm `COUNT(DISTINCT barcode, index_number, side)` từ `log_check_mockup`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"team\": \"mockup\",\n    \"metric\": \"productivity\",\n    \"hours\": [\n      { \"date_hour\": \"2026-04-14 06\", \"value\": 85 },\n      { \"date_hour\": \"2026-04-14 07\", \"value\": 120 },\n      { \"date_hour\": \"2026-04-14 08\", \"value\": 115 }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Hourly Productivity — DTG Print",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=dtg_print&metric=productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "admin", "fplatform", "hourly-metrics"],
+              "query": [
+                { "key": "team", "value": "dtg_print" },
+                { "key": "metric", "value": "productivity" },
+                { "key": "start_shift", "value": "2026-04-14 06:00:00" },
+                { "key": "end_shift", "value": "2026-04-14 14:00:00" }
+              ]
+            },
+            "description": "🔒 **Private** — Sản lượng DTG Print theo giờ.\n\nĐếm từ `dtg_printed_product` với `print_status=1`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"team\": \"dtg_print\",\n    \"metric\": \"productivity\",\n    \"hours\": [\n      { \"date_hour\": \"2026-04-14 06\", \"value\": 180 },\n      { \"date_hour\": \"2026-04-14 07\", \"value\": 220 }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "422 — Invalid team×metric combination",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=in&metric=staff_productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "admin", "fplatform", "hourly-metrics"],
+              "query": [
+                { "key": "team", "value": "in", "description": "team IN không hỗ trợ staff_productivity" },
+                { "key": "metric", "value": "staff_productivity" },
+                { "key": "start_shift", "value": "2026-04-14 06:00:00" },
+                { "key": "end_shift", "value": "2026-04-14 14:00:00" }
+              ]
+            },
+            "description": "🔒 **Private** — Ví dụ lỗi khi team×metric không tương thích.\n\nTeam `in` không hỗ trợ `staff_productivity` → validation error 422."
+          },
+          "response": [
+            {
+              "name": "422 — Validation Error",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"metric\": [\"Team 'in' không hỗ trợ metric 'staff_productivity'.\"]\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Hotshot Orders (Đơn Hotshot)",
+      "description": "## 🆕 Đơn Hotshot\n\nTồn đầu/cuối đơn hotshot (đơn gấp).\n\nFilter theo `printer_default = MayHOTSHOT (FLS) / MayHOTSHOTPD (PD)`.\n\n**Auth:** 🔒 Private — cần Bearer Token",
+      "item": [
+        {
+          "name": "Get Hotshot Orders (NEW)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{API_URL}}/v1/admin/fplatform/hotshot-orders?date=2026-04-14",
+              "host": ["{{API_URL}}"],
+              "path": ["v1", "admin", "fplatform", "hotshot-orders"],
+              "query": [
+                { "key": "date", "value": "2026-04-14", "description": "Optional. YYYY-MM-DD, default = today" }
+              ]
+            },
+            "description": "🔒 **Private** — Tồn đầu/cuối **đơn hotshot** (đơn gấp).\n\n🆕 **Mới trong v4**\n\n**Permission:** `shifts.index` hoặc role `admin`\n\nFilter: `printer_default = MayHOTSHOT` (FLS) hoặc `MayHOTSHOTPD` (PD)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có đơn hotshot cho ngày đó."
+          },
+          "response": [
+            {
+              "name": "200 OK — Hotshot Orders",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 15,\n    \"ton_cuoi\": 3,\n    \"factory\": \"FLS\"\n  }\n}"
+            },
+            {
+              "name": "404 — Không có dữ liệu",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Không có dữ liệu hotshot cho ngày này.\"\n}"
+            }
+          ]
         }
       ]
     }

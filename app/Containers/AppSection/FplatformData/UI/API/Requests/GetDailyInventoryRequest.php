@@ -10,7 +10,7 @@ final class GetDailyInventoryRequest extends ParentRequest
     {
         return [
             'date'    => ['sometimes', 'date_format:Y-m-d'],
-            'team'    => ['required', 'in:in,cat,pick,mockup,pack_ship,dtg_pick,dtg_print,dtg_print_split'],
+            'team'    => ['required', 'in:in,cat,pick,mockup,pack_ship,dtg_pick,dtg_print,dtg_print_split,order_inventory'],
         ];
     }
 

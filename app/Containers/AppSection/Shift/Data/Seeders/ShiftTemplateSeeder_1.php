@@ -3,6 +3,7 @@
 namespace App\Containers\AppSection\Shift\Data\Seeders;
 
 use App\Containers\AppSection\Department\Models\Department;
+use App\Containers\AppSection\Production\Data\Seeders\ProductionSeeder_1;
 use App\Containers\AppSection\Shift\Models\ShiftTemplate;
 use App\Containers\AppSection\Shift\Models\ShiftTemplateDetail;
 use App\Ship\Parents\Seeders\Seeder;
@@ -28,6 +29,10 @@ final class ShiftTemplateSeeder_1 extends Seeder
 {
     public function run(): void
     {
+        // Ensure production lines + departments exist (both seeders are idempotent).
+        // ProductionSeeder_1 internally calls DepartmentSeeder_2 + MachineSeeder_2.
+        $this->callOnce(ProductionSeeder_1::class);
+
         $factory = config('factory.current');
 
         // Fetch departments keyed by "lineCode-deptCode"

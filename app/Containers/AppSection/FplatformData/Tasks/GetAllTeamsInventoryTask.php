@@ -36,6 +36,7 @@ final class GetAllTeamsInventoryTask extends ParentTask
         Team::Pick,
         Team::Mockup,
         Team::PackShip,
+        Team::OrderInventory,
     ];
 
     private const DTG_TEAMS = [

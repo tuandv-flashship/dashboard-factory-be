@@ -444,7 +444,17 @@ cd /var/www/dashboard-pd && php artisan migrate --force
 # Seed initial data (users, departments, machines, shift templates)
 cd /var/www/dashboard-fls && php artisan db:seed --force
 cd /var/www/dashboard-pd && php artisan db:seed --force
+
+# Sync permissions từ container configs vào bảng permissions
+cd /var/www/dashboard-fls && php artisan apiato:permissions-sync
+cd /var/www/dashboard-pd && php artisan apiato:permissions-sync
 ```
+
+> **📝 `apiato:permissions-sync`:**
+> Command này đọc tất cả permission configs từ các Container và sync vào bảng `permissions`.
+> - **Phải chạy sau `db:seed`** để đảm bảo bảng permissions đã tồn tại.
+> - **Phải chạy lại mỗi lần deploy** nếu code có thêm/sửa permissions mới.
+> - Thêm `--prune` để xóa permissions không còn trong config: `php artisan apiato:permissions-sync --prune`
 
 ---
 
@@ -783,6 +793,7 @@ sudo certbot renew --dry-run
 □ php artisan key:generate đã chạy
 □ php artisan migrate --force đã chạy
 □ php artisan db:seed --force đã chạy
+□ php artisan apiato:permissions-sync đã chạy (cả FLS + PD)
 □ Passport clients đã tạo (passport:client --password) cho cả FLS + PD
 □ CLIENT_WEB_ID / CLIENT_WEB_SECRET đã điền vào .env cả 2 factory
 □ php artisan config:cache đã chạy
@@ -854,25 +865,28 @@ deploy_factory() {
 
     cd $APP_DIR
 
-    echo "[${FACTORY}] 1/6 Pull code..."
+    echo "[${FACTORY}] 1/7 Pull code..."
     git pull origin main
 
-    echo "[${FACTORY}] 2/6 Install dependencies..."
+    echo "[${FACTORY}] 2/7 Install dependencies..."
     composer install --no-dev --optimize-autoloader --no-interaction
 
-    echo "[${FACTORY}] 3/6 Run migrations..."
+    echo "[${FACTORY}] 3/7 Run migrations..."
     php artisan migrate --force
 
-    echo "[${FACTORY}] 4/6 Optimize caches..."
+    echo "[${FACTORY}] 4/7 Sync permissions..."
+    php artisan apiato:permissions-sync
+
+    echo "[${FACTORY}] 5/7 Optimize caches..."
     php artisan config:cache
     php artisan route:cache
     php artisan view:cache
     php artisan event:cache
 
-    echo "[${FACTORY}] 5/6 Reload Octane (graceful)..."
+    echo "[${FACTORY}] 6/7 Reload Octane (graceful)..."
     php artisan octane:reload
 
-    echo "[${FACTORY}] 6/6 Restart Horizon (graceful)..."
+    echo "[${FACTORY}] 7/7 Restart Horizon (graceful)..."
     php artisan horizon:terminate
 
     echo "[${FACTORY}] ✅ Deploy complete!"
@@ -914,6 +928,9 @@ composer install --no-dev --optimize-autoloader
     │
 migrate --force
     │   → Chạy migrations mới (nếu có)
+    │
+apiato:permissions-sync
+    │   → Sync permissions mới từ container configs vào DB
     │
 config:cache + route:cache + view:cache + event:cache
     │   → PHP compiled config → file (không parse .env runtime)

@@ -38,7 +38,7 @@ final class GetDailyInventoryTask extends ParentTask
                 LEFT JOIN user_group_scan s
                     ON f.folder_code = s.folder_code
                     AND s.work_type = ?
-                    AND s.work_status = 1
+                    AND s.work_status = ?
                 WHERE f.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
                     AND f.status_folder <> 2
                     AND COALESCE(f.printer_share, f.printer_run, f.printer_default) IN (
@@ -64,7 +64,7 @@ final class GetDailyInventoryTask extends ParentTask
         ";
 
         $bindings = array_merge(
-            [$workType->value, $date, $date],
+            [$workType->value, $workType->doneStatus(), $date, $date],
             $this->printerBindings($factory),
             [$date],
         );
