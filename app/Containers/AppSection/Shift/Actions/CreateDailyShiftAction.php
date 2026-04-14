@@ -143,6 +143,11 @@ final class CreateDailyShiftAction extends ParentAction
                     return $existing; // Another process already created it — will update inventory below
                 }
 
+                // Deactivate all previous shifts (keeps data, clears is_active flag)
+                Shift::where('date', '<', $targetDate)
+                    ->where('is_active', true)
+                    ->update(['is_active' => false]);
+
                 $shift = Shift::create([
                     'date'              => $targetDate,
                     'shift_number'      => 1,

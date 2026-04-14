@@ -44,13 +44,14 @@ final class Shift extends ParentModel
     // ── Static Helpers ───────────────────────────────────
 
     /**
-     * Get the currently active shift.
+     * Get the currently active shift for today.
      */
     public static function current(): self|null
     {
         return self::query()
             ->where('is_active', true)
-            ->latest('date')
+            ->where('date', now()->toDateString())
+            ->latest('shift_number')
             ->first();
     }
 

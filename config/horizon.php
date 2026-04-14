@@ -168,7 +168,7 @@ return [
     | APP_ENV. Each factory (FLS/PD) runs its own Horizon process.
     |
     | Queues:
-    |   - default: general jobs (CreateDailyShiftJob, ActivateHourlyRecordsJob)
+    |   - default: general jobs (CreateDailyShiftJob, SyncHourlyRecordsJob)
     |   - notifications: email notifications (Welcome, EmailVerified, etc.)
     |   - media: thumbnail generation (GenerateThumbnailsJob)
     |

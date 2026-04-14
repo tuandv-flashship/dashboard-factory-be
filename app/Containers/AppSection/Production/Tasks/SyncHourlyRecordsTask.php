@@ -18,12 +18,15 @@ use Illuminate\Support\Facades\Log;
 /**
  * Sync hourly_records with real-time data from FPlatform.
  *
- * For the active shift's current hour slot, updates:
- * - hour_start_inventory (only first time, via FPlatform tồn cuối query)
- * - actual (productivity from FPlatform)
- * - staff (staff_count from FPlatform)
- * - efficiency (computed: actual / target * 100)
- * - status: pending → active
+ * Handles both status lifecycle (pending → active → completed)
+ * and FPlatform data sync (actual, staff, inventory, efficiency).
+ *
+ * For each department's hourly records:
+ * - Pending slots whose time has arrived → activate + fetch data
+ * - Active current slot → refresh data from FPlatform
+ * - Active past slots with no data → fetch data + complete
+ * - Active past slots with data → complete
+ * - Already completed → skip
  *
  * Called by SyncHourlyRecordsJob every N minutes.
  */
@@ -43,6 +46,12 @@ final class SyncHourlyRecordsTask extends ParentTask
         'dtg_print' => Team::DtgPrint,
     ];
 
+    /**
+     * Max hours to retry fetching data for a past slot before force-completing.
+     * After this grace period, slots with actual=0 are completed as-is.
+     */
+    private const COMPLETE_GRACE_HOURS = 2;
+
     public function __construct(
         private readonly GetHourlyMetricsAction $hourlyMetricsAction,
         private readonly GetDailyInventoryAction $inventoryAction,
@@ -56,7 +65,7 @@ final class SyncHourlyRecordsTask extends ParentTask
         // ── 1. Find active shift ─────────────────────────────
         $shift = Shift::current();
 
-        if (!$shift || $shift->date->toDateString() !== $today) {
+        if (!$shift) {
             Log::info('[SyncHourlyRecords] No active shift for today — skipped.', [
                 'date' => $today,
             ]);
@@ -87,10 +96,7 @@ final class SyncHourlyRecordsTask extends ParentTask
             }
 
             try {
-                $updated = $this->syncDepartment($shift, $detail, $dept, $team);
-                if ($updated) {
-                    $synced++;
-                }
+                $synced += $this->syncDepartment($shift, $detail, $dept, $team);
             } catch (\Throwable $e) {
                 Log::warning('[SyncHourlyRecords] Failed for department', [
                     'department' => $dept->code,
@@ -101,64 +107,112 @@ final class SyncHourlyRecordsTask extends ParentTask
 
         if ($synced > 0) {
             Log::info('[SyncHourlyRecords] Synced.', [
-                'date'     => $today,
-                'shift'    => $shift->shift_number,
-                'departments' => $synced,
+                'date'    => $today,
+                'shift'   => $shift->shift_number,
+                'records' => $synced,
             ]);
         }
     }
 
     /**
-     * Sync a single department's current hour slot.
+     * Sync all hourly records for a single department.
+     *
+     * Handles status transitions AND data fetching in one pass.
+     * Past slots are retried if actual=0 (up to COMPLETE_GRACE_HOURS after slot end).
+     *
+     * Time boundaries:
+     * - Activation: based on department start_time (e.g., 06:30 for print)
+     * - FPlatform query: based on hour_slot full-hour boundaries (e.g., 06:00-07:00)
+     *
+     * @return int Number of records updated
      */
     private function syncDepartment(
         Shift $shift,
         ShiftDetail $detail,
         Department $dept,
         Team $team,
-    ): bool {
-        // ── Determine current hour slot ──────────────────────
+    ): int {
         $now = now();
         $shiftDate = $shift->date->toDateString();
 
-        $startTime = Carbon::createFromFormat(
+        // Department actual start time (for activation check)
+        $deptStart = Carbon::createFromFormat(
             'Y-m-d H:i:s',
             $shiftDate . ' ' . $detail->start_time
         );
 
-        $workHours = (int) floor($detail->work_hours);
-        $currentHourIndex = null;
-        $slotStart = null;
-        $slotEnd = null;
+        // Load all records for this department, ordered by hour_index
+        $records = HourlyRecord::where('shift_id', $shift->id)
+            ->where('department_id', $dept->id)
+            ->orderBy('hour_index')
+            ->get();
 
-        for ($i = 0; $i < $workHours; $i++) {
-            $hourStart = $startTime->copy()->addHours($i);
-            $hourEnd = $hourStart->copy()->addHour();
+        // Cache inventory per-department (fetched once, reused for all slots)
+        $cachedInventory = null;
 
-            if ($now >= $hourStart && $now < $hourEnd) {
-                $currentHourIndex = $i;
-                $slotStart = $hourStart;
-                $slotEnd = $hourEnd;
-                break;
+        $updated = 0;
+
+        foreach ($records as $record) {
+            // ── Parse hour_slot for full-hour query boundaries ──
+            // "6h-7h" → queryStart=06:00, queryEnd=07:00
+            [$queryStart, $queryEnd] = $this->parseHourSlot($record->hour_slot, $shiftDate);
+
+            // ── Activation time: max(deptStart, queryStart) ─────
+            // If dept starts at 06:30 and slot is "6h-7h",
+            // the slot activates at 06:30 (not 06:00)
+            $activationTime = $deptStart->gt($queryStart) ? $deptStart->copy() : $queryStart->copy();
+
+            // ── Slot hasn't started yet → stay pending ───────
+            if ($now < $activationTime) {
+                continue;
+            }
+
+            // ── Already completed → skip ─────────────────────
+            if ($record->status === HourlyRecordStatus::Completed->value) {
+                continue;
+            }
+
+            $isCurrentSlot = $now >= $activationTime && $now < $queryEnd;
+            $isPassedSlot = $now >= $queryEnd;
+
+            if ($isCurrentSlot) {
+                // ── Current slot: fetch data + set active ────
+                $this->fetchAndUpdateRecord($record, $shiftDate, $team, $dept, $queryStart, $queryEnd, $cachedInventory);
+                $updated++;
+            } elseif ($isPassedSlot) {
+                // ── Past slot: always fetch latest data ──────
+                $this->fetchAndUpdateRecord($record, $shiftDate, $team, $dept, $queryStart, $queryEnd, $cachedInventory);
+
+                // Complete only if we have data OR grace period expired
+                $record->refresh();
+                $graceExpired = $now->diffInHours($queryEnd) >= self::COMPLETE_GRACE_HOURS;
+
+                if ($record->actual > 0 || $graceExpired) {
+                    $record->update(['status' => HourlyRecordStatus::Completed->value]);
+                }
+                // else: keep active → retry on next sync cycle
+
+                $updated++;
             }
         }
 
-        if ($currentHourIndex === null) {
-            // Not currently in any hour slot for this department
-            return false;
-        }
+        return $updated;
+    }
 
-        // ── Find hourly_record ───────────────────────────────
-        $record = HourlyRecord::where('shift_id', $shift->id)
-            ->where('department_id', $dept->id)
-            ->where('hour_index', $currentHourIndex)
-            ->first();
-
-        if (!$record) {
-            return false;
-        }
-
-        // ── Convert to US/Central for FPlatform queries ──────
+    /**
+     * Fetch FPlatform data and update a single hourly record.
+     *
+     * Sets: actual, staff, efficiency, status=active, hour_start_inventory (first time only).
+     */
+    private function fetchAndUpdateRecord(
+        HourlyRecord $record,
+        string $shiftDate,
+        Team $team,
+        Department $dept,
+        Carbon $slotStart,
+        Carbon $slotEnd,
+        ?int &$cachedInventory,
+    ): void {
         $startShift = $slotStart->format('Y-m-d H:i:s');
         $endShift = $slotEnd->format('Y-m-d H:i:s');
 
@@ -192,15 +246,16 @@ final class SyncHourlyRecordsTask extends ParentTask
             'status'     => HourlyRecordStatus::Active->value,
         ];
 
-        // hour_start_inventory: chỉ set lần đầu (khi = 0)
-        // Lấy ton_cuoi tại thời điểm query = tồn hiện tại = tồn đầu giờ
+        // hour_start_inventory: chỉ set lần đầu (khi = 0 hoặc null)
+        // Cache per-department: fetch 1 lần, dùng cho tất cả slots
         if ($record->hour_start_inventory === 0 || $record->hour_start_inventory === null) {
-            $updateData['hour_start_inventory'] = $this->fetchCurrentInventory($shiftDate, $team, $dept);
+            if ($cachedInventory === null) {
+                $cachedInventory = $this->fetchCurrentInventory($shiftDate, $team, $dept);
+            }
+            $updateData['hour_start_inventory'] = $cachedInventory;
         }
 
         $record->update($updateData);
-
-        return true;
     }
 
     /**
@@ -235,5 +290,27 @@ final class SyncHourlyRecordsTask extends ParentTask
         }
 
         return $sum;
+    }
+
+    /**
+     * Parse hour_slot label into full-hour Carbon boundaries.
+     *
+     * "6h-7h"  → [Carbon(06:00:00), Carbon(07:00:00)]
+     * "13h-14h" → [Carbon(13:00:00), Carbon(14:00:00)]
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function parseHourSlot(string $hourSlot, string $shiftDate): array
+    {
+        // "6h-7h" → ["6", "7"]
+        $parts = explode('-', str_replace('h', '', $hourSlot));
+
+        $startHour = (int) $parts[0];
+        $endHour = (int) $parts[1];
+
+        $queryStart = Carbon::createFromFormat('Y-m-d H:i:s', "{$shiftDate} {$startHour}:00:00");
+        $queryEnd = Carbon::createFromFormat('Y-m-d H:i:s', "{$shiftDate} {$endHour}:00:00");
+
+        return [$queryStart, $queryEnd];
     }
 }
