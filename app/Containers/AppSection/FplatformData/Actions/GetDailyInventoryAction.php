@@ -57,23 +57,39 @@ final class GetDailyInventoryAction extends ParentAction
     }
 
     /**
-     * Order inventory: DTF result + DTG result (PD only) merged.
+     * Order inventory: return per-line breakdown (DTF + DTG for PD).
+     *
+     * Response includes:
+     *  - lines.dtf  → DTF line (both FLS & PD)
+     *  - lines.dtg  → DTG line (PD only)
+     *  - ton_dau / ton_cuoi → totals across all lines (backward compat)
      */
     private function runOrderInventory(string $date, FactoryLine $factoryLine): ?array
     {
         $dtfResult = $this->orderInventoryTask->run($date, $factoryLine);
+        $dtgResult = $factoryLine === FactoryLine::PD
+            ? $this->dtgOrderInventoryTask->run($date)
+            : null;
 
-        // PD factory: add DTG order counts
-        if ($factoryLine === FactoryLine::PD) {
-            $dtgResult = $this->dtgOrderInventoryTask->run($date);
-            if ($dtfResult && $dtgResult) {
-                $dtfResult['ton_dau'] += $dtgResult['ton_dau'];
-                $dtfResult['ton_cuoi'] += $dtgResult['ton_cuoi'];
-            } elseif ($dtgResult) {
-                return $dtgResult;
-            }
+        // Both null → no data
+        if (!$dtfResult && !$dtgResult) {
+            return null;
         }
 
-        return $dtfResult;
+        $zero = ['ton_dau' => 0, 'ton_cuoi' => 0];
+        $dtfLine = $dtfResult ? ['ton_dau' => $dtfResult['ton_dau'], 'ton_cuoi' => $dtfResult['ton_cuoi']] : $zero;
+        $dtgLine = $dtgResult ? ['ton_dau' => $dtgResult['ton_dau'], 'ton_cuoi' => $dtgResult['ton_cuoi']] : $zero;
+
+        $lines = ['dtf' => $dtfLine];
+        if ($factoryLine === FactoryLine::PD) {
+            $lines['dtg'] = $dtgLine;
+        }
+
+        return [
+            'estimate_date' => $date,
+            'lines'         => $lines,
+            'ton_dau'        => $dtfLine['ton_dau'] + $dtgLine['ton_dau'],
+            'ton_cuoi'       => $dtfLine['ton_cuoi'] + $dtgLine['ton_cuoi'],
+        ];
     }
 }
