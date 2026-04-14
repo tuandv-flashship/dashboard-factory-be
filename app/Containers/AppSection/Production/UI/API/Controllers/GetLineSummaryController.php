@@ -3,8 +3,8 @@
 namespace App\Containers\AppSection\Production\UI\API\Controllers;
 
 use App\Containers\AppSection\Production\Actions\GetLineSummaryAction;
-use App\Containers\AppSection\Production\UI\API\Transformers\DepartmentTransformer;
-use App\Containers\AppSection\Production\UI\API\Transformers\ShiftTransformer;
+use App\Containers\AppSection\Department\UI\API\Transformers\DepartmentTransformer;
+use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
 use Illuminate\Http\JsonResponse;
