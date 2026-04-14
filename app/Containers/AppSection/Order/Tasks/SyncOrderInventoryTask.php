@@ -8,6 +8,7 @@ use App\Containers\AppSection\FplatformData\Tasks\GetHotshotOrderInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetOrderInventoryTask;
 use App\Containers\AppSection\Order\Models\OrderSummary;
 use App\Containers\AppSection\Shift\Models\Shift;
+use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Facades\Log;
 
@@ -54,6 +55,9 @@ final class SyncOrderInventoryTask extends ParentTask
         $shiftNumber = $shift->shift_number;
         $factory = FactoryLine::current();
 
+        // estimated_done = thời gian kết thúc ca của department muộn nhất
+        $estimatedDone = $this->resolveEstimatedDone($shift);
+
         // ── Fetch from fplatform ──────────────────────────
         $dtfResult = $this->dtfTask->run($today, $factory);
         $dtgResult = $factory === FactoryLine::PD
@@ -77,6 +81,7 @@ final class SyncOrderInventoryTask extends ParentTask
                 'dtf', 'DTF',
                 $dtfResult['ton_dau'], $dtfResult['ton_cuoi'],
                 $rushTotal, $rushCompleted,
+                $estimatedDone,
             );
             $upserted++;
         }
@@ -87,6 +92,7 @@ final class SyncOrderInventoryTask extends ParentTask
                 'dtg', 'DTG',
                 $dtgResult['ton_dau'], $dtgResult['ton_cuoi'],
                 0, 0,
+                $estimatedDone,
             );
             $upserted++;
         }
@@ -116,6 +122,7 @@ final class SyncOrderInventoryTask extends ParentTask
         int $tonCuoi,
         int $rushTotal,
         int $rushCompleted,
+        string $estimatedDone,
     ): void {
         $completed = max(0, $tonDau - $tonCuoi);
         $progress = $tonDau > 0
@@ -133,11 +140,42 @@ final class SyncOrderInventoryTask extends ParentTask
                 'total'          => $tonDau,
                 'completed'      => $completed,
                 'remaining'      => $tonCuoi,
-                'estimated_done' => '--',
+                'estimated_done' => $estimatedDone,
                 'rush_completed' => $rushCompleted,
                 'rush_total'     => $rushTotal,
                 'progress'       => $progress,
             ],
         );
+    }
+
+    /**
+     * Resolve estimated_done = end_time của department kết thúc muộn nhất.
+     *
+     * Tính trực tiếp trong SQL: MAX(start_time + work_hours + meal_break)
+     * thay vì load tất cả ShiftDetail rồi tính bằng PHP accessor.
+     *
+     * Kết quả: 1 query, 1 scalar — không load N rows vào memory.
+     */
+    private function resolveEstimatedDone(Shift $shift): string
+    {
+        $maxEndTime = ShiftDetail::where('shift_id', $shift->id)
+            ->selectRaw("
+                MAX(
+                    DATE_FORMAT(
+                        ADDTIME(start_time, SEC_TO_TIME((work_hours * 3600) + (COALESCE(meal_break_minutes, 0) * 60))),
+                        '%H:%i'
+                    )
+                ) AS max_end_time
+            ")
+            ->value('max_end_time');
+
+        if ($maxEndTime) {
+            return $maxEndTime;
+        }
+
+        // Fallback: shift-level end_time
+        return $shift->end_time
+            ? substr($shift->end_time, 0, 5)
+            : '--';
     }
 }
