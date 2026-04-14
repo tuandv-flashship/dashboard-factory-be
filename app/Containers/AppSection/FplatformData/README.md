@@ -64,22 +64,22 @@ Tất cả SQL tham chiếu nằm trong file `docs/rpt_factory_ops_metrics_v4.sq
 
 ### DTF Teams (yêu cầu `factory`: FLS hoặc PD)
 
-| Team | `team` param | Data Source | Đơn vị |
-|------|-------------|-------------|--------|
-| In | `in` | `folder_manage` + `user_group_scan` (work_type=0, work_status=1) | file |
-| Cắt | `cat` | `folder_manage` + `user_group_scan` (work_type=2, work_status=0) | file |
-| Pick | `pick` | `folder_manage` + `user_group_scan` (work_type=100, copy_job=0) | product |
-| Mockup | `mockup` | `folder_manage` + `order_check_file_dropbox` + `log_check_mockup` | file |
-| Pack & Ship | `pack_ship` | `folder_manage` + `order_check_file_dropbox` + `scan_label_history`. PD: thêm DTG union từ `dtg_item_detail` | shirt |
-| Tồn đơn | `order_inventory` | Giống Pack & Ship nhưng đếm `COUNT(DISTINCT order_code)` | order |
+| Team | `team` param | Dept code | Data Source | Đơn vị |
+|------|-------------|-----------|-------------|--------|
+| In | `print` | `print` | `folder_manage` + `user_group_scan` (work_type=0, work_status=1) | file |
+| Cắt | `cut` | `cut` | `folder_manage` + `user_group_scan` (work_type=2, work_status=0) | file |
+| Pick | `pick` | `pick` | `folder_manage` + `user_group_scan` (work_type=100, copy_job=0) | product |
+| Mockup | `mockup` | `mockup` | `folder_manage` + `order_check_file_dropbox` + `log_check_mockup` | file |
+| Pack & Ship | `pack_ship` | `pack_ship` | `folder_manage` + `order_check_file_dropbox` + `scan_label_history`. PD: thêm DTG union từ `dtg_item_detail` | shirt |
+| Tồn đơn | `order_inventory` | — | Giống Pack & Ship nhưng đếm `COUNT(DISTINCT order_code)` | order |
 
 ### DTG Teams (**không** cần `factory`)
 
-| Team | `team` param | Data Source | Đơn vị |
-|------|-------------|-------------|--------|
-| Pick DTG | `dtg_pick` | `dtg_folder_detail` + `dtg_item_detail` | shirt |
-| In DTG | `dtg_print` | `dtg_item_detail` + `dtg_printed_product` | file |
-| In DTG (Machine Split) | `dtg_print_split` | Tương tự `dtg_print` + chia theo tỷ lệ máy | file |
+| Team | `team` param | Dept code | Data Source | Đơn vị |
+|------|-------------|-----------|-------------|--------|
+| Pick DTG | `pick_dtg` | `pick_dtg` | `dtg_folder_detail` + `dtg_item_detail` | shirt |
+| In DTG | `dtg_print` | `dtg_print` | `dtg_item_detail` + `dtg_printed_product` | file |
+| In DTG (Machine Split) | `dtg_print_split` | — | Tương tự `dtg_print` + chia theo tỷ lệ máy | file |
 
 > **Machine Split Ratios (DTG Print):**
 > - Apollo: 250 file/h → **62.5%**
@@ -92,7 +92,7 @@ Tất cả SQL tham chiếu nằm trong file `docs/rpt_factory_ops_metrics_v4.sq
 
 | Param | Type | Required | Values | Default |
 |-------|------|----------|--------|---------|
-| `team` | string | ✅ | `in`, `cat`, `pick`, `mockup`, `pack_ship`, `order_inventory`, `dtg_pick`, `dtg_print`, `dtg_print_split` | — |
+| `team` | string | ✅ | `print`, `cut`, `pick`, `mockup`, `pack_ship`, `order_inventory`, `pick_dtg`, `dtg_print`, `dtg_print_split` | — |
 | `date` | string | ❌ | `YYYY-MM-DD` | Hôm nay |
 
 ### 2. GET `/v1/admin/fplatform/inventory` — Tồn tất cả team (Private)
@@ -105,7 +105,7 @@ Tất cả SQL tham chiếu nằm trong file `docs/rpt_factory_ops_metrics_v4.sq
 
 | Param | Type | Required | Values |
 |-------|------|----------|--------|
-| `team` | string | ✅ | `in`, `cat`, `pick`, `mockup`, `pack_ship`, `dtg_print`, `dtg_pick` |
+| `team` | string | ✅ | `print`, `cut`, `pick`, `mockup`, `pack_ship`, `dtg_print`, `pick_dtg` |
 | `metric` | string | ✅ | `productivity`, `staff_count`, `staff_productivity`, `machine_productivity` |
 | `start_shift` | datetime | ✅ | `YYYY-MM-DD HH:mm:ss` (US/Central) |
 | `end_shift` | datetime | ✅ | `YYYY-MM-DD HH:mm:ss` (US/Central), phải sau start_shift |
@@ -114,13 +114,13 @@ Tất cả SQL tham chiếu nằm trong file `docs/rpt_factory_ops_metrics_v4.sq
 
 | Team | productivity | staff_count | staff_productivity | machine_productivity |
 |------|:-----------:|:-----------:|:------------------:|:-------------------:|
-| in | ✅ | ✅ | ❌ | ✅ |
-| cat | ✅ | ✅ | ✅ | ❌ |
+| print | ✅ | ✅ | ❌ | ✅ |
+| cut | ✅ | ✅ | ✅ | ❌ |
 | pick | ✅ | ✅ | ✅ | ❌ |
 | mockup | ✅ | ✅ | ✅ | ❌ |
 | pack_ship | ✅ | ✅ | ✅ | ❌ |
 | dtg_print | ✅ | ❌ | ❌ | ✅ |
-| dtg_pick | ✅ | ✅ | ✅ | ❌ |
+| pick_dtg | ✅ | ✅ | ✅ | ❌ |
 
 #### Response Examples
 
@@ -128,7 +128,7 @@ Tất cả SQL tham chiếu nằm trong file `docs/rpt_factory_ops_metrics_v4.sq
 // productivity / staff_productivity / machine_productivity
 {
   "data": {
-    "team": "in",
+    "team": "print",
     "metric": "productivity",
     "hours": [
       { "date_hour": "2026-04-14 08", "value": 125 },
@@ -152,7 +152,7 @@ Tất cả SQL tham chiếu nằm trong file `docs/rpt_factory_ops_metrics_v4.sq
 // staff_productivity (grouped by username)
 {
   "data": {
-    "team": "cat",
+    "team": "cut",
     "metric": "staff_productivity",
     "hours": [
       { "date_hour": "2026-04-14 08", "username": "user1", "value": 25 },
@@ -164,7 +164,7 @@ Tất cả SQL tham chiếu nằm trong file `docs/rpt_factory_ops_metrics_v4.sq
 // machine_productivity (grouped by machine/printed_by)
 {
   "data": {
-    "team": "in",
+    "team": "print",
     "metric": "machine_productivity",
     "hours": [
       { "date_hour": "2026-04-14 08", "machine": "May1", "value": 50 },

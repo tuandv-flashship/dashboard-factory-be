@@ -27,13 +27,13 @@ class FetchDailyInventoryForShiftTask extends ParentTask
      */
     private const DEPT_TEAM_MAP = [
         // DTF departments (both FLS and PD)
-        'print'     => Team::In,
+        'print'     => Team::Print,
         'pick'      => Team::Pick,
-        'cut'       => Team::Cat,
+        'cut'       => Team::Cut,
         'mockup'    => Team::Mockup,
         'pack_ship' => Team::PackShip,
         // DTG departments (PD only)
-        'pick_dtg'  => Team::DtgPick,
+        'pick_dtg'  => Team::PickDtg,
         'dtg_print' => Team::DtgPrint,
     ];
 

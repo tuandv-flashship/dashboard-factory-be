@@ -40,17 +40,17 @@ final class GetDailyInventoryAction extends ParentAction
         $factoryLine = FactoryLine::current();
 
         return match ($team) {
-            Team::In  => $this->dailyInventoryTask->run(
+            Team::Print => $this->dailyInventoryTask->run(
                 Carbon::parse($date), $factoryLine, WorkType::In
             ),
-            Team::Cat => $this->dailyInventoryTask->run(
+            Team::Cut => $this->dailyInventoryTask->run(
                 Carbon::parse($date), $factoryLine, WorkType::Cat
             ),
             Team::Pick          => $this->pickInventoryTask->run($date, $factoryLine),
             Team::Mockup        => $this->mockupInventoryTask->run($date, $factoryLine),
             Team::PackShip      => $this->packShipInventoryTask->run($date, $factoryLine),
             Team::OrderInventory => $this->runOrderInventory($date, $factoryLine),
-            Team::DtgPick       => $this->dtgPickInventoryTask->run($date),
+            Team::PickDtg       => $this->dtgPickInventoryTask->run($date),
             Team::DtgPrint      => $this->dtgPrintInventoryTask->run($date),
             Team::DtgPrintSplit => $this->dtgPrintMachineSplitTask->run($date),
         };

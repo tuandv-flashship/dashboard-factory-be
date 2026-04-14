@@ -33,4 +33,18 @@ return [
 
     'daily_shift_job_at' => env('DAILY_SHIFT_JOB_AT', '05:50'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Order Inventory Sync Interval
+    |--------------------------------------------------------------------------
+    |
+    | How often (in minutes) to sync order inventory (tồn đơn hàng) from
+    | Fplatform into the local order_summaries table.
+    |
+    | Set to 0 to disable the scheduled sync.
+    |
+    */
+
+    'order_inventory_sync_interval' => (int) env('ORDER_INVENTORY_SYNC_INTERVAL', 5),
+
 ];

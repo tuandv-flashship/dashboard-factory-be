@@ -42,9 +42,9 @@ final class GetHourlyMetricsAction extends ParentAction
         $factory = FactoryLine::current();
 
         $hours = match ($team) {
-            // UGS-based teams (IN, CẮT, PICK)
-            Team::In => $this->ugsTask->run($startShift, $endShift, $factory, WorkType::In, $metric),
-            Team::Cat => $this->ugsTask->run($startShift, $endShift, $factory, WorkType::Cat, $metric),
+            // UGS-based teams (Print, Cut, Pick)
+            Team::Print => $this->ugsTask->run($startShift, $endShift, $factory, WorkType::In, $metric),
+            Team::Cut => $this->ugsTask->run($startShift, $endShift, $factory, WorkType::Cat, $metric),
             Team::Pick => $this->ugsTask->run($startShift, $endShift, $factory, WorkType::Pick, $metric),
 
             // Mockup
@@ -55,7 +55,7 @@ final class GetHourlyMetricsAction extends ParentAction
 
             // DTG
             Team::DtgPrint => $this->dtgPrintTask->run($startShift, $endShift, $metric),
-            Team::DtgPick => $this->dtgPickTask->run($startShift, $endShift, $metric),
+            Team::PickDtg => $this->dtgPickTask->run($startShift, $endShift, $metric),
 
             default => throw new \InvalidArgumentException("Team {$team->value} does not support hourly metrics"),
         };

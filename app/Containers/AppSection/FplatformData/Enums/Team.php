@@ -4,12 +4,12 @@ namespace App\Containers\AppSection\FplatformData\Enums;
 
 enum Team: string
 {
-    case In            = 'in';
-    case Cat           = 'cat';
+    case Print         = 'print';
+    case Cut           = 'cut';
     case Pick          = 'pick';
     case Mockup        = 'mockup';
     case PackShip      = 'pack_ship';
-    case DtgPick       = 'dtg_pick';
+    case PickDtg       = 'pick_dtg';
     case DtgPrint      = 'dtg_print';
     case DtgPrintSplit = 'dtg_print_split';
     case OrderInventory = 'order_inventory';
@@ -17,12 +17,12 @@ enum Team: string
     public function label(): string
     {
         return match ($this) {
-            self::In             => 'In (DTF)',
-            self::Cat            => 'Cắt (DTF)',
+            self::Print          => 'In (DTF)',
+            self::Cut            => 'Cắt (DTF)',
             self::Pick           => 'Pick (DTF)',
             self::Mockup         => 'Mockup (DTF)',
             self::PackShip       => 'Pack & Ship (DTF)',
-            self::DtgPick        => 'Pick (DTG)',
+            self::PickDtg        => 'Pick (DTG)',
             self::DtgPrint       => 'In (DTG)',
             self::DtgPrintSplit  => 'In (DTG) - Machine Split',
             self::OrderInventory => 'Tồn đơn hàng',
@@ -35,7 +35,7 @@ enum Team: string
     public function requiresFactory(): bool
     {
         return match ($this) {
-            self::DtgPick, self::DtgPrint, self::DtgPrintSplit => false,
+            self::PickDtg, self::DtgPrint, self::DtgPrintSplit => false,
             default => true,
         };
     }
@@ -46,12 +46,12 @@ enum Team: string
     public static function hourlyTeams(): array
     {
         return [
-            self::In,
-            self::Cat,
+            self::Print,
+            self::Cut,
             self::Pick,
             self::Mockup,
             self::PackShip,
-            self::DtgPick,
+            self::PickDtg,
             self::DtgPrint,
         ];
     }
@@ -65,11 +65,11 @@ enum Team: string
             HourlyMetricType::Productivity => true, // All teams
             HourlyMetricType::StaffCount => true,   // All teams
             HourlyMetricType::StaffProductivity => match ($this) {
-                self::In, self::DtgPrint => false,  // IN doesn't have per-staff
+                self::Print, self::DtgPrint => false,  // Print teams don't have per-staff
                 default => true,
             },
             HourlyMetricType::MachineProductivity => match ($this) {
-                self::In, self::DtgPrint => true,   // Only print teams
+                self::Print, self::DtgPrint => true,   // Only print teams
                 default => false,
             },
         };

@@ -31,8 +31,8 @@ final class GetAllTeamsInventoryTask extends ParentTask
 
     /** Teams to include in the inventory response (excludes dtg_print) */
     private const DTF_TEAMS = [
-        Team::In,
-        Team::Cat,
+        Team::Print,
+        Team::Cut,
         Team::Pick,
         Team::Mockup,
         Team::PackShip,
@@ -40,7 +40,7 @@ final class GetAllTeamsInventoryTask extends ParentTask
     ];
 
     private const DTG_TEAMS = [
-        Team::DtgPick,
+        Team::PickDtg,
         Team::DtgPrintSplit,
     ];
 

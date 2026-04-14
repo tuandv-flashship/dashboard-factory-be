@@ -31,7 +31,7 @@
               { "key": "Accept", "value": "application/json" }
             ],
             "url": {
-              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=in&date=2026-04-14",
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=print&date=2026-04-14",
               "host": ["{{API_URL}}"],
               "path": ["v1", "fplatform", "daily-inventory"],
               "query": [
@@ -64,7 +64,7 @@
             "method": "GET",
             "header": [{ "key": "Accept", "value": "application/json" }],
             "url": {
-              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=cat&date=2026-04-14",
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=cut&date=2026-04-14",
               "host": ["{{API_URL}}"],
               "path": ["v1", "fplatform", "daily-inventory"],
               "query": [
@@ -194,7 +194,7 @@
             "method": "GET",
             "header": [{ "key": "Accept", "value": "application/json" }],
             "url": {
-              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=dtg_pick&date=2026-04-14",
+              "raw": "{{API_URL}}/v1/fplatform/daily-inventory?team=pick_dtg&date=2026-04-14",
               "host": ["{{API_URL}}"],
               "path": ["v1", "fplatform", "daily-inventory"],
               "query": [
@@ -283,7 +283,7 @@
               { "key": "Authorization", "value": "Bearer {{access_token}}" }
             ],
             "url": {
-              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=in&metric=productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=print&metric=productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
               "host": ["{{API_URL}}"],
               "path": ["v1", "admin", "fplatform", "hourly-metrics"],
               "query": [
@@ -345,7 +345,7 @@
               { "key": "Authorization", "value": "Bearer {{access_token}}" }
             ],
             "url": {
-              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=cat&metric=staff_productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=cut&metric=staff_productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
               "host": ["{{API_URL}}"],
               "path": ["v1", "admin", "fplatform", "hourly-metrics"],
               "query": [
@@ -376,7 +376,7 @@
               { "key": "Authorization", "value": "Bearer {{access_token}}" }
             ],
             "url": {
-              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=in&metric=machine_productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=print&metric=machine_productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
               "host": ["{{API_URL}}"],
               "path": ["v1", "admin", "fplatform", "hourly-metrics"],
               "query": [
@@ -469,7 +469,7 @@
               { "key": "Authorization", "value": "Bearer {{access_token}}" }
             ],
             "url": {
-              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=in&metric=staff_productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
+              "raw": "{{API_URL}}/v1/admin/fplatform/hourly-metrics?team=print&metric=staff_productivity&start_shift=2026-04-14 06:00:00&end_shift=2026-04-14 14:00:00",
               "host": ["{{API_URL}}"],
               "path": ["v1", "admin", "fplatform", "hourly-metrics"],
               "query": [
@@ -487,7 +487,7 @@
               "status": "Unprocessable Entity",
               "code": 422,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"metric\": [\"Team 'in' không hỗ trợ metric 'staff_productivity'.\"]\n  }\n}"
+              "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"metric\": [\"Team 'print' không hỗ trợ metric 'staff_productivity'.\"]\n  }\n}"
             }
           ]
         }
