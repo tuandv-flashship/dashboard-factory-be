@@ -23,15 +23,15 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
 
         $this->hideSensitiveRequestDetails();
 
-        $isLocal = $this->app->environment('local');
+        $isProduction = $this->app->environment('production');
 
-        Telescope::filter(function (IncomingEntry $entry) use ($isLocal) {
-            // In local: record everything for full debugging experience
-            if ($isLocal) {
+        Telescope::filter(function (IncomingEntry $entry) use ($isProduction) {
+            // In non-production (local, fls): record everything for full debugging experience
+            if (! $isProduction) {
                 return true;
             }
 
-            // In non-local (fls/pd): only record important entries
+            // In production (pd): only record important entries
             return $entry->isReportableException() ||
                    $entry->isFailedRequest() ||
                    $entry->isFailedJob() ||
@@ -77,12 +77,12 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
         $this->gate();
 
         Telescope::auth(function ($request) {
-            // Allow access in local, staging, and production-local environments
-            if (app()->environment('local', 'fls', 'pd')) {
+            // Local: no restrictions
+            if (app()->environment('local')) {
                 return true;
             }
 
-            // In production: require admin role
+            // All other environments: require admin role
             $user = $request->user('web');
 
             return $user && $user->hasRole('admin');

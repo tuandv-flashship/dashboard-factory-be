@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Log;
 use Laravel\Horizon\Horizon;
 use Laravel\Horizon\HorizonApplicationServiceProvider;
 
@@ -23,30 +22,21 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
     /**
      * Configure the Horizon authorization services.
      *
-     * Override parent to include 'fls' and 'pd' environments in the
-     * Horizon::auth fallback. The parent only checks for 'local',
-     * causing 403 when APP_ENV is 'fls' or 'pd'.
+     * Local: no restrictions.
+     * All other environments: require admin role.
      */
     protected function authorization(): void
     {
         $this->gate();
 
         Horizon::auth(function ($request) {
-            if (app()->environment('local', 'fls', 'pd')) {
+            // Local: no restrictions
+            if (app()->environment('local')) {
                 return true;
             }
 
+            // All other environments: require admin role
             $user = $request->user('web');
-
-            Log::info('Horizon auth debug', [
-                'env' => app()->environment(),
-                'has_session' => $request->hasSession(),
-                'session_id' => $request->session()?->getId(),
-                'user_web' => $user?->email,
-                'user_default' => $request->user()?->email,
-                'has_admin_role' => $user?->hasRole('admin'),
-                'user_roles' => $user?->getRoleNames()->toArray(),
-            ]);
 
             return $user && $user->hasRole('admin');
         });
