@@ -30,15 +30,23 @@ final class GetOrderSummaryTask extends ParentTask
             $shiftNumber = $shift?->shift_number ?? 1;
         }
 
-        $total = OrderSummary::query()
-            ->forShift($date, $shiftNumber)
-            ->total()
-            ->first();
-
         $perLine = OrderSummary::query()
             ->forShift($date, $shiftNumber)
             ->perLine()
             ->get();
+
+        // Compute total from per-line data (no separate DB row needed)
+        $total = $perLine->isNotEmpty() ? [
+            'total'          => $perLine->sum('total'),
+            'completed'      => $perLine->sum('completed'),
+            'remaining'      => $perLine->sum('remaining'),
+            'rush_completed' => $perLine->sum('rush_completed'),
+            'rush_total'     => $perLine->sum('rush_total'),
+            'progress'       => $perLine->sum('total') > 0
+                ? round(($perLine->sum('completed') / $perLine->sum('total')) * 100, 1)
+                : 0,
+            'estimated_done' => $perLine->max('estimated_done'),
+        ] : null;
 
         return [
             'date'         => $date,

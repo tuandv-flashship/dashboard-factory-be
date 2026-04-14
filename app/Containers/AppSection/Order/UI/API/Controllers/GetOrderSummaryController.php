@@ -38,7 +38,7 @@ final class GetOrderSummaryController extends ApiController
                 'data' => [
                     'date'         => $data['date'],
                     'shift_number' => $data['shift_number'],
-                    'total'        => $data['total'] ? $transformer->transform($data['total']) : null,
+                    'total'        => $data['total'],  // already computed array or null
                     'per_line'     => $data['per_line']->map(fn ($o) => $transformer->transform($o))->values(),
                 ],
             ];

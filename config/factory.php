@@ -47,4 +47,18 @@ return [
 
     'order_inventory_sync_interval' => (int) env('ORDER_INVENTORY_SYNC_INTERVAL', 5),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Hourly Records Sync Interval
+    |--------------------------------------------------------------------------
+    |
+    | How often (in minutes) to sync hourly_records (actual, staff, efficiency)
+    | from Fplatform for the current hour slot of the active shift.
+    |
+    | Set to 0 to disable the scheduled sync.
+    |
+    */
+
+    'hourly_records_sync_interval' => (int) env('HOURLY_RECORDS_SYNC_INTERVAL', 5),
+
 ];
