@@ -41,8 +41,10 @@ Container bao gồm 3 bảng: production lines (4 lines gồm Pick), hourly prod
 | target | int | KPI mục tiêu giờ này |
 | actual | int (nullable) | Thực đạt (null = giờ tương lai) |
 | staff | smallint | Số nhân viên |
+| hour_start_inventory | int | Tồn đầu giờ (ton_cuoi từ FPlatform, set 1 lần) |
 | efficiency | float | % hiệu suất: 94.2 |
 | error_rate | float | % lỗi: 2.1 |
+| status | enum | pending, active, completed |
 | | | **Unique constraint:** shift_id + department_id + hour_index |
 
 ### `hourly_issues`
@@ -56,10 +58,29 @@ Container bao gồm 3 bảng: production lines (4 lines gồm Pick), hourly prod
 | resolved_at | timestamp | Thời điểm khắc phục (nullable) |
 | resolution | text | Cách khắc phục (nullable) |
 
+## Scheduled Sync (FPlatform → hourly_records)
+
+### `SyncHourlyRecordsJob`
+
+Job chạy định kỳ (mặc định **5 phút**, configurable) lấy dữ liệu từ FPlatform và cập nhật `hourly_records` cho khung giờ hiện tại.
+
+| Config | Env | Default | Mô tả |
+|---|---|---|---|
+| `factory.hourly_records_sync_interval` | `HOURLY_RECORDS_SYNC_INTERVAL` | `5` | Interval (phút). `0` = disabled |
+
+**Logic:**
+1. Lấy active shift + shift_details (7 departments)
+2. Xác định `hour_slot` hiện tại cho mỗi department
+3. Query FPlatform: `productivity` → `actual`, `staff_count` → `staff`
+4. `hour_start_inventory` = `ton_cuoi` từ FPlatform (chỉ set lần đầu)
+5. `efficiency` = `actual / target × 100`
+6. `status`: `pending` → `active`
+
 ## API Endpoints
 
 | Method | Endpoint | Auth | Historical | Mô tả |
 |---|---|---|---|---|
+| GET | `/v1/production/hourly?date=&shift=` | Public ✅ | ✅ | **Tất cả lines → depts → hourly** |
 | GET | `/v1/production/lines` | Public ✅ | ❌ | 4 production lines + departments |
 | GET | `/v1/production/lines/{line}?date=&shift=` | Public ✅ | ✅ | Summary toàn bộ line (hourly records) |
 | GET | `/v1/production/lines/{line}/departments/{dept}?date=&shift=` | Public ✅ | ✅ | Chi tiết 1 dept (hourly + issues) |
@@ -126,10 +147,36 @@ GET /v1/admin/production-lines?include=departments&dept_factory=PD&dept_active=1
 
 > Validation qua `ShiftFilterRequest` (app/Ship/Requests/) — error messages tiếng Việt.
 
+### All Lines Hourly Response
+```json
+{
+  "data": {
+    "shift": { "date": "2026-04-14", "shift_number": 1 },
+    "lines": [
+      {
+        "code": "dtf",
+        "label": "DTF",
+        "color": "#3B82F6",
+        "departments": [
+          {
+            "department": { "code": "print", "label": "In" },
+            "hourly": [
+              { "hour_slot": "6h-7h", "hour_index": 0, "target": 120, "actual": 105, "staff": 4, "hour_start_inventory": 320, "efficiency": 87.5, "status": "active" },
+              { "hour_slot": "7h-8h", "hour_index": 1, "target": 120, "actual": null, "staff": 0, "status": "pending" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ### Optimizations
-- **Caching:** Dữ liệu lịch sử cache 1 giờ (`Cache::put`), ca hiện tại không cache
+- **Caching:** `/hourly` → 2 phút (today), 1 giờ (historical). `/lines/{line}` → 1 giờ (historical only)
 - **Rate Limiting:** `throttle:60,1` (60 req/phút/IP) trên tất cả public routes
 - **Eager Loading:** `->with('issues')` trong `GetDeptDetailTask`
+- **Single Query:** `/hourly` chỉ 1 SQL query cho tất cả hourly records
 
 ### FE Integration
 ```typescript
@@ -207,19 +254,27 @@ Production/
 │   ├── GetDeptDetailAction.php
 │   └── GetLineSummaryAction.php
 ├── Data/
-│   ├── Migrations/ (3 files — departments moved)
+│   ├── Migrations/ (5 files)
 │   ├── Repositories/ProductionLineRepository.php
 │   └── Seeders/ProductionSeeder_1.php
+├── Enums/
+│   └── HourlyRecordStatus.php             ← pending, active, completed
+├── Jobs/
+│   └── SyncHourlyRecordsJob.php           ← Scheduled sync (5 min)
 ├── Models/
-│   ├── ProductionLine.php (departments() → Department container)
-│   ├── HourlyRecord.php (shift() → Shift container, department() → Department container)
+│   ├── ProductionLine.php
+│   ├── HourlyRecord.php
 │   └── HourlyIssue.php
+├── Providers/
+│   └── ProductionServiceProvider.php      ← Schedule registration
 ├── Tasks/
 │   ├── GetAllProductionLinesTask.php
 │   ├── FindProductionLineByIdTask.php
 │   ├── ListAllProductionLinesTask.php
+│   ├── GetAllLinesHourlyTask.php          ← All lines → depts → hourly
 │   ├── GetDeptDetailTask.php
-│   └── GetLineSummaryTask.php (uses FindDepartmentsByLineIdTask)
+│   ├── GetLineSummaryTask.php
+│   └── SyncHourlyRecordsTask.php          ← FPlatform → hourly_records
 ├── Tests/
 │   ├── ContainerTestCase.php
 │   ├── UnitTestCase.php
@@ -227,10 +282,17 @@ Production/
 │       ├── Models/ProductionModelsTest.php
 │       └── Tasks/GetAllProductionLinesTaskTest.php
 └── UI/API/
-    ├── Controllers/ (3 controllers)
-    ├── Routes/ (6 route files)
+    ├── Controllers/
+    │   ├── GetAllLinesHourlyController.php ← NEW
+    │   ├── GetLineSummaryController.php
+    │   ├── GetDeptDetailController.php
+    │   └── ... (admin controllers)
+    ├── Routes/
+    │   ├── GetAllLinesHourly.v1.public.php ← NEW
+    │   ├── GetAllLinesHourly.v1.private.php← NEW
+    │   └── ... (existing routes)
     └── Transformers/
-        ├── ProductionLineTransformer.php (includes Department\DepartmentTransformer)
+        ├── ProductionLineTransformer.php
         ├── HourlyRecordTransformer.php
         ├── HourlyIssueTransformer.php
         └── ShiftTransformer.php
