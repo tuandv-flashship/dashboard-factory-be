@@ -3,7 +3,7 @@
 namespace App\Containers\AppSection\Production\Tasks;
 
 use App\Containers\AppSection\Department\Models\Department;
-use App\Containers\AppSection\FplatformData\Actions\GetDailyInventoryAction;
+use App\Containers\AppSection\FplatformData\Tasks\GetAllTeamsInventoryTask;
 use App\Containers\AppSection\FplatformData\Actions\GetHourlyMetricsAction;
 use App\Containers\AppSection\FplatformData\Enums\HourlyMetricType;
 use App\Containers\AppSection\FplatformData\Enums\Team;
@@ -54,7 +54,7 @@ final class SyncHourlyRecordsTask extends ParentTask
 
     public function __construct(
         private readonly GetHourlyMetricsAction $hourlyMetricsAction,
-        private readonly GetDailyInventoryAction $inventoryAction,
+        private readonly GetAllTeamsInventoryTask $allTeamsInventoryTask,
     ) {
     }
 
@@ -82,6 +82,9 @@ final class SyncHourlyRecordsTask extends ParentTask
             return;
         }
 
+        // ── 3. Bulk fetch all teams inventory (cached 5min) ──
+        $allInventory = $this->allTeamsInventoryTask->run($today);
+
         $synced = 0;
 
         foreach ($shiftDetails as $detail) {
@@ -96,7 +99,7 @@ final class SyncHourlyRecordsTask extends ParentTask
             }
 
             try {
-                $synced += $this->syncDepartment($shift, $detail, $dept, $team);
+                $synced += $this->syncDepartment($shift, $detail, $dept, $team, $allInventory);
             } catch (\Throwable $e) {
                 Log::warning('[SyncHourlyRecords] Failed for department', [
                     'department' => $dept->code,
@@ -131,6 +134,7 @@ final class SyncHourlyRecordsTask extends ParentTask
         ShiftDetail $detail,
         Department $dept,
         Team $team,
+        array $allInventory,
     ): int {
         $now = now();
         $shiftDate = $shift->date->toDateString();
@@ -147,8 +151,8 @@ final class SyncHourlyRecordsTask extends ParentTask
             ->orderBy('hour_index')
             ->get();
 
-        // Cache inventory per-department (fetched once, reused for all slots)
-        $cachedInventory = null;
+        // ── Refresh day_start_inventory from ton_dau ─────────
+        $dayStartInventory = $this->refreshDayStartInventory($detail, $team, $allInventory);
 
         $updated = 0;
 
@@ -177,11 +181,11 @@ final class SyncHourlyRecordsTask extends ParentTask
 
             if ($isCurrentSlot) {
                 // ── Current slot: fetch data + set active ────
-                $this->fetchAndUpdateRecord($record, $shiftDate, $team, $dept, $queryStart, $queryEnd, $cachedInventory);
+                $this->fetchAndUpdateRecord($record, $team, $queryStart, $queryEnd, $dayStartInventory, $records);
                 $updated++;
             } elseif ($isPassedSlot) {
                 // ── Past slot: always fetch latest data ──────
-                $this->fetchAndUpdateRecord($record, $shiftDate, $team, $dept, $queryStart, $queryEnd, $cachedInventory);
+                $this->fetchAndUpdateRecord($record, $team, $queryStart, $queryEnd, $dayStartInventory, $records);
 
                 // Complete only if we have data OR grace period expired
                 $record->refresh();
@@ -202,16 +206,18 @@ final class SyncHourlyRecordsTask extends ParentTask
     /**
      * Fetch FPlatform data and update a single hourly record.
      *
-     * Sets: actual, staff, efficiency, status=active, hour_start_inventory (first time only).
+     * Sets: actual, staff, efficiency, status=active.
+     * Calculates hour_start_inventory = dayStartInventory - Σ actual of previous slots.
+     *
+     * @param \Illuminate\Support\Collection $records All records for this department (for previous actual sum)
      */
     private function fetchAndUpdateRecord(
         HourlyRecord $record,
-        string $shiftDate,
         Team $team,
-        Department $dept,
         Carbon $slotStart,
         Carbon $slotEnd,
-        ?int &$cachedInventory,
+        int $dayStartInventory,
+        $records,
     ): void {
         $startShift = $slotStart->format('Y-m-d H:i:s');
         $endShift = $slotEnd->format('Y-m-d H:i:s');
@@ -236,46 +242,54 @@ final class SyncHourlyRecordsTask extends ParentTask
 
         $staff = $this->sumHourlyValues($staffResult['hours'], 'num_staff');
 
+        // ── Calculate hour_start_inventory ────────────────────
+        // = day_start_inventory - sum(actual of all previous slots)
+        $previousActual = $records
+            ->where('hour_index', '<', $record->hour_index)
+            ->sum('actual');
+
+        $hourStartInventory = max(0, $dayStartInventory - (int) $previousActual);
+
         // ── Build update data ────────────────────────────────
         $updateData = [
-            'actual'     => $actual,
-            'staff'      => $staff,
-            'efficiency' => $record->target > 0
+            'actual'               => $actual,
+            'staff'                => $staff,
+            'hour_start_inventory' => $hourStartInventory,
+            'efficiency'           => $record->target > 0
                 ? round(($actual / $record->target) * 100, 1)
                 : 0,
-            'status'     => HourlyRecordStatus::Active->value,
+            'status'               => HourlyRecordStatus::Active->value,
         ];
-
-        // hour_start_inventory: chỉ set lần đầu (khi = 0 hoặc null)
-        // Cache per-department: fetch 1 lần, dùng cho tất cả slots
-        if ($record->hour_start_inventory === 0 || $record->hour_start_inventory === null) {
-            if ($cachedInventory === null) {
-                $cachedInventory = $this->fetchCurrentInventory($shiftDate, $team, $dept);
-            }
-            $updateData['hour_start_inventory'] = $cachedInventory;
-        }
 
         $record->update($updateData);
     }
 
     /**
-     * Lấy tồn hiện tại (ton_cuoi) từ FPlatform.
-     * Dùng làm hour_start_inventory khi lần đầu sync hour slot.
+     * Refresh day_start_inventory from FPlatform ton_dau.
+     *
+     * Updates shift_details.day_start_inventory if ton_dau > 0 and changed.
+     *
+     * @return int The effective day_start_inventory value
      */
-    private function fetchCurrentInventory(string $date, Team $team, Department $dept): int
-    {
-        try {
-            $result = $this->inventoryAction->run($date, $team);
+    private function refreshDayStartInventory(
+        ShiftDetail $detail,
+        Team $team,
+        array $allInventory,
+    ): int {
+        $teamData = $allInventory['teams'][$team->value] ?? null;
+        $tonDau = (int) ($teamData['ton_dau'] ?? 0);
 
-            return $result['ton_cuoi'] ?? 0;
-        } catch (\Throwable $e) {
-            Log::warning('[SyncHourlyRecords] Inventory query failed, using 0', [
-                'department' => $dept->code,
-                'error'      => $e->getMessage(),
+        // Only update if ton_dau > 0 AND different from current value
+        if ($tonDau > 0 && $tonDau !== $detail->day_start_inventory) {
+            Log::info('[SyncHourlyRecords] Updated day_start_inventory', [
+                'department' => $detail->department_id,
+                'old'        => $detail->day_start_inventory,
+                'new'        => $tonDau,
             ]);
-
-            return 0;
+            $detail->update(['day_start_inventory' => $tonDau]);
         }
+
+        return $tonDau > 0 ? $tonDau : $detail->day_start_inventory;
     }
 
     /**
