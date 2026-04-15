@@ -27,6 +27,9 @@ final class GetAllLinesHourlyTask extends ParentTask
             return ['shift' => null, 'lines' => []];
         }
 
+        // Eager-load template so ShiftTransformer can populate template_* fields
+        $shift->load('template');
+
         // 1 query: lines + departments (eager-loaded) + department.machines
         $lines = ProductionLine::where('is_active', true)
             ->with(['departments' => fn ($q) => $q->orderBy('sort_order'), 'departments.machines'])
@@ -41,7 +44,7 @@ final class GetAllLinesHourlyTask extends ParentTask
 
         // 1 query (+1 for machines): ALL shift details for this shift, keyed by department
         $allDetails = ShiftDetail::where('shift_id', $shift->id)
-            ->with('machines.machine')
+            ->with(['department.productionLine', 'machines.machine'])
             ->get()
             ->keyBy('department_id');
 

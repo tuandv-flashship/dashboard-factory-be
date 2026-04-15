@@ -28,7 +28,7 @@ final class ShiftDetailTransformer extends ParentTransformer
             'productivity_type'  => $dept?->productivity_type?->value,
             'shift_number'       => $detail->shift_number,
             'headcount'          => $detail->headcount,
-            'kpi_per_hour'       => $detail->kpi_per_hour ?: ($detail->department?->kpi_per_hour ?? 0),
+            'kpi_per_hour'       => $detail->kpi_per_hour ?: ($dept?->kpi_per_hour ?? 0),
             'day_start_inventory'=> $detail->day_start_inventory,
             'start_time'         => $detail->start_time ? substr($detail->start_time, 0, 5) : null,
             'end_time'           => $detail->end_time,
@@ -43,7 +43,7 @@ final class ShiftDetailTransformer extends ParentTransformer
             'break3_start'       => $detail->break3_start ? substr($detail->break3_start, 0, 5) : null,
             'break3_minutes'     => $detail->break3_minutes,
             'kpi_hours'          => $this->computeKpiHours($detail),
-            'required_headcount' => $this->computeRequiredHeadcount($detail),
+            'required_headcount' => $this->computeRequiredHeadcount($detail, $dept),
         ];
 
         // Per-machine departments: include selected machines with snapshot KPI
@@ -83,10 +83,10 @@ final class ShiftDetailTransformer extends ParentTransformer
      *   Per-person:  RoundUp( day_start_inventory / kpi_per_hour / kpi_hours ) = số người cần
      *   Per-machine: Cùng công thức, nhưng kpi_per_hour = Σ(machine KPI) → kết quả ≤ 1 nghĩa là đủ máy
      */
-    private function computeRequiredHeadcount(ShiftDetail $detail): int
+    private function computeRequiredHeadcount(ShiftDetail $detail, ?Department $dept = null): int
     {
         $kpiHours   = $this->computeKpiHours($detail);
-        $kpiPerHour = (float) ($detail->kpi_per_hour ?: $detail->department?->kpi_per_hour ?? 0);
+        $kpiPerHour = (float) ($detail->kpi_per_hour ?: $dept?->kpi_per_hour ?? 0);
         $inventory  = (float) $detail->day_start_inventory;
 
         if ($kpiHours <= 0 || $kpiPerHour <= 0) {
