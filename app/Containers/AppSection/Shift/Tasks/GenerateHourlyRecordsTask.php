@@ -8,6 +8,7 @@ use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Traits\ComputesHourlyTarget;
+use App\Containers\AppSection\Shift\Traits\ComputesKpiHours;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Carbon;
 
@@ -19,12 +20,15 @@ use Illuminate\Support\Carbon;
  * - Middle slots are full hours
  * - If a department ends at :30, the last slot is a partial half-hour
  * - Target is prorated for partial slots
+ * - kpi_hours = slot_duration - break overlap (effective KPI time)
  *
  * Example: print (06:30, 8h work):
- *   slot 0: "6h-7h"   06:30–07:00  target=½×KPI
- *   slot 1: "7h-8h"   07:00–08:00  target=1×KPI
+ *   slot 0: "6h-7h"   06:30–07:00  target=½×KPI  kpi_hours=0.50
+ *   slot 1: "7h-8h"   07:00–08:00  target=1×KPI  kpi_hours=1.00
  *   ...
- *   slot 8: "14h-15h" 14:00–14:30  target=½×KPI
+ *   slot 4: "10h-11h" 10:00–11:00  break1=15min  kpi_hours=0.75
+ *   ...
+ *   slot 8: "14h-15h" 14:00–14:30  target=½×KPI  kpi_hours=0.50
  *
  * Optimized: single bulk insert, departments loaded via whereIn.
  * Target calculation delegated to ComputesHourlyTarget trait.
@@ -32,6 +36,7 @@ use Illuminate\Support\Carbon;
 final class GenerateHourlyRecordsTask extends ParentTask
 {
     use ComputesHourlyTarget;
+    use ComputesKpiHours;
 
     public function run(Shift $shift): void
     {
@@ -56,6 +61,9 @@ final class GenerateHourlyRecordsTask extends ParentTask
             $start = Carbon::createFromFormat('H:i:s', $detail->start_time);
             $end = $start->copy()->addMinutes((int) ($detail->work_hours * 60));
 
+            // Collect all breaks for this department
+            $breaks = $this->collectBreaks($detail);
+
             // Build full-hour-aligned slots
             $slots = $this->buildAlignedSlots($start, $end);
             $hourIndex = 0;
@@ -63,6 +71,9 @@ final class GenerateHourlyRecordsTask extends ParentTask
             foreach ($slots as $slot) {
                 // Prorate target for partial slots
                 $target = (int) round($fullHourTarget * $slot['fraction']);
+
+                // Compute effective KPI hours (slot duration minus break overlap)
+                $kpiHours = $this->computeKpiHours($slot['start'], $slot['end'], $breaks);
 
                 $records[] = [
                     'shift_id'             => $shift->id,
@@ -72,6 +83,7 @@ final class GenerateHourlyRecordsTask extends ParentTask
                     'staff'                => $detail->headcount,
                     'hour_start_inventory' => 0,
                     'target'               => $target,
+                    'kpi_hours'            => $kpiHours,
                     'actual'               => null,
                     'efficiency'           => 0,
                     'error_rate'           => 0,
@@ -95,8 +107,10 @@ final class GenerateHourlyRecordsTask extends ParentTask
      * Returns array of slots, each with:
      * - label: "6h-7h" format
      * - fraction: 0.0–1.0 (portion of a full hour)
+     * - start: Carbon (actual slot start time)
+     * - end: Carbon (actual slot end time)
      *
-     * @return array<array{label: string, fraction: float}>
+     * @return array<array{label: string, fraction: float, start: Carbon, end: Carbon}>
      */
     private function buildAlignedSlots(Carbon $start, Carbon $end): array
     {
@@ -119,6 +133,8 @@ final class GenerateHourlyRecordsTask extends ParentTask
             $slots[] = [
                 'label'    => $start->format('G') . 'h-' . $slotEnd->format('G') . 'h',
                 'fraction' => round($minutes / 60, 2),
+                'start'    => $start->copy(),
+                'end'      => $slotEnd->copy(),
             ];
         }
 
@@ -130,6 +146,8 @@ final class GenerateHourlyRecordsTask extends ParentTask
             $slots[] = [
                 'label'    => $cursor->format('G') . 'h-' . $slotEnd->format('G') . 'h',
                 'fraction' => 1.0,
+                'start'    => $cursor->copy(),
+                'end'      => $slotEnd->copy(),
             ];
 
             $cursor->addHour();
@@ -142,6 +160,8 @@ final class GenerateHourlyRecordsTask extends ParentTask
             $slots[] = [
                 'label'    => $lastFullHour->format('G') . 'h-' . $end->copy()->startOfHour()->addHour()->format('G') . 'h',
                 'fraction' => round($minutes / 60, 2),
+                'start'    => $lastFullHour->copy(),
+                'end'      => $end->copy(),
             ];
         }
 

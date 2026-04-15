@@ -2,7 +2,9 @@
 
 namespace App\Containers\AppSection\FplatformData\UI\API\Requests;
 
+use App\Containers\AppSection\FplatformData\Enums\Team;
 use App\Ship\Parents\Requests\Request as ParentRequest;
+use Illuminate\Validation\Rules\Enum;
 
 final class GetDailyInventoryRequest extends ParentRequest
 {
@@ -10,7 +12,7 @@ final class GetDailyInventoryRequest extends ParentRequest
     {
         return [
             'date'    => ['sometimes', 'date_format:Y-m-d'],
-            'team'    => ['required', 'in:in,cat,pick,mockup,pack_ship,dtg_pick,dtg_print,dtg_print_split,order_inventory'],
+            'team'    => ['required', new Enum(Team::class)],
         ];
     }
 
@@ -21,8 +23,10 @@ final class GetDailyInventoryRequest extends ParentRequest
 
     public function messages(): array
     {
+        $valid = implode(', ', array_column(Team::cases(), 'value'));
+
         return [
-            'team.required' => 'Vui lòng chọn team (in, cat, pick, mockup, pack_ship, dtg_pick, dtg_print, dtg_print_split).',
+            'team.required' => "Vui lòng chọn team ({$valid}).",
         ];
     }
 }

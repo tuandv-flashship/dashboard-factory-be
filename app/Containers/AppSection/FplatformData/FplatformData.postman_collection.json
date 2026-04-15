@@ -1,7 +1,7 @@
 {
     "info": {
         "name": "FplatformData",
-        "description": "## FplatformData Container\n\nLấy dữ liệu **tồn đầu/cuối ngày**, **hiệu suất theo giờ**, **số nhân viên**, **hiệu suất máy in** và **đơn hotshot** từ database `fplatform` (external, read-only).\n\n**Base:** `/v1/fplatform` (public), `/v1/admin/fplatform` (private)\n\n### Authentication\n\n- **Public endpoints**: Không cần Bearer Token — dành cho TV dashboard\n- **Private endpoints**: Yêu cầu `Authorization: Bearer {{access_token}}` + permission `shifts.index` hoặc role `admin`\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `in` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cat` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Tồn đơn | `order_inventory` | FLS/PD | Tồn theo đơn hàng (mới) |\n| Pick (DTG) | `dtg_pick` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n\n### Hourly Metric Types\n\n| Metric | Code | Mô tả |\n|---|---|---|\n| Hiệu suất SX | `productivity` | Sản lượng theo giờ |\n| Số nhân viên | `staff_count` | Đếm NV hoạt động theo giờ |\n| HS nhân viên | `staff_productivity` | Sản lượng từng NV theo giờ |\n| HS máy in | `machine_productivity` | Sản lượng từng máy theo giờ |\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ\n- Hourly metrics: cache 5 phút",
+        "description": "## FplatformData Container\n\nLấy dữ liệu **tồn đầu/cuối ngày**, **hiệu suất theo giờ**, **số nhân viên**, **hiệu suất máy in** và **đơn hotshot** từ database `fplatform` (external, read-only).\n\n**Base:** `/v1/fplatform` (public), `/v1/admin/fplatform` (private)\n\n### Authentication\n\n- **Public endpoints**: Không cần Bearer Token — dành cho TV dashboard\n- **Private endpoints**: Yêu cầu `Authorization: Bearer {{access_token}}` + permission `shifts.index` hoặc role `admin`\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `print` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cut` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Tồn đơn | `order_inventory` | FLS/PD | Tồn theo đơn hàng (mới) |\n| Pick (DTG) | `pick_dtg` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n\n### Hourly Metric Types\n\n| Metric | Code | Mô tả |\n|---|---|---|\n| Hiệu suất SX | `productivity` | Sản lượng theo giờ |\n| Số nhân viên | `staff_count` | Đếm NV hoạt động theo giờ |\n| HS nhân viên | `staff_productivity` | Sản lượng từng NV theo giờ |\n| HS máy in | `machine_productivity` | Sản lượng từng máy theo giờ |\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ\n- Hourly metrics: cache 5 phút",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -46,7 +46,7 @@
                             "query": [
                                 {
                                     "key": "team",
-                                    "value": "in",
+                                    "value": "print",
                                     "description": "Required. Team code"
                                 },
                                 {
@@ -56,7 +56,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **In (DTF)**.\n\n`work_type=0, work_status=1` — đếm file đã in xong.\n\n| Param | Type | Required | Values |\n|---|---|---|---|\n| team | string | ✅ | `in`, `cat`, `pick`, `mockup`, `pack_ship`, `order_inventory`, `dtg_pick`, `dtg_print`, `dtg_print_split` |\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** `{ ton_dau, ton_cuoi, estimate_date, team, factory }`\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có dữ liệu cho ngày đó."
+                        "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **In (DTF)**.\n\n`work_type=0, work_status=1` — đếm file đã in xong.\n\n| Param | Type | Required | Values |\n|---|---|---|---|\n| team | string | ✅ | `print`, `cut`, `pick`, `mockup`, `pack_ship`, `order_inventory`, `pick_dtg`, `dtg_print`, `dtg_print_split` |\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** `{ ton_dau, ton_cuoi, estimate_date, team, factory }`\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có dữ liệu cho ngày đó."
                     },
                     "response": [
                         {
@@ -69,7 +69,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 1250,\n    \"ton_cuoi\": 380,\n    \"team\": \"in\",\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 1250,\n    \"ton_cuoi\": 380,\n    \"team\": \"print\",\n    \"factory\": \"FLS\"\n  }\n}"
                         },
                         {
                             "name": "404 — Không có dữ liệu",
@@ -108,7 +108,7 @@
                             "query": [
                                 {
                                     "key": "team",
-                                    "value": "cat"
+                                    "value": "cut"
                                 },
                                 {
                                     "key": "date",
@@ -129,7 +129,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 980,\n    \"ton_cuoi\": 220,\n    \"team\": \"cat\",\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 980,\n    \"ton_cuoi\": 220,\n    \"team\": \"cut\",\n    \"factory\": \"FLS\"\n  }\n}"
                         }
                     ]
                 },
@@ -348,7 +348,7 @@
                             "query": [
                                 {
                                     "key": "team",
-                                    "value": "dtg_pick"
+                                    "value": "pick_dtg"
                                 },
                                 {
                                     "key": "date",
@@ -369,7 +369,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 280,\n    \"ton_cuoi\": 65,\n    \"team\": \"dtg_pick\",\n    \"factory\": null\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 280,\n    \"ton_cuoi\": 65,\n    \"team\": \"pick_dtg\",\n    \"factory\": null\n  }\n}"
                         }
                     ]
                 },
@@ -454,7 +454,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — Tồn đầu/cuối ngày cho **tất cả bộ phận** của factory hiện tại.\n\n**Permission:** `shifts.index` hoặc role `admin`\n\n**Teams trả về:**\n- **FLS:** 6 teams DTF (in, cat, pick, mockup, pack_ship, order_inventory)\n- **PD:** 6 teams DTF + 2 teams DTG (dtg_pick, dtg_print_split)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)"
+                        "description": "🔒 **Private** — Tồn đầu/cuối ngày cho **tất cả bộ phận** của factory hiện tại.\n\n**Permission:** `shifts.index` hoặc role `admin`\n\n**Teams trả về:**\n- **FLS:** 6 teams DTF (print, cut, pick, mockup, pack_ship, order_inventory)\n- **PD:** 6 teams DTF + 2 teams DTG (pick_dtg, dtg_print_split)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)"
                     },
                     "response": [
                         {
@@ -467,7 +467,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"date\": \"2026-04-14\",\n    \"teams\": {\n      \"in\": { \"label\": \"In (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1250, \"ton_cuoi\": 380 },\n      \"cat\": { \"label\": \"Cắt (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 980, \"ton_cuoi\": 220 },\n      \"pick\": { \"label\": \"Pick (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1500, \"ton_cuoi\": 450 },\n      \"mockup\": { \"label\": \"Mockup (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 2100, \"ton_cuoi\": 680 },\n      \"pack_ship\": { \"label\": \"Pack & Ship (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1800, \"ton_cuoi\": 520 },\n      \"order_inventory\": { \"label\": \"Tồn đơn hàng\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 320, \"ton_cuoi\": 85 }\n    }\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"date\": \"2026-04-14\",\n    \"teams\": {\n      \"print\": { \"label\": \"In (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1250, \"ton_cuoi\": 380 },\n      \"cut\": { \"label\": \"Cắt (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 980, \"ton_cuoi\": 220 },\n      \"pick\": { \"label\": \"Pick (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1500, \"ton_cuoi\": 450 },\n      \"mockup\": { \"label\": \"Mockup (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 2100, \"ton_cuoi\": 680 },\n      \"pack_ship\": { \"label\": \"Pack & Ship (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1800, \"ton_cuoi\": 520 },\n      \"order_inventory\": { \"label\": \"Tồn đơn hàng\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 320, \"ton_cuoi\": 85 }\n    }\n  }\n}"
                         }
                     ]
                 }
@@ -475,7 +475,7 @@
         },
         {
             "name": "Hourly Metrics (Hiệu suất theo giờ)",
-            "description": "## 🆕 Hiệu suất theo giờ\n\nEndpoint mới — lấy dữ liệu sản lượng, nhân viên, và máy in theo giờ từ FPlatform.\n\n**Auth:** 🔒 Private — cần Bearer Token\n**Permission:** `shifts.index` hoặc role `admin`\n\n### Team × Metric Compatibility\n\n| Team | productivity | staff_count | staff_productivity | machine_productivity |\n|---|---|---|---|---|\n| in | ✅ | ✅ | ❌ | ✅ |\n| cat | ✅ | ✅ | ✅ | ❌ |\n| pick | ✅ | ✅ | ✅ | ❌ |\n| mockup | ✅ | ✅ | ✅ | ❌ |\n| pack_ship | ✅ | ✅ | ✅ | ❌ |\n| dtg_print | ✅ | ❌ | ❌ | ✅ |\n| dtg_pick | ✅ | ✅ | ✅ | ❌ |\n\n### Timezone\n\nTham số `start_shift` và `end_shift` dùng timezone **US/Central** (múi giờ xưởng).",
+            "description": "## 🆕 Hiệu suất theo giờ\n\nEndpoint mới — lấy dữ liệu sản lượng, nhân viên, và máy in theo giờ từ FPlatform.\n\n**Auth:** 🔒 Private — cần Bearer Token\n**Permission:** `shifts.index` hoặc role `admin`\n\n### Team × Metric Compatibility\n\n| Team | productivity | staff_count | staff_productivity | machine_productivity |\n|---|---|---|---|---|\n| print | ✅ | ✅ | ❌ | ✅ |\n| cut | ✅ | ✅ | ✅ | ❌ |\n| pick | ✅ | ✅ | ✅ | ❌ |\n| mockup | ✅ | ✅ | ✅ | ❌ |\n| pack_ship | ✅ | ✅ | ✅ | ❌ |\n| dtg_print | ✅ | ❌ | ❌ | ✅ |\n| pick_dtg | ✅ | ✅ | ✅ | ❌ |\n\n### Timezone\n\nTham số `start_shift` và `end_shift` dùng timezone **US/Central** (múi giờ xưởng).",
             "item": [
                 {
                     "name": "In — Sản lượng",

@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Production\Tasks;
 
+use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\FplatformData\Tasks\GetAllTeamsInventoryTask;
 use App\Containers\AppSection\FplatformData\Actions\GetHourlyMetricsAction;
@@ -11,6 +12,7 @@ use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
+use App\Containers\AppSection\Shift\Traits\ComputesKpiHours;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -32,6 +34,7 @@ use Illuminate\Support\Facades\Log;
  */
 final class SyncHourlyRecordsTask extends ParentTask
 {
+    use ComputesKpiHours;
     /**
      * Department code → FPlatform Team mapping.
      * Same as FetchDailyInventoryForShiftTask::DEPT_TEAM_MAP.
@@ -158,25 +161,72 @@ final class SyncHourlyRecordsTask extends ParentTask
         // ── Refresh day_start_inventory from ton_dau ─────────
         $dayStartInventory = $this->refreshDayStartInventory($detail, $team, $allInventory);
 
+        // ── Collect breaks for kpi_hours recalculation ────────
+        $breaks = $this->collectBreaks($detail);
+
+        // ── Build actual slot time map (for kpi_hours partial slots) ──
+        $deptWorkStart = Carbon::createFromFormat('H:i:s', $detail->start_time);
+        $deptWorkEnd   = $deptWorkStart->copy()->addMinutes((int) ($detail->work_hours * 60));
+        $actualSlotMap = $this->buildActualSlotMap($deptWorkStart, $deptWorkEnd);
+
+        // ── Pass 1: Recalculate all kpi_hours first ──────────
+        // Must be done before computing totalKpiHours to avoid stale values
+        foreach ($records as $record) {
+            [$qStart, $qEnd] = $this->parseHourSlot($record->hour_slot, $shiftDate);
+            $actualSlot = $actualSlotMap[$record->hour_index] ?? null;
+            $kpiHours = $this->computeKpiHours(
+                $actualSlot ? $actualSlot['start'] : $qStart,
+                $actualSlot ? $actualSlot['end']   : $qEnd,
+                $breaks,
+            );
+
+            if ($record->kpi_hours != $kpiHours) {
+                $record->update(['kpi_hours' => $kpiHours]);
+                $record->kpi_hours = $kpiHours;
+            }
+        }
+
+        // ── Compute total KPI hours (now accurate after pass 1) ──
+        $totalKpiHours = $records->sum('kpi_hours');
+
+        // ── Pass 2: Sync data from FPlatform ─────────────────
         $updated = 0;
 
         foreach ($records as $record) {
-            // ── Parse hour_slot for full-hour query boundaries ──
-            // "6h-7h" → queryStart=06:00, queryEnd=07:00
             [$queryStart, $queryEnd] = $this->parseHourSlot($record->hour_slot, $shiftDate);
 
-            // ── Activation time: max(deptStart, queryStart) ─────
-            // If dept starts at 06:30 and slot is "6h-7h",
-            // the slot activates at 06:30 (not 06:00)
             $activationTime = $deptStart->gt($queryStart) ? $deptStart->copy() : $queryStart->copy();
+            $actualSlot = $actualSlotMap[$record->hour_index] ?? null;
 
             // ── Slot hasn't started yet → stay pending ───────
             if ($now < $activationTime) {
                 continue;
             }
 
-            // ── Already completed → skip ─────────────────────
+            // ── Already completed → skip FPlatform sync ──────
+            // Always recalculate staff_required + target + efficiency (no API call, pure math)
             if ($record->status === HourlyRecordStatus::Completed->value) {
+                $pastKpiHours = $records
+                    ->where('hour_index', '<', $record->hour_index)
+                    ->sum('kpi_hours');
+                $remainingKpiHours = $totalKpiHours - $pastKpiHours;
+                $staffRequired = $this->computeStaffRequired($dept, $record->hour_start_inventory, $remainingKpiHours);
+
+                $isPerMachine = $dept->productivity_type === ProductivityType::PerMachine;
+                $kpiPerHour = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
+                $target = ($staffRequired !== null && $staffRequired > 0)
+                    ? (int) round($staffRequired * $kpiPerHour * $record->kpi_hours)
+                    : $record->target;
+
+                $record->update([
+                    'staff_required' => $staffRequired,
+                    'target'         => $target,
+                    'efficiency'     => $target > 0 && $record->actual > 0
+                        ? round(($record->actual / $target) * 100, 1)
+                        : 0,
+                ]);
+
+                $updated++;
                 continue;
             }
 
@@ -185,11 +235,11 @@ final class SyncHourlyRecordsTask extends ParentTask
 
             if ($isCurrentSlot) {
                 // ── Current slot: fetch data + set active ────
-                $this->fetchAndUpdateRecord($record, $team, $queryStart, $queryEnd, $dayStartInventory, $records);
+                $this->fetchAndUpdateRecord($record, $team, $dept, $detail, $queryStart, $queryEnd, $dayStartInventory, $records, $totalKpiHours, $breaks, $actualSlot);
                 $updated++;
             } elseif ($isPassedSlot) {
                 // ── Past slot: always fetch latest data ──────
-                $this->fetchAndUpdateRecord($record, $team, $queryStart, $queryEnd, $dayStartInventory, $records);
+                $this->fetchAndUpdateRecord($record, $team, $dept, $detail, $queryStart, $queryEnd, $dayStartInventory, $records, $totalKpiHours, $breaks, $actualSlot);
 
                 // Complete only if we have data OR grace period expired
                 $record->refresh();
@@ -213,15 +263,23 @@ final class SyncHourlyRecordsTask extends ParentTask
      * Sets: actual, staff, efficiency, status=active.
      * Calculates hour_start_inventory = dayStartInventory - Σ actual of previous slots.
      *
-     * @param \Illuminate\Support\Collection $records All records for this department (for previous actual sum)
+     * @param \Illuminate\Support\Collection            $records       All records for this department
+     * @param float                                      $totalKpiHours Total KPI hours for the dept in this shift
+     * @param array<array{start: Carbon, end: Carbon}>  $breaks        Break periods for kpi_hours
+     * @param array{start: Carbon, end: Carbon}|null     $actualSlot    Actual slot times (for partial slot kpi_hours)
      */
     private function fetchAndUpdateRecord(
         HourlyRecord $record,
         Team $team,
+        Department $dept,
+        ShiftDetail $detail,
         Carbon $slotStart,
         Carbon $slotEnd,
         int $dayStartInventory,
         $records,
+        float $totalKpiHours,
+        array $breaks,
+        ?array $actualSlot = null,
     ): void {
         $startShift = $slotStart->format('Y-m-d H:i:s');
         $endShift = $slotEnd->format('Y-m-d H:i:s');
@@ -254,18 +312,64 @@ final class SyncHourlyRecordsTask extends ParentTask
 
         $hourStartInventory = max(0, $dayStartInventory - (int) $previousActual);
 
+        // ── Calculate staff_required ─────────────────────────
+        // remaining_kpi_hours = totalKpiHours − Σ(kpi_hours of past slots)
+        $pastKpiHours = $records
+            ->where('hour_index', '<', $record->hour_index)
+            ->sum('kpi_hours');
+
+        $remainingKpiHours = $totalKpiHours - $pastKpiHours;
+        $staffRequired = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiHours);
+
+        // ── Recalculate target = staff_required × kpi_per_hour × kpi_hours ──
+        $kpiHours = $this->computeKpiHours(
+            $actualSlot ? $actualSlot['start'] : $slotStart,
+            $actualSlot ? $actualSlot['end']   : $slotEnd,
+            $breaks,
+        );
+
+        $isPerMachine = $dept->productivity_type === ProductivityType::PerMachine;
+        $kpiPerHour = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
+        $target = ($staffRequired !== null && $staffRequired > 0)
+            ? (int) round($staffRequired * $kpiPerHour * $kpiHours)
+            : $record->target;
+
         // ── Build update data ────────────────────────────────
         $updateData = [
             'actual'               => $actual,
             'staff'                => $staff,
+            'staff_required'       => $staffRequired,
+            'target'               => $target,
             'hour_start_inventory' => $hourStartInventory,
-            'efficiency'           => $record->target > 0
-                ? round(($actual / $record->target) * 100, 1)
+            'kpi_hours'            => $kpiHours,
+            'efficiency'           => $target > 0
+                ? round(($actual / $target) * 100, 1)
                 : 0,
             'status'               => HourlyRecordStatus::Active->value,
         ];
 
         $record->update($updateData);
+    }
+
+    /**
+     * Compute staff_required = ceil(inventory / remaining_kpi_hours / kpi_per_hour).
+     *
+     * Returns null for per_machine departments or when denominator is 0.
+     */
+    private function computeStaffRequired(Department $dept, int $inventory, float $remainingKpiHours): ?int
+    {
+        // Per-machine: default 1 staff
+        if ($dept->productivity_type === ProductivityType::PerMachine) {
+            return 1;
+        }
+
+        $kpiPerHour = $dept->kpi_per_hour ?? 0;
+
+        if ($inventory <= 0 || $remainingKpiHours <= 0 || $kpiPerHour <= 0) {
+            return $inventory <= 0 ? 0 : null;
+        }
+
+        return (int) ceil($inventory / $remainingKpiHours / $kpiPerHour);
     }
 
     /**
@@ -330,5 +434,47 @@ final class SyncHourlyRecordsTask extends ParentTask
         $queryEnd = Carbon::createFromFormat('Y-m-d H:i:s', "{$shiftDate} {$endHour}:00:00");
 
         return [$queryStart, $queryEnd];
+    }
+
+    /**
+     * Build a map of hour_index → actual slot {start, end} times.
+     *
+     * Uses the same aligned-slot logic as GenerateHourlyRecordsTask
+     * to reconstruct actual slot boundaries (important for partial first/last slots).
+     *
+     * @return array<int, array{start: Carbon, end: Carbon}>
+     */
+    private function buildActualSlotMap(Carbon $start, Carbon $end): array
+    {
+        $map = [];
+        $index = 0;
+
+        $firstFullHour = $start->copy()->startOfHour();
+        if ($firstFullHour->lt($start)) {
+            $firstFullHour->addHour();
+        }
+
+        $lastFullHour = $end->copy()->startOfHour();
+
+        // Partial first slot
+        if ($start->minute > 0 && $firstFullHour->lte($end)) {
+            $slotEnd = $firstFullHour->copy()->min($end);
+            $map[$index++] = ['start' => $start->copy(), 'end' => $slotEnd->copy()];
+        }
+
+        // Full-hour slots
+        $cursor = $firstFullHour->copy();
+        while ($cursor->lt($lastFullHour)) {
+            $slotEnd = $cursor->copy()->addHour();
+            $map[$index++] = ['start' => $cursor->copy(), 'end' => $slotEnd->copy()];
+            $cursor->addHour();
+        }
+
+        // Partial last slot
+        if ($end->minute > 0 && $lastFullHour->gte($firstFullHour)) {
+            $map[$index] = ['start' => $lastFullHour->copy(), 'end' => $end->copy()];
+        }
+
+        return $map;
     }
 }
