@@ -32,6 +32,7 @@ use Illuminate\Support\Carbon;
  *
  * Optimized: single bulk insert, departments loaded via whereIn.
  * Target calculation delegated to ComputesHourlyTarget trait.
+ * Slot building and KPI hours delegated to ComputesKpiHours trait.
  */
 final class GenerateHourlyRecordsTask extends ParentTask
 {
@@ -61,18 +62,12 @@ final class GenerateHourlyRecordsTask extends ParentTask
             $start = Carbon::createFromFormat('H:i:s', $detail->start_time);
             $end = $start->copy()->addMinutes((int) ($detail->work_hours * 60));
 
-            // Collect all breaks for this department
             $breaks = $this->collectBreaks($detail);
-
-            // Build full-hour-aligned slots
             $slots = $this->buildAlignedSlots($start, $end);
             $hourIndex = 0;
 
             foreach ($slots as $slot) {
-                // Prorate target for partial slots
                 $target = (int) round($fullHourTarget * $slot['fraction']);
-
-                // Compute effective KPI hours (slot duration minus break overlap)
                 $kpiHours = $this->computeKpiHours($slot['start'], $slot['end'], $breaks);
 
                 $records[] = [
@@ -99,72 +94,5 @@ final class GenerateHourlyRecordsTask extends ParentTask
         if (!empty($records)) {
             HourlyRecord::insert($records);
         }
-    }
-
-    /**
-     * Build full-hour-aligned slots between start and end times.
-     *
-     * Returns array of slots, each with:
-     * - label: "6h-7h" format
-     * - fraction: 0.0–1.0 (portion of a full hour)
-     * - start: Carbon (actual slot start time)
-     * - end: Carbon (actual slot end time)
-     *
-     * @return array<array{label: string, fraction: float, start: Carbon, end: Carbon}>
-     */
-    private function buildAlignedSlots(Carbon $start, Carbon $end): array
-    {
-        $slots = [];
-
-        // First full-hour boundary at or after start
-        $firstFullHour = $start->copy()->startOfHour();
-        if ($firstFullHour->lt($start)) {
-            $firstFullHour->addHour();
-        }
-
-        // Last full-hour boundary at or before end
-        $lastFullHour = $end->copy()->startOfHour();
-
-        // ── Partial first slot (if start is not on the hour) ──
-        if ($start->minute > 0 && $firstFullHour->lte($end)) {
-            $slotEnd = $firstFullHour->copy()->min($end);
-            $minutes = $start->diffInMinutes($slotEnd);
-
-            $slots[] = [
-                'label'    => $start->format('G') . 'h-' . $slotEnd->format('G') . 'h',
-                'fraction' => round($minutes / 60, 2),
-                'start'    => $start->copy(),
-                'end'      => $slotEnd->copy(),
-            ];
-        }
-
-        // ── Full-hour slots ──────────────────────────────────
-        $cursor = $firstFullHour->copy();
-        while ($cursor->lt($lastFullHour)) {
-            $slotEnd = $cursor->copy()->addHour();
-
-            $slots[] = [
-                'label'    => $cursor->format('G') . 'h-' . $slotEnd->format('G') . 'h',
-                'fraction' => 1.0,
-                'start'    => $cursor->copy(),
-                'end'      => $slotEnd->copy(),
-            ];
-
-            $cursor->addHour();
-        }
-
-        // ── Partial last slot (if end is not on the hour) ────
-        if ($end->minute > 0 && $lastFullHour->gte($firstFullHour)) {
-            $minutes = $lastFullHour->diffInMinutes($end);
-
-            $slots[] = [
-                'label'    => $lastFullHour->format('G') . 'h-' . $end->copy()->startOfHour()->addHour()->format('G') . 'h',
-                'fraction' => round($minutes / 60, 2),
-                'start'    => $lastFullHour->copy(),
-                'end'      => $end->copy(),
-            ];
-        }
-
-        return $slots;
     }
 }

@@ -6,7 +6,7 @@ use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use Illuminate\Support\Carbon;
 
 /**
- * Shared KPI hours computation logic.
+ * Shared KPI hours and slot computation logic.
  *
  * kpi_hours = slot_duration − break_overlap
  *
@@ -70,5 +70,70 @@ trait ComputesKpiHours
         }
 
         return $breaks;
+    }
+
+    /**
+     * Build full-hour-aligned slots between start and end times.
+     *
+     * Returns array of slots, each with:
+     * - label: "6h-7h" format
+     * - fraction: 0.0–1.0 (portion of a full hour)
+     * - start: Carbon (actual slot start time)
+     * - end: Carbon (actual slot end time)
+     *
+     * @return array<array{label: string, fraction: float, start: Carbon, end: Carbon}>
+     */
+    protected function buildAlignedSlots(Carbon $start, Carbon $end): array
+    {
+        $slots = [];
+
+        $firstFullHour = $start->copy()->startOfHour();
+        if ($firstFullHour->lt($start)) {
+            $firstFullHour->addHour();
+        }
+
+        $lastFullHour = $end->copy()->startOfHour();
+
+        // Partial first slot (if start is not on the hour)
+        if ($start->minute > 0 && $firstFullHour->lte($end)) {
+            $slotEnd = $firstFullHour->copy()->min($end);
+            $minutes = $start->diffInMinutes($slotEnd);
+
+            $slots[] = [
+                'label'    => $start->format('G') . 'h-' . $slotEnd->format('G') . 'h',
+                'fraction' => round($minutes / 60, 2),
+                'start'    => $start->copy(),
+                'end'      => $slotEnd->copy(),
+            ];
+        }
+
+        // Full-hour slots
+        $cursor = $firstFullHour->copy();
+        while ($cursor->lt($lastFullHour)) {
+            $slotEnd = $cursor->copy()->addHour();
+
+            $slots[] = [
+                'label'    => $cursor->format('G') . 'h-' . $slotEnd->format('G') . 'h',
+                'fraction' => 1.0,
+                'start'    => $cursor->copy(),
+                'end'      => $slotEnd->copy(),
+            ];
+
+            $cursor->addHour();
+        }
+
+        // Partial last slot (if end is not on the hour)
+        if ($end->minute > 0 && $lastFullHour->gte($firstFullHour)) {
+            $minutes = $lastFullHour->diffInMinutes($end);
+
+            $slots[] = [
+                'label'    => $lastFullHour->format('G') . 'h-' . $end->copy()->startOfHour()->addHour()->format('G') . 'h',
+                'fraction' => round($minutes / 60, 2),
+                'start'    => $lastFullHour->copy(),
+                'end'      => $end->copy(),
+            ];
+        }
+
+        return $slots;
     }
 }
