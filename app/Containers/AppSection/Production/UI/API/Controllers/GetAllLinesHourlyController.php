@@ -5,6 +5,7 @@ namespace App\Containers\AppSection\Production\UI\API\Controllers;
 use App\Containers\AppSection\Department\UI\API\Transformers\DepartmentTransformer;
 use App\Containers\AppSection\Production\Tasks\GetAllLinesHourlyTask;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyRecordTransformer;
+use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftDetailTransformer;
 use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
@@ -42,15 +43,17 @@ final class GetAllLinesHourlyController extends ApiController
 
         $response = Cache::remember($cacheKey, $ttl, function () use ($data) {
             $deptTransformer = new DepartmentTransformer();
+            $shiftDetailTransformer = new ShiftDetailTransformer();
             $hourlyTransformer = new HourlyRecordTransformer();
 
-            $lines = collect($data['lines'])->map(function ($lineData) use ($deptTransformer, $hourlyTransformer) {
+            $lines = collect($data['lines'])->map(function ($lineData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer) {
                 $line = $lineData['line'];
 
-                $departments = collect($lineData['departments'])->map(function ($deptData) use ($deptTransformer, $hourlyTransformer) {
+                $departments = collect($lineData['departments'])->map(function ($deptData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer) {
                     return [
-                        'department' => $deptTransformer->transform($deptData['department']),
-                        'hourly'     => $deptData['hourly']->map(fn ($r) => $hourlyTransformer->transform($r))->values(),
+                        'department'   => $deptTransformer->transform($deptData['department']),
+                        'shift_detail' => $deptData['shift_detail'] ? $shiftDetailTransformer->transform($deptData['shift_detail']) : null,
+                        'hourly'       => $deptData['hourly']->map(fn ($r) => $hourlyTransformer->transform($r))->values(),
                     ];
                 })->values();
 
