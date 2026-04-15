@@ -58,20 +58,24 @@ final class SyncHourlyRecordsTask extends ParentTask
     ) {
     }
 
-    public function run(): void
+    /**
+     * @return array{synced: int, shift: Shift|null, message: string}
+     */
+    public function run(?string $date = null, ?int $shiftNumber = null): array
     {
-        $today = now()->toDateString();
-
-        // ── 1. Find active shift ─────────────────────────────
-        $shift = Shift::current();
+        // ── 1. Resolve shift ─────────────────────────────────
+        $shift = ($date || $shiftNumber)
+            ? Shift::resolve($date, $shiftNumber)
+            : Shift::current();
 
         if (!$shift) {
-            Log::info('[SyncHourlyRecords] No active shift for today — skipped.', [
-                'date' => $today,
-            ]);
+            $msg = '[SyncHourlyRecords] No shift found — skipped.';
+            Log::info($msg, ['date' => $date ?? now()->toDateString(), 'shift' => $shiftNumber]);
 
-            return;
+            return ['synced' => 0, 'shift' => null, 'message' => 'No shift found.'];
         }
+
+        $shiftDate = $shift->date->toDateString();
 
         // ── 2. Load shift details with departments ───────────
         $shiftDetails = ShiftDetail::with('department')
@@ -79,11 +83,11 @@ final class SyncHourlyRecordsTask extends ParentTask
             ->get();
 
         if ($shiftDetails->isEmpty()) {
-            return;
+            return ['synced' => 0, 'shift' => $shift, 'message' => 'No shift details found.'];
         }
 
         // ── 3. Bulk fetch all teams inventory (cached 5min) ──
-        $allInventory = $this->allTeamsInventoryTask->run($today);
+        $allInventory = $this->allTeamsInventoryTask->run($shiftDate);
 
         $synced = 0;
 
@@ -108,13 +112,13 @@ final class SyncHourlyRecordsTask extends ParentTask
             }
         }
 
+        $msg = "Synced {$synced} records for {$shiftDate} shift {$shift->shift_number}.";
+
         if ($synced > 0) {
-            Log::info('[SyncHourlyRecords] Synced.', [
-                'date'    => $today,
-                'shift'   => $shift->shift_number,
-                'records' => $synced,
-            ]);
+            Log::info("[SyncHourlyRecords] {$msg}");
         }
+
+        return ['synced' => $synced, 'shift' => $shift, 'message' => $msg];
     }
 
     /**

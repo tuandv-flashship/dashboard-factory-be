@@ -452,6 +452,7 @@ cd /var/www/dashboard-pd && php artisan apiato:permissions-sync
 
 > **📝 `apiato:permissions-sync`:**
 > Command này đọc tất cả permission configs từ các Container và sync vào bảng `permissions`.
+>
 > - **Phải chạy sau `db:seed`** để đảm bảo bảng permissions đã tồn tại.
 > - **Phải chạy lại mỗi lần deploy** nếu code có thêm/sửa permissions mới.
 > - Thêm `--prune` để xóa permissions không còn trong config: `php artisan apiato:permissions-sync --prune`
@@ -997,6 +998,14 @@ php artisan queue:retry all
 
 # Clear cache
 php artisan cache:clear
+
+# ── Production Resync ─────────────────────
+# Resync hourly records từ FPlatform (chủ động)
+php artisan production:resync                                    # Ca hiện tại
+php artisan production:resync --date=2026-04-14 --shift=1        # Ngày + ca cụ thể
+
+# Hoặc qua API:
+# POST /v1/admin/production/resync?date=2026-04-14&shift=1
 ```
 
 ### Horizon Dashboard
