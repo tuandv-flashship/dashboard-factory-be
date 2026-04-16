@@ -7,9 +7,9 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get daily inventory (tồn đầu/cuối ngày) for team Mockup (DTF).
+ * Get daily inventory (tổng việc) for team Mockup (DTF).
  *
- * Source: docs/ton_dau_ton_cuoi_mockup.sql
+ * Source: docs/rpt_factory_ops_metrics_v5.sql
  * Complex: folder_manage → order_check_file_dropbox → log_check_mockup
  */
 final class GetMockupInventoryTask extends ParentTask
@@ -71,8 +71,7 @@ final class GetMockupInventoryTask extends ParentTask
                     total_file + COALESCE(SUM(not_done) OVER (
                         ORDER BY estimate_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS ton_dau,
-                    SUM(not_done) OVER (ORDER BY estimate_date) AS ton_cuoi
+                    ), 0) AS tong_viec
                 FROM daily_aggregated
             ) final_result
             WHERE estimate_date = ?

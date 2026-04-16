@@ -9,10 +9,10 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Fetch tồn đầu ngày (day_start_inventory) from Fplatform for all departments.
+ * Fetch tổng việc (day_start_inventory) from Fplatform for all departments.
  *
  * Maps department codes → Fplatform Team enum, queries each,
- * and returns a map of department_id → ton_dau.
+ * and returns a map of department_id → tong_viec.
  *
  * Graceful degradation: if Fplatform is down, returns 0 for affected departments.
  */
@@ -40,7 +40,7 @@ class FetchDailyInventoryForShiftTask extends ParentTask
     /**
      * @param  string     $date        Target date (Y-m-d)
      * @param  Collection $departments Departments with loaded productionLine relation
-     * @return array<int, int>         Map of department_id → ton_dau (day start inventory)
+     * @return array<int, int>         Map of department_id → tong_viec (day start inventory)
      */
     public function run(string $date, Collection $departments): array
     {
@@ -58,7 +58,7 @@ class FetchDailyInventoryForShiftTask extends ParentTask
 
             try {
                 $result = $action->run($date, $team);
-                $inventoryMap[$dept->id] = $result['ton_dau'] ?? 0;
+                $inventoryMap[$dept->id] = $result['tong_viec'] ?? 0;
             } catch (\Throwable $e) {
                 Log::warning('[CreateDailyShift] Fplatform query failed for dept', [
                     'department_id'   => $dept->id,

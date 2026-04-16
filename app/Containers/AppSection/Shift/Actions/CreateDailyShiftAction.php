@@ -26,10 +26,10 @@ use Illuminate\Support\Facades\Log;
  *
  * Flow:
  *   1. Check if shift already exists
- *      → YES: fetch tồn đầu ngày and update existing shift details
+ *      → YES: fetch tổng việc and update existing shift details
  *      → NO:  create shift from template
  *   2. Find first active template with applies_to_shift_1 = true
- *   3. Fetch tồn đầu ngày from Fplatform
+ *   3. Fetch tổng việc from Fplatform
  *   4. Auto-select all active machines for per_machine departments
  *   5. Create shift + details + hourly_records in transaction
  *
@@ -80,7 +80,7 @@ final class CreateDailyShiftAction extends ParentAction
             ];
         }
 
-        // ── 4. Fetch tồn đầu ngày from Fplatform ───────────
+        // ── 4. Fetch tổng việc from Fplatform ───────────
         $departments = Department::with('productionLine')
             ->whereIn('id', $templateDetails->pluck('department_id')->unique())
             ->get();
@@ -199,7 +199,7 @@ final class CreateDailyShiftAction extends ParentAction
     }
 
     /**
-     * Fetch tồn đầu ngày from Fplatform and update day_start_inventory
+     * Fetch tổng việc from Fplatform and update day_start_inventory
      * on existing shift details.
      *
      * @return array{status: string, message: string, shift: Shift}
@@ -267,7 +267,7 @@ final class CreateDailyShiftAction extends ParentAction
      *
      * @param  string                                                $date
      * @param  \Illuminate\Support\Collection<Department>|Collection $departments
-     * @return array<int, int> department_id → ton_dau
+     * @return array<int, int> department_id → tong_viec
      */
     private function fetchInventory(string $date, $departments): array
     {

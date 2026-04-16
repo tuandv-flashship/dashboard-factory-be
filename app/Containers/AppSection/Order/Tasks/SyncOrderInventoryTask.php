@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Sync order inventory (tồn đơn hàng) from Fplatform → order_summaries.
  *
- * Fetches per-line data (DTF + DTG) and hotshot counts from fplatform,
+ * Fetches per-line data (DTF + DTG) via tong_viec/da_lam and hotshot counts from fplatform,
  * then upserts into the local order_summaries table.
  * Called by SyncOrderInventoryJob.
  *
@@ -27,20 +27,32 @@ use Illuminate\Support\Facades\Log;
  */
 final class SyncOrderInventoryTask extends ParentTask
 {
+    /** @var GetOrderInventoryTask */
+    private $dtfTask;
+
+    /** @var GetDtgOrderInventoryTask */
+    private $dtgTask;
+
+    /** @var GetHotshotOrderInventoryTask */
+    private $hotshotTask;
+
     public function __construct(
-        private readonly GetOrderInventoryTask $dtfTask,
-        private readonly GetDtgOrderInventoryTask $dtgTask,
-        private readonly GetHotshotOrderInventoryTask $hotshotTask,
+        GetOrderInventoryTask $dtfTask,
+        GetDtgOrderInventoryTask $dtgTask,
+        GetHotshotOrderInventoryTask $hotshotTask,
     ) {
+        $this->dtfTask = $dtfTask;
+        $this->dtgTask = $dtgTask;
+        $this->hotshotTask = $hotshotTask;
     }
 
-    public function run(): void
+    public function run(?string $date = null): void
     {
-        $today = now()->toDateString();
+        $today = $date ?? now()->toDateString();
 
         // Must have a shift assigned for today
         $shift = Shift::query()
-            ->where('date', $today)
+            ->whereDate('date', $today)
             ->latest('shift_number')
             ->first();
 
@@ -71,15 +83,13 @@ final class SyncOrderInventoryTask extends ParentTask
         $upserted = 0;
 
         if ($dtfResult) {
-            $rushTotal = $hotshotResult ? $hotshotResult['ton_dau'] : 0;
-            $rushCompleted = $hotshotResult
-                ? max(0, $hotshotResult['ton_dau'] - $hotshotResult['ton_cuoi'])
-                : 0;
+            $rushTotal = $hotshotResult ? $hotshotResult['tong_viec'] : 0;
+            $rushCompleted = $hotshotResult ? $hotshotResult['da_lam'] : 0;
 
             $this->upsertLine(
                 $today, $shiftNumber,
                 'dtf', 'DTF',
-                $dtfResult['ton_dau'], $dtfResult['ton_cuoi'],
+                $dtfResult['tong_viec'], $dtfResult['da_lam'],
                 $rushTotal, $rushCompleted,
                 $estimatedDone,
             );
@@ -90,7 +100,7 @@ final class SyncOrderInventoryTask extends ParentTask
             $this->upsertLine(
                 $today, $shiftNumber,
                 'dtg', 'DTG',
-                $dtgResult['ton_dau'], $dtgResult['ton_cuoi'],
+                $dtgResult['tong_viec'], $dtgResult['da_lam'],
                 0, 0,
                 $estimatedDone,
             );
@@ -118,34 +128,45 @@ final class SyncOrderInventoryTask extends ParentTask
         int $shiftNumber,
         string $line,
         string $label,
-        int $tonDau,
-        int $tonCuoi,
+        int $tongViec,
+        int $daLam,
         int $rushTotal,
         int $rushCompleted,
         string $estimatedDone,
     ): void {
-        $completed = max(0, $tonDau - $tonCuoi);
-        $progress = $tonDau > 0
-            ? round(($completed / $tonDau) * 100, 1)
+        $completed = $daLam;
+        $remaining = max(0, $tongViec - $daLam);
+        $progress = $tongViec > 0
+            ? round(($completed / $tongViec) * 100, 1)
             : 0;
 
-        OrderSummary::updateOrCreate(
-            [
+        $values = [
+            'line_label'     => $label,
+            'total'          => $tongViec,
+            'completed'      => $completed,
+            'remaining'      => $remaining,
+            'estimated_done' => $estimatedDone,
+            'rush_completed' => $rushCompleted,
+            'rush_total'     => $rushTotal,
+            'progress'       => $progress,
+        ];
+
+        // Use whereDate for immutable_date cast compatibility (SQLite + MySQL)
+        /** @var OrderSummary|null $existing */
+        $existing = OrderSummary::whereDate('date', $date)
+            ->where('shift_number', $shiftNumber)
+            ->where('line', $line)
+            ->first();
+
+        if ($existing) {
+            $existing->update($values);
+        } else {
+            OrderSummary::create(array_merge([
                 'date'         => $date,
                 'shift_number' => $shiftNumber,
                 'line'         => $line,
-            ],
-            [
-                'line_label'     => $label,
-                'total'          => $tonDau,
-                'completed'      => $completed,
-                'remaining'      => $tonCuoi,
-                'estimated_done' => $estimatedDone,
-                'rush_completed' => $rushCompleted,
-                'rush_total'     => $rushTotal,
-                'progress'       => $progress,
-            ],
-        );
+            ], $values));
+        }
     }
 
     /**
@@ -158,19 +179,23 @@ final class SyncOrderInventoryTask extends ParentTask
      */
     private function resolveEstimatedDone(Shift $shift): string
     {
-        $maxEndTime = ShiftDetail::where('shift_id', $shift->id)
-            ->selectRaw("
-                MAX(
-                    DATE_FORMAT(
-                        ADDTIME(start_time, SEC_TO_TIME((work_hours * 3600) + (COALESCE(meal_break_minutes, 0) * 60))),
-                        '%H:%i'
-                    )
-                ) AS max_end_time
-            ")
-            ->value('max_end_time');
+        try {
+            $maxEndTime = ShiftDetail::where('shift_id', $shift->id)
+                ->selectRaw("
+                    MAX(
+                        DATE_FORMAT(
+                            ADDTIME(start_time, SEC_TO_TIME((work_hours * 3600) + (COALESCE(meal_break_minutes, 0) * 60))),
+                            '%H:%i'
+                        )
+                    ) AS max_end_time
+                ")
+                ->value('max_end_time');
 
-        if ($maxEndTime) {
-            return $maxEndTime;
+            if ($maxEndTime) {
+                return $maxEndTime;
+            }
+        } catch (\Illuminate\Database\QueryException) {
+            // MySQL-specific functions unavailable (e.g., SQLite in tests)
         }
 
         // Fallback: shift-level end_time

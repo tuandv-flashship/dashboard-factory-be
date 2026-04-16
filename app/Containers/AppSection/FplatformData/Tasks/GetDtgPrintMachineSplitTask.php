@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Get daily inventory for team IN - DTG, split by machine productivity ratio.
  *
- * Source: docs/ton_dau_ngay_update.sql lines 474-521
+ * Source: docs/rpt_factory_ops_metrics_v5.sql
  * Apollo 250 file/h (62.5%), ATLAS_1 75 file/h (18.75%), ATLAS_2 75 file/h (18.75%)
  */
 final class GetDtgPrintMachineSplitTask extends ParentTask
@@ -39,31 +39,16 @@ final class GetDtgPrintMachineSplitTask extends ParentTask
                     total_file + COALESCE(SUM(unprint_file) OVER (
                         ORDER BY estimate_folder_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS ton_dau,
-                    SUM(unprint_file) OVER (ORDER BY estimate_folder_date) AS ton_cuoi
+                    ), 0) AS tong_viec
                 FROM daily_aggregated
-            ),
-            split_logic AS (
-                SELECT
-                    estimate_folder_date,
-                    ROUND(ton_dau * 0.625) AS td_apollo,
-                    ROUND(ton_cuoi * 0.625) AS tc_apollo,
-                    ROUND(ton_dau * 0.1875) AS td_atlas1,
-                    ROUND(ton_cuoi * 0.1875) AS tc_atlas1,
-                    ton_dau - ROUND(ton_dau * 0.625) - ROUND(ton_dau * 0.1875) AS td_atlas2,
-                    ton_cuoi - ROUND(ton_cuoi * 0.625) - ROUND(ton_cuoi * 0.1875) AS tc_atlas2
-                FROM base_data
-                WHERE estimate_folder_date = ?
             )
             SELECT
                 estimate_folder_date AS estimate_date,
-                td_apollo AS ton_dau_apollo,
-                td_atlas1 AS ton_dau_atlas1,
-                td_atlas2 AS ton_dau_atlas2,
-                tc_apollo AS ton_cuoi_apollo,
-                tc_atlas1 AS ton_cuoi_atlas1,
-                tc_atlas2 AS ton_cuoi_atlas2
-            FROM split_logic
+                ROUND(tong_viec * 0.625) AS tong_viec_apollo,
+                ROUND(tong_viec * 0.1875) AS tong_viec_atlas1,
+                tong_viec - ROUND(tong_viec * 0.625) - ROUND(tong_viec * 0.1875) AS tong_viec_atlas2
+            FROM base_data
+            WHERE estimate_folder_date = ?
         ";
 
         $result = $this->queryFplatform($sql, [$date, $date, $date]);
@@ -76,19 +61,16 @@ final class GetDtgPrintMachineSplitTask extends ParentTask
             'estimate_date' => $result->estimate_date,
             'machines'      => [
                 'apollo' => [
-                    'ratio'    => '62.5%',
-                    'ton_dau'  => (int) $result->ton_dau_apollo,
-                    'ton_cuoi' => (int) $result->ton_cuoi_apollo,
+                    'ratio'     => '62.5%',
+                    'tong_viec' => (int) $result->tong_viec_apollo,
                 ],
                 'atlas_1' => [
-                    'ratio'    => '18.75%',
-                    'ton_dau'  => (int) $result->ton_dau_atlas1,
-                    'ton_cuoi' => (int) $result->ton_cuoi_atlas1,
+                    'ratio'     => '18.75%',
+                    'tong_viec' => (int) $result->tong_viec_atlas1,
                 ],
                 'atlas_2' => [
-                    'ratio'    => '18.75%',
-                    'ton_dau'  => (int) $result->ton_dau_atlas2,
-                    'ton_cuoi' => (int) $result->ton_cuoi_atlas2,
+                    'ratio'     => '18.75%',
+                    'tong_viec' => (int) $result->tong_viec_atlas2,
                 ],
             ],
         ];

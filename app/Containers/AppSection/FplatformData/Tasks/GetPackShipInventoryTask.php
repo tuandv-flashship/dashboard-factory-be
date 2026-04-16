@@ -7,12 +7,12 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get daily inventory (tồn đầu/cuối ngày) for team Pack & Ship (DTF).
+ * Get daily inventory (tổng việc) for team Pack & Ship (DTF).
  *
- * Source: docs/rpt_factory_ops_metrics_v4.sql lines 442-581
+ * Source: docs/rpt_factory_ops_metrics_v5.sql
  * Uses: folder_manage → order_check_file_dropbox → scan_label_history
  *
- * PD factory: UNION ALL with dtg_item_detail (v4 lines 531-553)
+ * PD factory: UNION ALL with dtg_item_detail
  */
 final class GetPackShipInventoryTask extends ParentTask
 {
@@ -85,8 +85,7 @@ final class GetPackShipInventoryTask extends ParentTask
                     total_shirt + COALESCE(SUM(not_done) OVER (
                         ORDER BY estimate_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS ton_dau,
-                    SUM(not_done) OVER (ORDER BY estimate_date) AS ton_cuoi
+                    ), 0) AS tong_viec
                 FROM daily_aggregated
             ) final_result
             WHERE estimate_date = ?
@@ -101,7 +100,7 @@ final class GetPackShipInventoryTask extends ParentTask
     }
 
     /**
-     * PD: DTF + DTG union (v4 lines 500-581)
+     * PD: DTF + DTG union
      * Includes dtg_item_detail data via UNION ALL.
      */
     private function runPdWithDtg(string $date, FactoryLine $factory): ?array
@@ -185,8 +184,7 @@ final class GetPackShipInventoryTask extends ParentTask
                     total_shirt + COALESCE(SUM(not_done) OVER (
                         ORDER BY estimate_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS ton_dau,
-                    SUM(not_done) OVER (ORDER BY estimate_date) AS ton_cuoi
+                    ), 0) AS tong_viec
                 FROM daily_aggregated
             ) final_result
             WHERE estimate_date = ?

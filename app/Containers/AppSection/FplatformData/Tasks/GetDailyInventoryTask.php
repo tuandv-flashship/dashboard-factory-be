@@ -9,9 +9,9 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Carbon;
 
 /**
- * Get daily inventory (tồn đầu ngày / tồn cuối ngày) for team IN or CẮT.
+ * Get daily inventory (tổng việc) for team IN or CẮT.
  *
- * Source: docs/ton_dau_ngay_update.sql lines 7-71
+ * Source: docs/rpt_factory_ops_metrics_v5.sql
  */
 final class GetDailyInventoryTask extends ParentTask
 {
@@ -49,15 +49,14 @@ final class GetDailyInventoryTask extends ParentTask
                     )
                 GROUP BY f.estimate_date
             )
-            SELECT estimate_date, ton_dau, ton_cuoi
+            SELECT estimate_date, tong_viec
             FROM (
                 SELECT
                     estimate_date,
                     total_file + COALESCE(SUM(not_done) OVER (
                         ORDER BY estimate_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS ton_dau,
-                    SUM(not_done) OVER (ORDER BY estimate_date) AS ton_cuoi
+                    ), 0) AS tong_viec
                 FROM daily_stats
             ) c
             WHERE estimate_date = ?

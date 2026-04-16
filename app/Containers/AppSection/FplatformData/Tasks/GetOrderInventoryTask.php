@@ -7,9 +7,9 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get daily inventory (tồn đầu/cuối ngày) for ORDER count (DTF).
+ * Get daily inventory (tổng việc & đã làm) for ORDER count (DTF).
  *
- * Source: docs/rpt_factory_ops_metrics_v4.sql lines 586-708
+ * Source: docs/rpt_factory_ops_metrics_v5.sql
  * Uses: folder_manage → order_check_file_dropbox → scan_label_history
  * Counts: COUNT(DISTINCT order_code) instead of shirt count
  */
@@ -74,8 +74,8 @@ final class GetOrderInventoryTask extends ParentTask
                     total_order + COALESCE(SUM(not_done) OVER (
                         ORDER BY estimate_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS ton_dau,
-                    SUM(not_done) OVER (ORDER BY estimate_date) AS ton_cuoi
+                    ), 0) AS tong_viec,
+                    SUM(not_done) OVER (ORDER BY estimate_date) AS da_lam
                 FROM daily_aggregated
             ) final_result
             WHERE estimate_date = ?
@@ -86,6 +86,6 @@ final class GetOrderInventoryTask extends ParentTask
             [$date, $date, $date, $date],
         );
 
-        return $this->formatResult($this->queryFplatform($sql, $bindings));
+        return $this->formatOrderResult($this->queryFplatform($sql, $bindings));
     }
 }

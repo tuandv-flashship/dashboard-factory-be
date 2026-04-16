@@ -61,7 +61,8 @@ trait ComputesKpiHours
             $minutes   = $detail->{$minutesField} ?? 0;
 
             if ($startTime && $minutes > 0) {
-                $breakStart = Carbon::createFromFormat('H:i:s', $startTime);
+                $format = substr_count($startTime, ':') === 2 ? 'H:i:s' : 'H:i';
+                $breakStart = Carbon::createFromFormat($format, $startTime);
                 $breaks[] = [
                     'start' => $breakStart,
                     'end'   => $breakStart->copy()->addMinutes($minutes),

@@ -70,6 +70,7 @@ final class SyncHourlyRecordsTask extends ParentTask
 
         $shiftDate = $shift->date->toDateString();
 
+        /** @var \Illuminate\Database\Eloquent\Collection<int, ShiftDetail> $shiftDetails */
         $shiftDetails = ShiftDetail::with('department')
             ->where('shift_id', $shift->id)
             ->get();
@@ -135,6 +136,7 @@ final class SyncHourlyRecordsTask extends ParentTask
             $shiftDate . ' ' . $detail->start_time
         );
 
+        /** @var \Illuminate\Database\Eloquent\Collection<int, HourlyRecord> $records */
         $records = HourlyRecord::where('shift_id', $shift->id)
             ->where('department_id', $dept->id)
             ->orderBy('hour_index')
@@ -370,7 +372,7 @@ final class SyncHourlyRecordsTask extends ParentTask
     }
 
     /**
-     * Refresh day_start_inventory from FPlatform ton_dau.
+     * Refresh day_start_inventory from FPlatform tong_viec.
      */
     private function refreshDayStartInventory(
         ShiftDetail $detail,
@@ -378,18 +380,18 @@ final class SyncHourlyRecordsTask extends ParentTask
         array $allInventory,
     ): int {
         $teamData = $allInventory['teams'][$team->value] ?? null;
-        $tonDau = (int) ($teamData['ton_dau'] ?? 0);
+        $tongViec = (int) ($teamData['tong_viec'] ?? 0);
 
-        if ($tonDau > 0 && $tonDau !== $detail->day_start_inventory) {
+        if ($tongViec > 0 && $tongViec !== $detail->day_start_inventory) {
             Log::info('[SyncHourlyRecords] Updated day_start_inventory', [
                 'department' => $detail->department_id,
                 'old'        => $detail->day_start_inventory,
-                'new'        => $tonDau,
+                'new'        => $tongViec,
             ]);
-            $detail->update(['day_start_inventory' => $tonDau]);
+            $detail->update(['day_start_inventory' => $tongViec]);
         }
 
-        return $tonDau > 0 ? $tonDau : $detail->day_start_inventory;
+        return $tongViec > 0 ? $tongViec : $detail->day_start_inventory;
     }
 
     /** Sum values from hourly metrics result. */

@@ -6,9 +6,9 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get daily inventory (tồn đầu/cuối ngày) for team IN - DTG.
+ * Get daily inventory (tổng việc) for team IN - DTG.
  *
- * Source: docs/ton_dau_ngay_update.sql lines 437-465
+ * Source: docs/rpt_factory_ops_metrics_v5.sql
  * Uses: dtg_item_detail + dtg_printed_product (no factory param)
  */
 final class GetDtgPrintInventoryTask extends ParentTask
@@ -33,16 +33,14 @@ final class GetDtgPrintInventoryTask extends ParentTask
                 GROUP BY d.estimate_folder_date
             )
             SELECT estimate_folder_date AS estimate_date,
-                ton_dau,
-                ton_cuoi
+                tong_viec
             FROM (
                 SELECT
                     estimate_folder_date,
                     total_file + COALESCE(SUM(unprint_file) OVER (
                         ORDER BY estimate_folder_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS ton_dau,
-                    SUM(unprint_file) OVER (ORDER BY estimate_folder_date) AS ton_cuoi
+                    ), 0) AS tong_viec
                 FROM daily_aggregated
             ) c
             WHERE estimate_folder_date = ?

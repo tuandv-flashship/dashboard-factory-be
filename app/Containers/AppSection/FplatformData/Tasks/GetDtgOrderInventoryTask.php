@@ -6,9 +6,9 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get daily inventory (tồn đầu/cuối ngày) for ORDER count — DTG (PD only).
+ * Get daily inventory (tổng việc & đã làm) for ORDER count — DTG (PD only).
  *
- * Source: docs/rpt_factory_ops_metrics_v4.sql lines 710-744
+ * Source: docs/rpt_factory_ops_metrics_v5.sql
  * Uses: dtg_item_detail → scan_label_history
  * Counts: COUNT(DISTINCT order_code)
  */
@@ -49,13 +49,13 @@ final class GetDtgOrderInventoryTask extends ParentTask
                     total_order + COALESCE(SUM(not_done) OVER (
                         ORDER BY estimate_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS ton_dau,
-                    SUM(not_done) OVER (ORDER BY estimate_date) AS ton_cuoi
+                    ), 0) AS tong_viec,
+                    SUM(not_done) OVER (ORDER BY estimate_date) AS da_lam
                 FROM daily_aggregated
             ) final_result
             WHERE estimate_date = ?
         ";
 
-        return $this->formatResult($this->queryFplatform($sql, [$date, $date, $date, $date]));
+        return $this->formatOrderResult($this->queryFplatform($sql, [$date, $date, $date, $date]));
     }
 }

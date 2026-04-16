@@ -157,7 +157,7 @@ final class CreateDailyShiftJobTest extends UnitTestCase
     /**
      * Mock FetchDailyInventoryForShiftTask to avoid hitting the fplatform DB.
      *
-     * @param  array<int, int>|null $inventoryMap  dept_id → ton_dau, or null for empty
+     * @param  array<int, int>|null $inventoryMap  dept_id → tong_viec, or null for empty
      */
     private function mockFplatformInventory(?array $inventoryMap = null): void
     {
@@ -320,7 +320,7 @@ final class CreateDailyShiftJobTest extends UnitTestCase
 
     public function testFetchesInventoryFromFplatform(): void
     {
-        // Re-mock with specific inventory values (dept_id → ton_dau)
+        // Re-mock with specific inventory values (dept_id → tong_viec)
         $this->mockFplatformInventory([
             $this->printDept->id      => 1250,
             $this->pickDept->id       => 800,

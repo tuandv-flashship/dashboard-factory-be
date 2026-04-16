@@ -6,9 +6,9 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get daily inventory (tồn đầu/cuối ngày) for team Pick - DTG.
+ * Get daily inventory (tổng việc) for team Pick - DTG.
  *
- * Source: docs/ton_dau_ngay_update.sql lines 405-428
+ * Source: docs/rpt_factory_ops_metrics_v5.sql
  * Uses: dtg_folder_detail + dtg_item_detail (no factory param)
  */
 final class GetDtgPickInventoryTask extends ParentTask
@@ -29,16 +29,14 @@ final class GetDtgPickInventoryTask extends ParentTask
                 GROUP BY f.estimate_folder_date
             )
             SELECT estimate_folder_date AS estimate_date,
-                ton_dau,
-                ton_cuoi
+                tong_viec
             FROM (
                 SELECT
                     estimate_folder_date,
                     total_shirt + COALESCE(SUM(chua_pick) OVER (
                         ORDER BY estimate_folder_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS ton_dau,
-                    SUM(chua_pick) OVER (ORDER BY estimate_folder_date) AS ton_cuoi
+                    ), 0) AS tong_viec
                 FROM daily_summary
             ) result
             WHERE estimate_folder_date = ?

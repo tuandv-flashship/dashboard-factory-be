@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Get inventory (tồn đầu/cuối ngày) for ALL teams.
+ * Get inventory (tổng việc) for ALL teams.
  *
  * Queries run sequentially — with Redis cache (5min/1h TTL),
  * 99%+ of requests are served from cache in <1ms.
@@ -98,13 +98,13 @@ final class GetAllTeamsInventoryTask extends ParentTask
 
     /**
      * Format results into the API response structure.
-     * Always returns full format (ton_dau=0, ton_cuoi=0 when no data).
+     * Always returns full format (tong_viec=0 when no data).
      */
     private function formatResponse(string $date, array $results): array
     {
         $teams = [];
         $factory = FactoryLine::current();
-        $defaults = ['estimate_date' => $date, 'ton_dau' => 0, 'ton_cuoi' => 0];
+        $defaults = ['estimate_date' => $date, 'tong_viec' => 0];
 
         // DTF teams: flat structure (one factory per deployment)
         foreach (self::DTF_TEAMS as $team) {

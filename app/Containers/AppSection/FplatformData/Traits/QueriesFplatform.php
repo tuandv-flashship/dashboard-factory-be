@@ -75,7 +75,7 @@ trait QueriesFplatform
     }
 
     /**
-     * Format a standard inventory result (estimate_date, ton_dau, ton_cuoi).
+     * Format a standard inventory result (estimate_date, tong_viec).
      */
     protected function formatResult(?object $result, string $dateField = 'estimate_date'): ?array
     {
@@ -85,8 +85,25 @@ trait QueriesFplatform
 
         return [
             'estimate_date' => $result->{$dateField},
-            'ton_dau'       => (int) $result->ton_dau,
-            'ton_cuoi'      => (int) $result->ton_cuoi,
+            'tong_viec'     => (int) $result->tong_viec,
+        ];
+    }
+
+    /**
+     * Format an order inventory result (estimate_date, tong_viec, da_lam).
+     *
+     * Used by order count queries that track both total work and completed work.
+     */
+    protected function formatOrderResult(?object $result, string $dateField = 'estimate_date'): ?array
+    {
+        if (!$result) {
+            return null;
+        }
+
+        return [
+            'estimate_date' => $result->{$dateField},
+            'tong_viec'     => (int) $result->tong_viec,
+            'da_lam'        => (int) $result->da_lam,
         ];
     }
 

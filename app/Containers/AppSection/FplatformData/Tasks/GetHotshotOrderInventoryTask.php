@@ -7,9 +7,9 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get hotshot order inventory (tồn đầu/cuối đơn hotshot).
+ * Get hotshot order inventory (tổng việc & đã làm đơn hotshot).
  *
- * Source: docs/rpt_factory_ops_metrics_v4.sql lines 1333-1440
+ * Source: docs/rpt_factory_ops_metrics_v5.sql
  * Filters by printer_default = MayHOTSHOT / MayHOTSHOTPD
  */
 final class GetHotshotOrderInventoryTask extends ParentTask
@@ -69,14 +69,14 @@ final class GetHotshotOrderInventoryTask extends ParentTask
                     total_order + COALESCE(SUM(not_done) OVER (
                         ORDER BY estimate_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS ton_dau,
-                    SUM(not_done) OVER (ORDER BY estimate_date) AS ton_cuoi
+                    ), 0) AS tong_viec,
+                    SUM(not_done) OVER (ORDER BY estimate_date) AS da_lam
                 FROM daily_aggregated
             ) final_result
             WHERE estimate_date = ?
         ";
 
-        return $this->formatResult($this->queryFplatform($sql, [
+        return $this->formatOrderResult($this->queryFplatform($sql, [
             $date, $date, $hotshotPrinter, $date, $date,
         ]));
     }
