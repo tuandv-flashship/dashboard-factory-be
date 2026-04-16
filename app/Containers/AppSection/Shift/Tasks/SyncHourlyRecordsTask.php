@@ -75,7 +75,9 @@ final class SyncHourlyRecordsTask extends ParentTask
                     'efficiency'           => $prev?->efficiency ?? 0,
                     'error_rate'           => $prev?->error_rate ?? 0,
                     'status'               => $prev?->status ?? HourlyRecordStatus::Pending->value,
-                    'productivity_json'    => $prev?->productivity_json,
+                    'productivity_json'    => $prev?->productivity_json
+                        ? json_encode($prev->productivity_json)
+                        : null,
                     'deleted_at'           => null, // restore if previously soft-deleted
                     'created_at'           => $prev?->created_at ?? $now,
                     'updated_at'           => $now,
