@@ -6,6 +6,7 @@ use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Ship\Parents\Models\Model as ParentModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 final class Shift extends ParentModel
 {
@@ -86,5 +87,32 @@ final class Shift extends ParentModel
             ->where('date', $date)
             ->orderBy('shift_number')
             ->get();
+    }
+    /**
+     * Check if current time falls within this shift's start–end window.
+     *
+     * Adds a configurable buffer to capture data near shift boundaries.
+     * Handles overnight shifts (end_time < start_time).
+     *
+     * @param int $beforeMinutes Buffer before shift start (default 5)
+     * @param int $afterMinutes  Buffer after shift end (default 30)
+     */
+    public function isWithinTimeWindow(int $beforeMinutes = 5, int $afterMinutes = 30): bool
+    {
+        $now = now();
+        $date = $this->date->toDateString();
+
+        $shiftStart = Carbon::createFromFormat('Y-m-d H:i:s', "{$date} {$this->start_time}");
+        $shiftEnd   = Carbon::createFromFormat('Y-m-d H:i:s', "{$date} {$this->end_time}");
+
+        // Handle overnight shifts (end_time < start_time, e.g. 22:00–06:00)
+        if ($shiftEnd->lte($shiftStart)) {
+            $shiftEnd->addDay();
+        }
+
+        $windowStart = $shiftStart->copy()->subMinutes($beforeMinutes);
+        $windowEnd   = $shiftEnd->copy()->addMinutes($afterMinutes);
+
+        return $now->between($windowStart, $windowEnd);
     }
 }
