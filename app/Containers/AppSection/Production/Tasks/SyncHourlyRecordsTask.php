@@ -15,7 +15,7 @@ use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Traits\ComputesKpiHours;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
+
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Log;
  * For each department's hourly records:
  * - Pending slots whose time has arrived → activate + fetch data
  * - Active current slot → refresh data from FPlatform
- * - Active past slots → fetch data + complete (with grace period)
+ * - Active past slots → fetch data + mark completed
  * - Already completed → recalculate staff_required + target + efficiency (no API call)
  *
  * Called by SyncHourlyRecordsJob every N minutes.
@@ -42,9 +42,6 @@ final class SyncHourlyRecordsTask extends ParentTask
         'pick_dtg'  => Team::PickDtg,
         'dtg_print' => Team::DtgPrint,
     ];
-
-    /** Max hours to retry fetching data for a past slot before force-completing. */
-    private const COMPLETE_GRACE_HOURS = 2;
 
     public function __construct(
         private readonly GetHourlyMetricsAction $hourlyMetricsAction,
@@ -233,17 +230,8 @@ final class SyncHourlyRecordsTask extends ParentTask
                     $queryStart, $queryEnd, $dayStartInventory,
                     $pastActual, $pastKpiHours, $totalKpiHours,
                     $kpiPerHour, $lastHourIndex,
-                    $breaks, $actualSlot,
+                    $breaks, $actualSlot, $isPassedSlot,
                 );
-
-                if ($isPassedSlot) {
-                    $record->refresh();
-                    $graceExpired = $now->diffInHours($queryEnd) >= self::COMPLETE_GRACE_HOURS;
-
-                    if ($record->actual > 0 || $graceExpired) {
-                        $record->update(['status' => HourlyRecordStatus::Completed->value]);
-                    }
-                }
 
                 $updated++;
             }
@@ -272,6 +260,7 @@ final class SyncHourlyRecordsTask extends ParentTask
         int $lastHourIndex,
         array $breaks,
         ?array $actualSlot = null,
+        bool $isCompleted = false,
     ): void {
         $startShift = $slotStart->format('Y-m-d H:i:s');
         $endShift = $slotEnd->format('Y-m-d H:i:s');
@@ -313,6 +302,10 @@ final class SyncHourlyRecordsTask extends ParentTask
         );
 
         // ── Build update data ────────────────────────────────
+        $status = $isCompleted
+            ? HourlyRecordStatus::Completed
+            : HourlyRecordStatus::Active;
+
         $record->update([
             'actual'               => $actual,
             'staff'                => $staff,
@@ -323,7 +316,7 @@ final class SyncHourlyRecordsTask extends ParentTask
             'efficiency'           => $target > 0
                 ? round(($actual / $target) * 100, 1)
                 : 0,
-            'status'               => HourlyRecordStatus::Active->value,
+            'status'               => $status->value,
         ]);
     }
 

@@ -1,7 +1,7 @@
 {
     "info": {
         "name": "FplatformData",
-        "description": "## FplatformData Container\n\nLấy dữ liệu **tồn đầu/cuối ngày**, **hiệu suất theo giờ**, **số nhân viên**, **hiệu suất máy in** và **đơn hotshot** từ database `fplatform` (external, read-only).\n\n**Base:** `/v1/fplatform` (public), `/v1/admin/fplatform` (private)\n\n### Authentication\n\n- **Public endpoints**: Không cần Bearer Token — dành cho TV dashboard\n- **Private endpoints**: Yêu cầu `Authorization: Bearer {{access_token}}` + permission `shifts.index` hoặc role `admin`\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `print` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cut` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Tồn đơn | `order_inventory` | FLS/PD | Tồn theo đơn hàng (mới) |\n| Pick (DTG) | `pick_dtg` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n\n### Hourly Metric Types\n\n| Metric | Code | Mô tả |\n|---|---|---|\n| Hiệu suất SX | `productivity` | Sản lượng theo giờ |\n| Số nhân viên | `staff_count` | Đếm NV hoạt động theo giờ |\n| HS nhân viên | `staff_productivity` | Sản lượng từng NV theo giờ |\n| HS máy in | `machine_productivity` | Sản lượng từng máy theo giờ |\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ\n- Hourly metrics: cache 5 phút",
+        "description": "## FplatformData Container\n\nLấy dữ liệu **tổng việc ngày**, **hiệu suất theo giờ**, **số nhân viên**, **hiệu suất máy in** và **đơn hotshot** từ database `fplatform` (external, read-only).\n\n**Base:** `/v1/fplatform` (public), `/v1/admin/fplatform` (private)\n\n### Authentication\n\n- **Public endpoints**: Không cần Bearer Token — dành cho TV dashboard\n- **Private endpoints**: Yêu cầu `Authorization: Bearer {{access_token}}` + permission `shifts.index` hoặc role `admin`\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `print` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cut` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Tồn đơn | `order_inventory` | FLS/PD | Tồn theo đơn hàng (mới) |\n| Pick (DTG) | `pick_dtg` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n\n### Hourly Metric Types\n\n| Metric | Code | Mô tả |\n|---|---|---|\n| Hiệu suất SX | `productivity` | Sản lượng theo giờ |\n| Số nhân viên | `staff_count` | Đếm NV hoạt động theo giờ |\n| HS nhân viên | `staff_productivity` | Sản lượng từng NV theo giờ |\n| HS máy in | `machine_productivity` | Sản lượng từng máy theo giờ |\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ\n- Hourly metrics: cache 5 phút",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -20,8 +20,8 @@
     ],
     "item": [
         {
-            "name": "Inventory (Tồn đầu/cuối)",
-            "description": "## Tồn đầu/cuối ngày\n\nDữ liệu inventory từ FPlatform. Query theo ngày estimate_date, tính tích lũy 10 ngày.\n\n**Đơn vị tính theo team:**\n- In, Cắt, Mockup: `file`\n- Pick, Pack & Ship: `shirt` (product)\n- Order Inventory: `order` (đơn hàng unique)\n- DTG Print: `file`\n- DTG Pick: `shirt`",
+            "name": "Inventory (Tổng việc)",
+            "description": "## Tổng việc ngày\n\nDữ liệu inventory từ FPlatform. Query theo ngày estimate_date, tính tích lũy 10 ngày.\n\n**Đơn vị tính theo team:**\n- In, Cắt, Mockup: `file`\n- Pick, Pack & Ship: `shirt` (product)\n- Order Inventory: `order` (đơn hàng unique)\n- DTG Print: `file`\n- DTG Pick: `shirt`",
             "item": [
                 {
                     "name": "Get Daily Inventory — Team In",
@@ -56,7 +56,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **In (DTF)**.\n\n`work_type=0, work_status=1` — đếm file đã in xong.\n\n| Param | Type | Required | Values |\n|---|---|---|---|\n| team | string | ✅ | `print`, `cut`, `pick`, `mockup`, `pack_ship`, `order_inventory`, `pick_dtg`, `dtg_print`, `dtg_print_split` |\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** `{ ton_dau, ton_cuoi, estimate_date, team, factory }`\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có dữ liệu cho ngày đó."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **In (DTF)**.\n\n`work_type=0, work_status=1` — đếm file đã in xong.\n\n| Param | Type | Required | Values |\n|---|---|---|---|\n| team | string | ✅ | `print`, `cut`, `pick`, `mockup`, `pack_ship`, `order_inventory`, `pick_dtg`, `dtg_print`, `dtg_print_split` |\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** `{ tong_viec, estimate_date, team, factory }`  \n(Order inventory: `{ tong_viec, da_lam, estimate_date, team, factory }`)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có dữ liệu cho ngày đó."
                     },
                     "response": [
                         {
@@ -69,7 +69,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 1250,\n    \"ton_cuoi\": 380,\n    \"team\": \"print\",\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 1250,\n    \"team\": \"print\",\n    \"factory\": \"FLS\"\n  }\n}"
                         },
                         {
                             "name": "404 — Không có dữ liệu",
@@ -116,7 +116,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **Cắt (DTF)**.\n\n`work_type=2, work_status=0` — đếm file đã nhận vào cắt.\n\n⚠️ **Lưu ý:** CẮT dùng `work_status=0` (khác với In dùng `work_status=1`)."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **Cắt (DTF)**.\n\n`work_type=2, work_status=0` — đếm file đã nhận vào cắt.\n\n⚠️ **Lưu ý:** CẮT dùng `work_status=0` (khác với In dùng `work_status=1`)."
                     },
                     "response": [
                         {
@@ -129,7 +129,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 980,\n    \"ton_cuoi\": 220,\n    \"team\": \"cut\",\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 980,\n    \"team\": \"cut\",\n    \"factory\": \"FLS\"\n  }\n}"
                         }
                     ]
                 },
@@ -164,7 +164,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **Pick (DTF)**.\n\n`work_type=100, copy_job=0` — đếm theo `total_product`."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **Pick (DTF)**.\n\n`work_type=100, copy_job=0` — đếm theo `total_product`."
                     },
                     "response": [
                         {
@@ -177,7 +177,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 1500,\n    \"ton_cuoi\": 450,\n    \"team\": \"pick\",\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 1500,\n    \"team\": \"pick\",\n    \"factory\": \"FLS\"\n  }\n}"
                         }
                     ]
                 },
@@ -212,7 +212,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **Mockup (DTF)**.\n\nJoin `folder_manage` → `order_check_file_dropbox` → `log_check_mockup`."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **Mockup (DTF)**.\n\nJoin `folder_manage` → `order_check_file_dropbox` → `log_check_mockup`."
                     },
                     "response": [
                         {
@@ -225,7 +225,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 2100,\n    \"ton_cuoi\": 680,\n    \"team\": \"mockup\",\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 2100,\n    \"team\": \"mockup\",\n    \"factory\": \"FLS\"\n  }\n}"
                         }
                     ]
                 },
@@ -260,7 +260,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **Pack & Ship (DTF)**.\n\nJoin `folder_manage` → `order_check_file_dropbox` → `scan_label_history`.\n\n⚠️ **PD factory:** Kết quả UNION với dữ liệu DTG từ `dtg_item_detail`."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **Pack & Ship (DTF)**.\n\nJoin `folder_manage` → `order_check_file_dropbox` → `scan_label_history`.\n\n⚠️ **PD factory:** Kết quả UNION với dữ liệu DTG từ `dtg_item_detail`."
                     },
                     "response": [
                         {
@@ -273,7 +273,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 1800,\n    \"ton_cuoi\": 520,\n    \"team\": \"pack_ship\",\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 1800,\n    \"team\": \"pack_ship\",\n    \"factory\": \"FLS\"\n  }\n}"
                         }
                     ]
                 },
@@ -308,7 +308,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tồn đầu/cuối **đơn hàng** (COUNT DISTINCT order_code).\n\n🆕 **Mới trong v4** — Đếm đơn hàng unique thay vì áo.\n\n**PD factory:** Tự động cộng thêm đơn DTG."
+                        "description": "✅ **Public** — Tồn đầu/cuối **đơn hàng** (COUNT DISTINCT order_code).\n\n🆕 **Mới trong v5** — Đếm đơn hàng unique thay vì áo.\n\n**PD factory:** Tự động cộng thêm đơn DTG."
                     },
                     "response": [
                         {
@@ -321,7 +321,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 320,\n    \"ton_cuoi\": 85,\n    \"team\": \"order_inventory\",\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 320,\n    \"da_lam\": 85,\n    \"team\": \"order_inventory\",\n    \"factory\": \"FLS\"\n  }\n}"
                         }
                     ]
                 },
@@ -356,7 +356,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tồn đầu/cuối ngày cho team **Pick DTG**.\n\nKhông cần factory — DTG chỉ ở PD."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **Pick DTG**.\n\nKhông cần factory — DTG chỉ ở PD."
                     },
                     "response": [
                         {
@@ -369,7 +369,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 280,\n    \"ton_cuoi\": 65,\n    \"team\": \"pick_dtg\",\n    \"factory\": null\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 280,\n    \"team\": \"pick_dtg\",\n    \"factory\": null\n  }\n}"
                         }
                     ]
                 },
@@ -417,7 +417,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"machines\": {\n      \"apollo\": { \"ratio\": \"62.5%\", \"ton_dau\": 781, \"ton_cuoi\": 212 },\n      \"atlas_1\": { \"ratio\": \"18.75%\", \"ton_dau\": 234, \"ton_cuoi\": 63 },\n      \"atlas_2\": { \"ratio\": \"18.75%\", \"ton_dau\": 235, \"ton_cuoi\": 65 }\n    },\n    \"team\": \"dtg_print_split\",\n    \"factory\": null\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"machines\": {\n      \"apollo\": { \"ratio\": \"62.5%\", \"tong_viec\": 781 },\n      \"atlas_1\": { \"ratio\": \"18.75%\", \"tong_viec\": 234 },\n      \"atlas_2\": { \"ratio\": \"18.75%\", \"tong_viec\": 235 }\n    },\n    \"team\": \"dtg_print_split\",\n    \"factory\": null\n  }\n}"
                         }
                     ]
                 },
@@ -454,7 +454,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — Tồn đầu/cuối ngày cho **tất cả bộ phận** của factory hiện tại.\n\n**Permission:** `shifts.index` hoặc role `admin`\n\n**Teams trả về:**\n- **FLS:** 6 teams DTF (print, cut, pick, mockup, pack_ship, order_inventory)\n- **PD:** 6 teams DTF + 2 teams DTG (pick_dtg, dtg_print_split)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)"
+                        "description": "🔒 **Private** — Tổng việc ngày cho **tất cả bộ phận** của factory hiện tại.\n\n**Permission:** `shifts.index` hoặc role `admin`\n\n**Teams trả về:**\n- **FLS:** 6 teams DTF (print, cut, pick, mockup, pack_ship, order_inventory)\n- **PD:** 6 teams DTF + 2 teams DTG (pick_dtg, dtg_print_split)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)"
                     },
                     "response": [
                         {
@@ -467,7 +467,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"date\": \"2026-04-14\",\n    \"teams\": {\n      \"print\": { \"label\": \"In (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1250, \"ton_cuoi\": 380 },\n      \"cut\": { \"label\": \"Cắt (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 980, \"ton_cuoi\": 220 },\n      \"pick\": { \"label\": \"Pick (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1500, \"ton_cuoi\": 450 },\n      \"mockup\": { \"label\": \"Mockup (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 2100, \"ton_cuoi\": 680 },\n      \"pack_ship\": { \"label\": \"Pack & Ship (DTF)\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 1800, \"ton_cuoi\": 520 },\n      \"order_inventory\": { \"label\": \"Tồn đơn hàng\", \"estimate_date\": \"2026-04-14\", \"ton_dau\": 320, \"ton_cuoi\": 85 }\n    }\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"date\": \"2026-04-14\",\n    \"teams\": {\n      \"print\": { \"label\": \"In (DTF)\", \"estimate_date\": \"2026-04-14\", \"tong_viec\": 1250 },\n      \"cut\": { \"label\": \"Cắt (DTF)\", \"estimate_date\": \"2026-04-14\", \"tong_viec\": 980 },\n      \"pick\": { \"label\": \"Pick (DTF)\", \"estimate_date\": \"2026-04-14\", \"tong_viec\": 1500 },\n      \"mockup\": { \"label\": \"Mockup (DTF)\", \"estimate_date\": \"2026-04-14\", \"tong_viec\": 2100 },\n      \"pack_ship\": { \"label\": \"Pack & Ship (DTF)\", \"estimate_date\": \"2026-04-14\", \"tong_viec\": 1800 },\n      \"order_inventory\": { \"label\": \"Tồn đơn hàng\", \"estimate_date\": \"2026-04-14\", \"tong_viec\": 320, \"da_lam\": 85 }\n    }\n  }\n}"
                         }
                     ]
                 }
@@ -523,7 +523,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — SUM(total_file) từ user_group_scan, work_type=0, work_status=1\n\nSQL ref: v4 L397-430"
+                        "description": "🔒 **Private** — SUM(total_file) từ user_group_scan, work_type=0, work_status=1\n\nSQL ref: v5 L397-430"
                     },
                     "response": []
                 },
@@ -573,7 +573,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ user_group_scan\n\nSQL ref: v4 L1100-1130"
+                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ user_group_scan\n\nSQL ref: v5 L1100-1130"
                     },
                     "response": []
                 },
@@ -623,7 +623,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — SUM(total_file) grouped by machine (printer name)\n\nSQL ref: v4 L515-580"
+                        "description": "🔒 **Private** — SUM(total_file) grouped by machine (printer name)\n\nSQL ref: v5 L515-580"
                     },
                     "response": []
                 },
@@ -673,7 +673,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — SUM(total_file) từ user_group_scan, work_type=2, work_status=0\n\nSQL ref: v4 L435-470"
+                        "description": "🔒 **Private** — SUM(total_file) từ user_group_scan, work_type=2, work_status=0\n\nSQL ref: v5 L435-470"
                     },
                     "response": []
                 },
@@ -723,7 +723,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ user_group_scan\n\nSQL ref: v4 L1135-1165"
+                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ user_group_scan\n\nSQL ref: v5 L1135-1165"
                     },
                     "response": []
                 },
@@ -773,7 +773,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — SUM(total_file) grouped by username\n\nSQL ref: v4 L1480-1520"
+                        "description": "🔒 **Private** — SUM(total_file) grouped by username\n\nSQL ref: v5 L1480-1520"
                     },
                     "response": []
                 },
@@ -823,7 +823,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — SUM(total_product) từ user_group_scan, work_type=100\n\nSQL ref: v4 L475-510"
+                        "description": "🔒 **Private** — SUM(total_product) từ user_group_scan, work_type=100\n\nSQL ref: v5 L475-510"
                     },
                     "response": []
                 },
@@ -873,7 +873,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ user_group_scan\n\nSQL ref: v4 L1170-1200"
+                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ user_group_scan\n\nSQL ref: v5 L1170-1200"
                     },
                     "response": []
                 },
@@ -923,7 +923,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — SUM(total_product) grouped by username\n\nSQL ref: v4 L1525-1565"
+                        "description": "🔒 **Private** — SUM(total_product) grouped by username\n\nSQL ref: v5 L1525-1565"
                     },
                     "response": []
                 },
@@ -973,7 +973,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT barcode, index_number, side) từ log_check_mockup\n\nSQL ref: v4 L585-650"
+                        "description": "🔒 **Private** — COUNT(DISTINCT barcode, index_number, side) từ log_check_mockup\n\nSQL ref: v5 L585-650"
                     },
                     "response": []
                 },
@@ -1023,7 +1023,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ log_check_mockup\n\nSQL ref: v4 L1310-1380"
+                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ log_check_mockup\n\nSQL ref: v5 L1310-1380"
                     },
                     "response": []
                 },
@@ -1073,7 +1073,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT barcode, index_number, side) grouped by username\n\nSQL ref: v4 L1630-1720"
+                        "description": "🔒 **Private** — COUNT(DISTINCT barcode, index_number, side) grouped by username\n\nSQL ref: v5 L1630-1720"
                     },
                     "response": []
                 },
@@ -1123,7 +1123,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT barcode, index_num) từ scan_label_history\n\nSQL ref: v4 L1020-1082"
+                        "description": "🔒 **Private** — COUNT(DISTINCT barcode, index_num) từ scan_label_history\n\nSQL ref: v5 L1020-1082"
                     },
                     "response": []
                 },
@@ -1173,7 +1173,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ scan_label_history\n\nSQL ref: v4 L1235-1308"
+                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ scan_label_history\n\nSQL ref: v5 L1235-1308"
                     },
                     "response": []
                 },
@@ -1223,7 +1223,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT barcode, index_num) grouped by username\n\nSQL ref: v4 L1729-1811"
+                        "description": "🔒 **Private** — COUNT(DISTINCT barcode, index_num) grouped by username\n\nSQL ref: v5 L1729-1811"
                     },
                     "response": []
                 },
@@ -1273,7 +1273,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(*) từ dtg_printed_product, print_status=1\n\nSQL ref: v4 L660-700"
+                        "description": "🔒 **Private** — COUNT(*) từ dtg_printed_product, print_status=1\n\nSQL ref: v5 L660-700"
                     },
                     "response": []
                 },
@@ -1323,7 +1323,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ dtg_printed_product\n\nSQL ref: v4 L1385-1420"
+                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ dtg_printed_product\n\nSQL ref: v5 L1385-1420"
                     },
                     "response": []
                 },
@@ -1373,7 +1373,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(*) grouped by machine từ dtg_printed_product\n\nSQL ref: v4 L705-740"
+                        "description": "🔒 **Private** — COUNT(*) grouped by machine từ dtg_printed_product\n\nSQL ref: v5 L705-740"
                     },
                     "response": []
                 },
@@ -1423,7 +1423,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — SUM(total_product) từ user_group_scan (dtg_item_detail)\n\nSQL ref: v4 L750-810"
+                        "description": "🔒 **Private** — SUM(total_product) từ user_group_scan (dtg_item_detail)\n\nSQL ref: v5 L750-810"
                     },
                     "response": []
                 },
@@ -1473,7 +1473,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ user_group_scan\n\nSQL ref: v4 L1425-1470"
+                        "description": "🔒 **Private** — COUNT(DISTINCT user_id) từ user_group_scan\n\nSQL ref: v5 L1425-1470"
                     },
                     "response": []
                 },
@@ -1523,7 +1523,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — SUM(total_product) grouped by username\n\nSQL ref: v4 L1570-1625"
+                        "description": "🔒 **Private** — SUM(total_product) grouped by username\n\nSQL ref: v5 L1570-1625"
                     },
                     "response": []
                 }
@@ -1566,7 +1566,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — Tồn đầu/cuối **đơn hotshot** (đơn gấp).\n\n🆕 **Mới trong v4**\n\n**Permission:** `shifts.index` hoặc role `admin`\n\nFilter: `printer_default = MayHOTSHOT` (FLS) hoặc `MayHOTSHOTPD` (PD)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có đơn hotshot cho ngày đó."
+                        "description": "🔒 **Private** — Tồn đầu/cuối **đơn hotshot** (đơn gấp).\n\n🆕 **Mới trong v5**\n\n**Permission:** `shifts.index` hoặc role `admin`\n\nFilter: `printer_default = MayHOTSHOT` (FLS) hoặc `MayHOTSHOTPD` (PD)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có đơn hotshot cho ngày đó."
                     },
                     "response": [
                         {
@@ -1579,7 +1579,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"ton_dau\": 15,\n    \"ton_cuoi\": 3,\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 15,\n    \"factory\": \"FLS\"\n  }\n}"
                         },
                         {
                             "name": "404 — Không có dữ liệu",
