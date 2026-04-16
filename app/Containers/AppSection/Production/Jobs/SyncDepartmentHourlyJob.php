@@ -187,29 +187,28 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             $staff            = (int) ($staffCountMap[$hourKey] ?? 0);
             $productivityJson = $productivityDetailMap[$hourKey] ?? null;
 
-            // ── Already completed → recalc metrics only ──
+            // ── Already completed → re-sync actual + recalc metrics ──
             if ($record->status === HourlyRecordStatus::Completed->value) {
                 $remainingKpiHours = $totalKpiHours - $pastKpiHours;
-                $staffRequired = $this->computeStaffRequired($dept, $record->hour_start_inventory, $remainingKpiHours);
+                $hourStartInventory = max(0, $dayStartInventory - $pastActual);
+                $staffRequired = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiHours);
 
                 $target = $this->computeTarget(
                     $staffRequired, $kpiPerHour, $record->kpi_hours,
-                    $record->hour_start_inventory, $record->hour_index, $lastHourIndex, $record->target
+                    $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
                 );
 
-                $updateData = [
-                    'staff_required' => $staffRequired,
-                    'target'         => $target,
-                    'efficiency'     => $target > 0 && $record->actual > 0
-                        ? round(($record->actual / $target) * 100, 1)
+                $record->update([
+                    'actual'               => $actual,
+                    'staff'                => $staff,
+                    'staff_required'       => $staffRequired,
+                    'target'               => $target,
+                    'hour_start_inventory' => $hourStartInventory,
+                    'efficiency'           => $target > 0 && $actual > 0
+                        ? round(($actual / $target) * 100, 1)
                         : 0,
-                ];
-
-                if ($record->productivity_json === null) {
-                    $updateData['productivity_json'] = $productivityJson;
-                }
-
-                $record->update($updateData);
+                    'productivity_json'    => $productivityJson,
+                ]);
                 $updated++;
                 continue;
             }
