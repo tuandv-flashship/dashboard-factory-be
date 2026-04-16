@@ -25,7 +25,7 @@ final class SyncShiftDetailsTask extends ParentTask
 
         // Strip non-DB keys (machine_ids is handled separately in syncMachines)
         $dbColumns = [
-            'department_id', 'shift_number', 'headcount', 'kpi_per_hour', 'day_start_inventory',
+            'department_id', 'shift_number', 'headcount', 'kpi_per_hour',
             'start_time', 'work_hours', 'prep_minutes',
             'break1_start', 'break1_minutes', 'meal_break_start', 'meal_break_minutes',
             'break2_start', 'break2_minutes', 'break3_start', 'break3_minutes',
@@ -46,7 +46,7 @@ final class SyncShiftDetailsTask extends ParentTask
             $rows,
             ['shift_id', 'department_id', 'shift_number'],
             [
-                'headcount', 'kpi_per_hour', 'day_start_inventory',
+                'headcount', 'kpi_per_hour',
                 'start_time', 'work_hours', 'prep_minutes',
                 'break1_start', 'break1_minutes',
                 'meal_break_start', 'meal_break_minutes',

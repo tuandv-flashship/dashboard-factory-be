@@ -62,7 +62,7 @@ final class CreateShiftFromTemplateTask extends ParentTask
                 'headcount'          => $override['headcount'] ?? $td->headcount,
                 // Snapshot năng suất 1h — per_machine = 0 initially (updated below)
                 'kpi_per_hour'       => $kpiPerHour,
-                // Tồn đầu ngày — FE gửi kèm, mặc định 0
+                // Tồn đầu ngày — FE gửi kèm khi tạo ca, mặc định 0 (updated by FPlatform sync)
                 'day_start_inventory'=> $override['day_start_inventory'] ?? 0,
                 'start_time'         => $override['start_time']         ?? $td->start_time,
                 'work_hours'         => $override['work_hours']         ?? $td->work_hours,
