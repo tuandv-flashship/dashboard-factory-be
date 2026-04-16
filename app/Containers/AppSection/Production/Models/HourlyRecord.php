@@ -18,7 +18,7 @@ final class HourlyRecord extends ParentModel
         'shift_id', 'department_id', 'hour_slot', 'hour_index',
         'target', 'kpi_hours', 'actual', 'staff', 'staff_required',
         'hour_start_inventory',
-        'efficiency', 'error_rate', 'status',
+        'efficiency', 'error_rate', 'status', 'productivity_json',
     ];
 
     protected $casts = [
@@ -32,6 +32,7 @@ final class HourlyRecord extends ParentModel
         'efficiency' => 'float',
         'error_rate' => 'float',
         'status'     => 'string',
+        'productivity_json' => 'array',
     ];
 
     public function shift(): BelongsTo

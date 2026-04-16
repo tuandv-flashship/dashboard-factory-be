@@ -169,6 +169,7 @@ return [
     |
     | Queues:
     |   - default: general jobs (CreateDailyShiftJob, SyncHourlyRecordsJob)
+    |   - sync: parallel department sync (SyncDepartmentHourlyJob via Bus::batch)
     |   - notifications: email notifications (Welcome, EmailVerified, etc.)
     |   - media: thumbnail generation (GenerateThumbnailsJob)
     |
@@ -177,7 +178,7 @@ return [
     'defaults' => [
         'supervisor-1' => [
             'connection' => 'redis',
-            'queue' => ['default', 'notifications', 'media'],
+            'queue' => ['default', 'sync', 'notifications', 'media'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 1,
