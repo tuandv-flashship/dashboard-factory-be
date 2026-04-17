@@ -6,6 +6,7 @@ use App\Containers\AppSection\Department\Tasks\FindDepartmentsByLineIdTask;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Models\ProductionLine;
 use App\Containers\AppSection\Shift\Models\Shift;
+use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 final class GetLineSummaryTask extends ParentTask
@@ -37,20 +38,27 @@ final class GetLineSummaryTask extends ParentTask
             ->get()
             ->groupBy('department_id');
 
-        $departmentData = $departments->map(function ($dept) use ($allRecords) {
+        // Batch load shift_details for all departments (1 query)
+        $shiftDetails = ShiftDetail::with('machines')
+            ->where('shift_id', $shift->id)
+            ->whereIn('department_id', $deptIds)
+            ->get()
+            ->keyBy('department_id');
+
+        $departmentData = $departments->map(function ($dept) use ($allRecords, $shiftDetails) {
             $records = $allRecords->get($dept->id, collect());
+            $shiftDetail = $shiftDetails->get($dept->id);
+
             return [
-                'department' => $dept,
-                'hourly' => $records,
-                'staff' => $records->first()?->staff ?? 0,
-                'efficiency' => $records->first()?->efficiency ?? 0,
-                'error_rate' => $records->first()?->error_rate ?? 0,
+                'department'   => $dept,
+                'shift_detail' => $shiftDetail,
+                'hourly'       => $records,
             ];
         })->values()->all();
 
         return [
-            'shift' => $shift,
-            'line' => $line,
+            'shift'       => $shift,
+            'line'        => $line,
             'departments' => $departmentData,
         ];
     }

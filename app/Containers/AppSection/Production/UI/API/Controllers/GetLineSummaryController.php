@@ -4,6 +4,8 @@ namespace App\Containers\AppSection\Production\UI\API\Controllers;
 
 use App\Containers\AppSection\Production\Actions\GetLineSummaryAction;
 use App\Containers\AppSection\Department\UI\API\Transformers\DepartmentTransformer;
+use App\Containers\AppSection\Production\UI\API\Transformers\HourlyRecordTransformer;
+use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftDetailTransformer;
 use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
@@ -36,19 +38,19 @@ final class GetLineSummaryController extends ApiController
             return response()->json(['message' => 'No active shift found'], 404);
         }
 
-        $departments = collect($data['departments'])->map(function ($deptData) {
-            $dept = $deptData['department'];
-            $records = $deptData['hourly'];
+        $deptTransformer = new DepartmentTransformer();
+        $shiftDetailTransformer = new ShiftDetailTransformer();
+        $hourlyTransformer = new HourlyRecordTransformer();
 
+        $departments = collect($data['departments'])->map(function ($deptData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer) {
             return [
-                'department' => (new DepartmentTransformer())->transform($dept),
-                'staff' => $deptData['staff'],
-                'efficiency' => $deptData['efficiency'],
-                'error_rate' => $deptData['error_rate'],
-                'hourly' => $records->map(fn ($r) => [
-                    'target' => $r->target,
-                    'actual' => $r->actual,
-                ])->values(),
+                'department'   => $deptTransformer->transform($deptData['department']),
+                'shift_detail' => $deptData['shift_detail']
+                    ? $shiftDetailTransformer->transform($deptData['shift_detail'])
+                    : null,
+                'hourly'       => $deptData['hourly']->map(
+                    fn ($r) => $hourlyTransformer->transform($r)
+                )->values(),
             ];
         });
 
@@ -56,9 +58,9 @@ final class GetLineSummaryController extends ApiController
             'data' => [
                 'shift' => (new ShiftTransformer())->transform($data['shift']),
                 'line' => [
-                    'code' => $data['line']->code,
-                    'label' => $data['line']->label,
-                    'color' => $data['line']->color,
+                    'code'     => $data['line']->code,
+                    'label'    => $data['line']->label,
+                    'color'    => $data['line']->color,
                     'subtitle' => $data['line']->subtitle,
                 ],
                 'departments' => $departments->values(),
@@ -72,4 +74,3 @@ final class GetLineSummaryController extends ApiController
         return response()->json($response);
     }
 }
-
