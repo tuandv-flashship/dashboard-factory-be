@@ -6,6 +6,7 @@ use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Models\ProductionLine;
 use App\Containers\AppSection\Shift\Models\Shift;
+use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 final class GetDeptDetailTask extends ParentTask
@@ -35,12 +36,18 @@ final class GetDeptDetailTask extends ParentTask
             ->orderBy('hour_index')
             ->get();
 
+        $shiftDetail = ShiftDetail::query()
+            ->where('shift_id', $shift->id)
+            ->where('department_id', $dept->id)
+            ->first();
+
         return [
             'shift' => $shift,
             'records' => $records,
             'type' => 'department',
             'department' => $dept,
             'line' => $line,
+            'shift_detail' => $shiftDetail,
         ];
     }
 }
