@@ -17,7 +17,7 @@ final class Department extends ParentModel
 
     protected $fillable = [
         'production_line_id', 'code', 'label', 'label_en', 'description', 'icon', 'unit',
-        'kpi_per_hour', 'sort_order', 'is_active', 'productivity_type',
+        'kpi_per_hour', 'factory', 'sort_order', 'is_active', 'productivity_type',
     ];
 
     protected $casts = [
@@ -27,6 +27,15 @@ final class Department extends ParentModel
         'unit'              => DepartmentUnit::class,
         'productivity_type' => ProductivityType::class,
     ];
+
+    /**
+     * Explicit accessor for the `factory` DB column to prevent
+     * conflict with HasFactory trait's factory() method.
+     */
+    public function getFactoryAttribute(): ?string
+    {
+        return $this->attributes['factory'] ?? null;
+    }
 
     public function productionLine(): BelongsTo
     {
