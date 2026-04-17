@@ -46,6 +46,15 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         'dtg_print' => Team::DtgPrint,
     ];
 
+    /** Maps department code → hotshot team key in allInventory */
+    private const DEPT_HOTSHOT_MAP = [
+        'print'     => 'hotshot_print',
+        'cut'       => 'hotshot_cut',
+        'pick'      => 'hotshot_pick',
+        'mockup'    => 'hotshot_mockup',
+        'pack_ship' => 'hotshot_pack_ship',
+    ];
+
     public function __construct(
         private readonly int $shiftId,
         private readonly int $shiftDetailId,
@@ -115,6 +124,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             ->get();
 
         $dayStartInventory = $this->refreshDayStartInventory($detail, $team, $allInventory);
+        $this->syncHotshotData($detail, $dept, $allInventory);
         $breaks = $this->collectBreaks($detail);
 
         // Build slot map
@@ -375,6 +385,30 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         }
 
         return $tongViec > 0 ? $tongViec : $detail->day_start_inventory;
+    }
+
+    /**
+     * Sync hotshot_total and hotshot_completed from allInventory into ShiftDetail.
+     * DTG departments have no hotshot — defaults to 0.
+     */
+    private function syncHotshotData(ShiftDetail $detail, Department $dept, array $allInventory): void
+    {
+        $hotshotKey = self::DEPT_HOTSHOT_MAP[$dept->code] ?? null;
+
+        if (!$hotshotKey) {
+            return; // DTG departments — no hotshot
+        }
+
+        $hotshotData = $allInventory['teams'][$hotshotKey] ?? null;
+        $total = (int) ($hotshotData['tong_viec'] ?? 0);
+        $completed = (int) ($hotshotData['da_lam'] ?? 0);
+
+        if ($total !== $detail->hotshot_total || $completed !== $detail->hotshot_completed) {
+            $detail->update([
+                'hotshot_total'     => $total,
+                'hotshot_completed' => $completed,
+            ]);
+        }
     }
 
     /**

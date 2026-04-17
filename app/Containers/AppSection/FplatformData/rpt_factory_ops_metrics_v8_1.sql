@@ -327,7 +327,6 @@ a AS (
 		LEFT JOIN fplatform.log_check_mockup l 
 			ON a.file_name_order_code COLLATE utf8mb4_0900_ai_ci = l.barcode 
 				AND created >= ':estimate_date' - INTERVAL 15 DAY 
--- 				AND status = 1 
 				AND a.file_name_index_number = l.index_number
         GROUP BY 1,2,3,4
 		) b
@@ -384,7 +383,6 @@ a AS (
 		LEFT JOIN fplatform.log_check_mockup l 
 			ON a.file_name_order_code COLLATE utf8mb4_0900_ai_ci = l.barcode 
         AND created >= ':estimate_date' - INTERVAL 15 DAY 
---         AND status = 1 
 		AND a.file_name_index_number = l.index_number
         GROUP BY 1,2,3,4
 		) b
@@ -2023,7 +2021,6 @@ a AS (
 		LEFT JOIN fplatform.log_check_mockup l 
 			ON a.file_name_order_code COLLATE utf8mb4_0900_ai_ci = l.barcode 
 				AND created >= ':estimate_date' - INTERVAL 15 DAY 
--- 				AND status = 1 
 				AND a.file_name_index_number = l.index_number
         GROUP BY 1,2,3,4
 		) b
@@ -2074,7 +2071,6 @@ a AS (
 		LEFT JOIN fplatform.log_check_mockup l 
 			ON a.file_name_order_code COLLATE utf8mb4_0900_ai_ci = l.barcode 
 				AND created >= ':estimate_date' - INTERVAL 15 DAY 
--- 				AND status = 1 
 				AND a.file_name_index_number = l.index_number
         GROUP BY 1,2,3,4
 		) b

@@ -6,7 +6,6 @@ use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\FplatformData\Tasks\GetDtgOrderInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetHotshotOrderInventoryTask;
-use App\Containers\AppSection\FplatformData\Tasks\GetOrderInventoryTask;
 use App\Containers\AppSection\Order\Models\OrderSummary;
 use App\Containers\AppSection\Order\Tasks\SyncOrderInventoryTask;
 use App\Containers\AppSection\Order\Tests\UnitTestCase;
@@ -85,13 +84,21 @@ final class SyncOrderInventoryTaskTest extends UnitTestCase
 
     /**
      * Build a SyncOrderInventoryTask with stub dependencies.
-     * Uses Closure::bind to inject anonymous stubs into untyped private properties.
+     *
+     * $dtf data is wrapped into allInventory cache format since
+     * SyncOrderInventoryTask now reads from GetAllTeamsInventoryTask.
      */
     private function buildSyncTask(?array $dtf, ?array $dtg, ?array $hotshot): SyncOrderInventoryTask
     {
-        $dtfStub = new class($dtf) {
-            public function __construct(private readonly ?array $r) {}
-            public function run(string $d, mixed $f): ?array { return $this->r; }
+        // Wrap DTF data in allInventory format (matching GetAllTeamsInventoryTask output)
+        $allInventory = [
+            'date'  => $this->testDate ?? '2099-12-01',
+            'teams' => $dtf ? ['order_inventory' => $dtf] : [],
+        ];
+
+        $allTeamsStub = new class($allInventory) {
+            public function __construct(private readonly array $r) {}
+            public function run(string $d): array { return $this->r; }
         };
         $dtgStub = new class($dtg) {
             public function __construct(private readonly ?array $r) {}
@@ -105,8 +112,8 @@ final class SyncOrderInventoryTaskTest extends UnitTestCase
         $ref = new \ReflectionClass(SyncOrderInventoryTask::class);
         $task = $ref->newInstanceWithoutConstructor();
 
-        \Closure::bind(function () use ($dtfStub, $dtgStub, $hotshotStub) {
-            $this->dtfTask = $dtfStub;
+        \Closure::bind(function () use ($allTeamsStub, $dtgStub, $hotshotStub) {
+            $this->allTeamsInventoryTask = $allTeamsStub;
             $this->dtgTask = $dtgStub;
             $this->hotshotTask = $hotshotStub;
         }, $task, SyncOrderInventoryTask::class)();

@@ -4,6 +4,7 @@ namespace App\Containers\AppSection\Production\Tasks;
 
 use App\Containers\AppSection\FplatformData\Enums\Team;
 use App\Containers\AppSection\FplatformData\Tasks\GetAllTeamsInventoryTask;
+use App\Containers\AppSection\Order\Tasks\SyncOrderInventoryTask;
 use App\Containers\AppSection\Production\Jobs\SyncDepartmentHourlyJob;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
@@ -13,11 +14,16 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Dispatch parallel sync jobs for each department's hourly records.
+ * 2-stage parallel pipeline for syncing hourly production data.
  *
- * Fetches shared data (inventory) once, then dispatches a
- * SyncDepartmentHourlyJob per department via Bus::batch().
- * All departments sync concurrently via queue workers.
+ * Stage 1: Dispatch FetchTeamInventoryJob × N via Bus::batch()
+ *          → each job queries 1 FPlatform team and caches individually.
+ *          → 10+ workers execute in parallel → ~2-3s vs ~15s sequential.
+ *
+ * Stage 2 (then callback after Stage 1 completes):
+ *          → Assemble allInventory from per-team caches
+ *          → Dispatch SyncDepartmentHourlyJob × N via Bus::batch()
+ *          → Run SyncOrderInventoryTask synchronously
  *
  * Called by SyncHourlyRecordsJob (cron) and ResyncHourlyRecordsController/Command.
  */
@@ -35,6 +41,7 @@ final class SyncHourlyRecordsTask extends ParentTask
 
     public function __construct(
         private readonly GetAllTeamsInventoryTask $allTeamsInventoryTask,
+        private readonly SyncOrderInventoryTask $syncOrderInventoryTask,
     ) {
     }
 
@@ -65,11 +72,91 @@ final class SyncHourlyRecordsTask extends ParentTask
             return ['synced' => 0, 'shift' => $shift, 'message' => 'No shift details found.'];
         }
 
-        // Fetch inventory once — shared across all department jobs
-        $allInventory = $this->allTeamsInventoryTask->run($shiftDate);
+        // Build dept job data for Stage 2 callback (serializable)
+        $deptJobData = $this->buildDeptJobData($shift, $shiftDetails);
+        $deptCount = count($deptJobData);
 
-        // Build per-department jobs
-        $jobs = [];
+        if ($deptCount === 0) {
+            return ['synced' => 0, 'shift' => $shift, 'message' => 'No departments to sync.'];
+        }
+
+        // ── Stage 1: Parallel inventory fetch ────────────
+        $shiftId = $shift->id;
+        $shiftNum = $shift->shift_number;
+
+        $this->allTeamsInventoryTask
+            ->dispatchParallelFetch($shiftDate)
+            ->name("pipeline:{$shiftDate}:shift-{$shiftNum}:stage-1-fetch")
+            ->then(function (Batch $batch) use ($shiftDate, $shiftId, $shiftNum, $deptJobData) {
+                // ── Stage 2: Assemble + dispatch dept sync ────
+                Log::info("[SyncHourlyRecords] Stage 1 done — assembling inventory.", [
+                    'date'   => $shiftDate,
+                    'fetched' => $batch->totalJobs,
+                    'failed'  => $batch->failedJobs,
+                ]);
+
+                $allInventory = app(GetAllTeamsInventoryTask::class)->assembleFromCache($shiftDate);
+
+                if (!$allInventory) {
+                    Log::error('[SyncHourlyRecords] Stage 2 aborted — could not assemble inventory.', [
+                        'date' => $shiftDate,
+                    ]);
+
+                    return;
+                }
+
+                // Dispatch dept sync jobs in parallel
+                $deptJobs = array_map(
+                    fn (array $d) => new SyncDepartmentHourlyJob($d['shift_id'], $d['detail_id'], $allInventory),
+                    $deptJobData,
+                );
+
+                Bus::batch($deptJobs)
+                    ->name("pipeline:{$shiftDate}:shift-{$shiftNum}:stage-2-sync")
+                    ->onQueue('sync')
+                    ->allowFailures()
+                    ->then(function (Batch $b) use ($shiftDate, $shiftNum) {
+                        Log::info("[SyncHourlyRecords] Stage 2 dept sync done for {$shiftDate} shift {$shiftNum}.", [
+                            'total'  => $b->totalJobs,
+                            'failed' => $b->failedJobs,
+                        ]);
+                    })
+                    ->dispatch();
+
+                // Order sync (uses cached allInventory — fast)
+                try {
+                    app(SyncOrderInventoryTask::class)->run($shiftDate);
+                } catch (\Throwable $e) {
+                    Log::warning('[SyncHourlyRecords] Order inventory sync failed', [
+                        'date'  => $shiftDate,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            })
+            ->catch(function (Batch $batch, \Throwable $e) use ($shiftDate) {
+                Log::error('[SyncHourlyRecords] Stage 1 had failures.', [
+                    'date'  => $shiftDate,
+                    'error' => $e->getMessage(),
+                ]);
+            })
+            ->dispatch();
+
+        $msg = "Pipeline dispatched: {$deptCount} depts for {$shiftDate} shift {$shiftNum}.";
+        Log::info("[SyncHourlyRecords] {$msg}");
+
+        return ['synced' => $deptCount, 'shift' => $shift, 'message' => $msg];
+    }
+
+    /**
+     * Build serializable dept job data (shift_id + detail_id arrays).
+     * Used in the then() callback to create SyncDepartmentHourlyJob instances.
+     *
+     * @return array<int, array{shift_id: int, detail_id: int}>
+     */
+    private function buildDeptJobData(Shift $shift, $shiftDetails): array
+    {
+        $data = [];
+
         foreach ($shiftDetails as $detail) {
             $dept = $detail->department;
             if (!$dept) {
@@ -81,39 +168,12 @@ final class SyncHourlyRecordsTask extends ParentTask
                 continue;
             }
 
-            $jobs[] = new SyncDepartmentHourlyJob(
-                $shift->id,
-                $detail->id,
-                $allInventory,
-            );
+            $data[] = [
+                'shift_id'  => $shift->id,
+                'detail_id' => $detail->id,
+            ];
         }
 
-        if (empty($jobs)) {
-            return ['synced' => 0, 'shift' => $shift, 'message' => 'No departments to sync.'];
-        }
-
-        // Dispatch all departments in parallel via Bus::batch()
-        $deptCount = count($jobs);
-        Bus::batch($jobs)
-            ->name("sync-hourly:{$shiftDate}:shift-{$shift->shift_number}")
-            ->onQueue('sync')
-            ->allowFailures()
-            ->then(function (Batch $batch) use ($shiftDate, $shift) {
-                Log::info("[SyncHourlyRecords] Batch completed for {$shiftDate} shift {$shift->shift_number}.", [
-                    'total'  => $batch->totalJobs,
-                    'failed' => $batch->failedJobs,
-                ]);
-            })
-            ->catch(function (Batch $batch, \Throwable $e) {
-                Log::warning('[SyncHourlyRecords] Batch had failures.', [
-                    'error' => $e->getMessage(),
-                ]);
-            })
-            ->dispatch();
-
-        $msg = "Dispatched {$deptCount} department sync jobs for {$shiftDate} shift {$shift->shift_number}.";
-        Log::info("[SyncHourlyRecords] {$msg}");
-
-        return ['synced' => $deptCount, 'shift' => $shift, 'message' => $msg];
+        return $data;
     }
 }

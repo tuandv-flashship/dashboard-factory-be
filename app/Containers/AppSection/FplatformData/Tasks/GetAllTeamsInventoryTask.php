@@ -5,21 +5,27 @@ namespace App\Containers\AppSection\FplatformData\Tasks;
 use App\Containers\AppSection\FplatformData\Actions\GetDailyInventoryAction;
 use App\Containers\AppSection\FplatformData\Enums\FactoryLine;
 use App\Containers\AppSection\FplatformData\Enums\Team;
+use App\Containers\AppSection\FplatformData\Jobs\FetchTeamInventoryJob;
 use App\Ship\Parents\Tasks\Task as ParentTask;
+use Illuminate\Bus\PendingBatch;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Get inventory (tổng việc) for ALL teams.
  *
- * Queries run sequentially — with Redis cache (5min/1h TTL),
- * 99%+ of requests are served from cache in <1ms.
- * Cold queries (~5-7 teams) take ~10-15s total but only
- * occur once per cache TTL window.
+ * Two modes:
+ *   1. run()                   — Serve API requests. Reads from composite cache,
+ *                                 falls back to per-team cache, then sequential fetch.
+ *   2. dispatchParallelFetch() — Dispatches FetchTeamInventoryJob × N via Bus::batch().
+ *                                 Each job caches its result individually.
+ *   3. assembleFromCache()     — Builds allInventory from per-team cache keys.
+ *                                 Called after parallel batch completes.
  *
  * Team counts:
- *   - FLS: 5 DTF teams
- *   - PD:  5 DTF + 2 DTG = 7 teams
+ *   - FLS: 6 DTF teams + 5 hotshot = 11 teams
+ *   - PD:  6 DTF + 2 DTG + 5 hotshot = 13 teams
  */
 final class GetAllTeamsInventoryTask extends ParentTask
 {
@@ -44,7 +50,19 @@ final class GetAllTeamsInventoryTask extends ParentTask
         Team::DtgPrintSplit,
     ];
 
+    private const HOTSHOT_TEAMS = [
+        Team::HotshotPrint,
+        Team::HotshotPick,
+        Team::HotshotCut,
+        Team::HotshotMockup,
+        Team::HotshotPackShip,
+    ];
+
+    // ── Mode 1: API / Synchronous ────────────────────────
+
     /**
+     * Serve API requests — composite cache → per-team cache → sequential fallback.
+     *
      * @return array{date: string, teams: array}
      */
     public function run(string $date): array
@@ -54,32 +72,101 @@ final class GetAllTeamsInventoryTask extends ParentTask
         return Cache::remember(
             $cacheKey,
             $this->cacheTtl($date),
-            fn () => $this->fetchAllTeams($date),
+            function () use ($date) {
+                // Try assemble from per-team cache first (parallel batch already ran)
+                $assembled = $this->assembleFromCache($date);
+                if ($assembled) {
+                    return $assembled;
+                }
+
+                // Fallback: sequential fetch (API endpoint, manual resync)
+                return $this->fetchAllTeamsSequential($date);
+            },
+        );
+    }
+
+    // ── Mode 2: Parallel Dispatch ────────────────────────
+
+    /**
+     * Dispatch FetchTeamInventoryJob for each team via Bus::batch().
+     * Returns PendingBatch — caller attaches then() callback for Stage 2.
+     */
+    public function dispatchParallelFetch(string $date): PendingBatch
+    {
+        $teams = $this->resolveTeams();
+
+        $jobs = array_map(
+            fn (Team $team) => (new FetchTeamInventoryJob($team->value, $date))
+                ->onQueue('sync'),
+            $teams,
+        );
+
+        return Bus::batch($jobs)
+            ->name("fetch-inventory:{$date}")
+            ->onQueue('sync')
+            ->allowFailures();
+    }
+
+    // ── Mode 3: Assemble from Per-Team Cache ─────────────
+
+    /**
+     * Build allInventory from individual per-team cache keys.
+     * Returns null if any required team is missing from cache.
+     */
+    public function assembleFromCache(string $date): ?array
+    {
+        $teams = $this->resolveTeams();
+        $results = [];
+
+        foreach ($teams as $team) {
+            $cacheKey = FetchTeamInventoryJob::cacheKey($team->value, $date);
+
+            if (!Cache::has($cacheKey)) {
+                return null; // Not all teams are cached yet
+            }
+
+            $results[$team->value] = Cache::get($cacheKey);
+        }
+
+        $allInventory = $this->formatResponse($date, $results);
+
+        // Cache composite for subsequent reads (API, SyncOrderInventoryTask)
+        Cache::put(
+            "fplatform:all-inventory:{$date}",
+            $allInventory,
+            $this->cacheTtl($date),
+        );
+
+        return $allInventory;
+    }
+
+    // ── Helpers ──────────────────────────────────────────
+
+    /**
+     * Resolve teams to fetch based on current factory.
+     *
+     * @return Team[]
+     */
+    public function resolveTeams(): array
+    {
+        $factory = FactoryLine::current();
+
+        return array_merge(
+            self::DTF_TEAMS,
+            $factory === FactoryLine::PD ? self::DTG_TEAMS : [],
+            self::HOTSHOT_TEAMS,
         );
     }
 
     /**
-     * Execute inventory queries sequentially for each team.
-     *
-     * Why sequential instead of Concurrency::run()?
-     * - process driver spawns child artisan processes (~2-3s bootstrap each)
-     * - With Octane in-memory, children DON'T share the warm state
-     * - Benchmark showed concurrent (17s) was SLOWER than sequential (15s)
-     * - fork driver doesn't work in web requests
-     * - Octane::concurrently() requires Swoole (we use FrankenPHP)
-     * - With Redis cache, cold calls are rare (once per 5min/1h)
+     * Sequential fetch — fallback for API and manual resync.
      */
-    private function fetchAllTeams(string $date): array
+    private function fetchAllTeamsSequential(string $date): array
     {
-        $factory = FactoryLine::current();
         $action = app(GetDailyInventoryAction::class);
-
-        $teams = array_merge(
-            self::DTF_TEAMS,
-            $factory === FactoryLine::PD ? self::DTG_TEAMS : [],
-        );
-
+        $teams = $this->resolveTeams();
         $results = [];
+
         foreach ($teams as $team) {
             try {
                 $results[$team->value] = $action->run($date, $team);
@@ -105,8 +192,9 @@ final class GetAllTeamsInventoryTask extends ParentTask
         $teams = [];
         $factory = FactoryLine::current();
         $defaults = ['estimate_date' => $date, 'tong_viec' => 0];
+        $hotshotDefaults = ['estimate_date' => $date, 'tong_viec' => 0, 'da_lam' => 0];
 
-        // DTF teams: flat structure (one factory per deployment)
+        // DTF teams
         foreach (self::DTF_TEAMS as $team) {
             $result = $results[$team->value] ?? null;
             $teams[$team->value] = array_merge(
@@ -124,6 +212,15 @@ final class GetAllTeamsInventoryTask extends ParentTask
                     $result ?: $defaults,
                 );
             }
+        }
+
+        // Hotshot teams: all factories
+        foreach (self::HOTSHOT_TEAMS as $team) {
+            $result = $results[$team->value] ?? null;
+            $teams[$team->value] = array_merge(
+                ['label' => $team->label()],
+                $result ?: $hotshotDefaults,
+            );
         }
 
         return [

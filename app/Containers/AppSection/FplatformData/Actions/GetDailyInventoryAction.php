@@ -10,6 +10,9 @@ use App\Containers\AppSection\FplatformData\Tasks\GetDtgOrderInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetDtgPickInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetDtgPrintInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetDtgPrintMachineSplitTask;
+use App\Containers\AppSection\FplatformData\Tasks\GetHotshotInventoryTask;
+use App\Containers\AppSection\FplatformData\Tasks\GetHotshotMockupInventoryTask;
+use App\Containers\AppSection\FplatformData\Tasks\GetHotshotPackShipInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetMockupInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetOrderInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetPackShipInventoryTask;
@@ -29,6 +32,9 @@ final class GetDailyInventoryAction extends ParentAction
         private readonly GetDtgPrintInventoryTask $dtgPrintInventoryTask,
         private readonly GetDtgPrintMachineSplitTask $dtgPrintMachineSplitTask,
         private readonly GetDtgOrderInventoryTask $dtgOrderInventoryTask,
+        private readonly GetHotshotInventoryTask $hotshotInventoryTask,
+        private readonly GetHotshotMockupInventoryTask $hotshotMockupInventoryTask,
+        private readonly GetHotshotPackShipInventoryTask $hotshotPackShipInventoryTask,
     ) {
     }
 
@@ -53,6 +59,13 @@ final class GetDailyInventoryAction extends ParentAction
             Team::PickDtg       => $this->dtgPickInventoryTask->run($date),
             Team::DtgPrint      => $this->dtgPrintInventoryTask->run($date),
             Team::DtgPrintSplit => $this->dtgPrintMachineSplitTask->run($date),
+
+            // Hotshot teams
+            Team::HotshotPrint   => $this->hotshotInventoryTask->run($date, $factoryLine, WorkType::In),
+            Team::HotshotPick    => $this->hotshotInventoryTask->run($date, $factoryLine, WorkType::Pick),
+            Team::HotshotCut     => $this->hotshotInventoryTask->run($date, $factoryLine, WorkType::Cat),
+            Team::HotshotMockup  => $this->hotshotMockupInventoryTask->run($date, $factoryLine),
+            Team::HotshotPackShip => $this->hotshotPackShipInventoryTask->run($date, $factoryLine),
         };
     }
 

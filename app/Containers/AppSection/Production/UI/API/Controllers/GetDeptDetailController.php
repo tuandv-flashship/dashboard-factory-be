@@ -82,6 +82,8 @@ final class GetDeptDetailController extends ApiController
                     'completed' => $totalCompleted,
                     'remaining' => max(0, $totalTarget - $totalCompleted),
                     'day_start_inventory' => $data['shift_detail']?->day_start_inventory ?? 0,
+                    'hotshot_total' => $data['shift_detail']?->hotshot_total ?? 0,
+                    'hotshot_completed' => $data['shift_detail']?->hotshot_completed ?? 0,
                     'staff' => $records->first()?->staff ?? 0,
                     'efficiency' => $records->first()?->efficiency ?? 0,
                     'error_rate' => $records->first()?->error_rate ?? 0,

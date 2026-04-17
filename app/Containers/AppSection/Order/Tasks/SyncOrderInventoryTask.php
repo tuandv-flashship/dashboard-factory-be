@@ -3,9 +3,9 @@
 namespace App\Containers\AppSection\Order\Tasks;
 
 use App\Containers\AppSection\FplatformData\Enums\FactoryLine;
+use App\Containers\AppSection\FplatformData\Tasks\GetAllTeamsInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetDtgOrderInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetHotshotOrderInventoryTask;
-use App\Containers\AppSection\FplatformData\Tasks\GetOrderInventoryTask;
 use App\Containers\AppSection\Order\Models\OrderSummary;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
@@ -15,9 +15,11 @@ use Illuminate\Support\Facades\Log;
 /**
  * Sync order inventory (tồn đơn hàng) from Fplatform → order_summaries.
  *
- * Fetches per-line data (DTF + DTG) via tong_viec/da_lam and hotshot counts from fplatform,
- * then upserts into the local order_summaries table.
- * Called by SyncOrderInventoryJob.
+ * DTF order inventory is read from the shared allInventory cache
+ * (populated by SyncHourlyRecordsTask) to avoid duplicate FPlatform queries.
+ * DTG order and hotshot order data are fetched separately.
+ *
+ * Called by SyncHourlyRecordsTask (primary) and SyncOrderInventoryJob (manual resync).
  *
  * Line mapping:
  *   - FLS: line='dtf' (DTF1-FLS)
@@ -27,23 +29,11 @@ use Illuminate\Support\Facades\Log;
  */
 final class SyncOrderInventoryTask extends ParentTask
 {
-    /** @var GetOrderInventoryTask */
-    private $dtfTask;
-
-    /** @var GetDtgOrderInventoryTask */
-    private $dtgTask;
-
-    /** @var GetHotshotOrderInventoryTask */
-    private $hotshotTask;
-
     public function __construct(
-        GetOrderInventoryTask $dtfTask,
-        GetDtgOrderInventoryTask $dtgTask,
-        GetHotshotOrderInventoryTask $hotshotTask,
+        private readonly GetAllTeamsInventoryTask $allTeamsInventoryTask,
+        private readonly GetDtgOrderInventoryTask $dtgTask,
+        private readonly GetHotshotOrderInventoryTask $hotshotTask,
     ) {
-        $this->dtfTask = $dtfTask;
-        $this->dtgTask = $dtgTask;
-        $this->hotshotTask = $hotshotTask;
     }
 
     public function run(?string $date = null): void
@@ -70,13 +60,15 @@ final class SyncOrderInventoryTask extends ParentTask
         // estimated_done = thời gian kết thúc ca của department muộn nhất
         $estimatedDone = $this->resolveEstimatedDone($shift);
 
-        // ── Fetch from fplatform ──────────────────────────
-        $dtfResult = $this->dtfTask->run($today, $factory);
+        // ── Fetch inventory (cache hit if SyncHourlyRecords already ran) ──
+        $allInventory = $this->allTeamsInventoryTask->run($today);
+        $dtfResult = $allInventory['teams']['order_inventory'] ?? null;
+
         $dtgResult = $factory === FactoryLine::PD
             ? $this->dtgTask->run($today)
             : null;
 
-        // Hotshot (DTF only — filters by MayHOTSHOT/MayHOTSHOTPD)
+        // Hotshot orders (DTF only — filters by MayHOTSHOT/MayHOTSHOTPD)
         $hotshotResult = $this->hotshotTask->run($today, $factory);
 
         // ── Upsert per-line rows ──────────────────────────

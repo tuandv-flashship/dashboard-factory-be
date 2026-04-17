@@ -34,6 +34,6 @@ final class ResyncHourlyRecordsController extends ApiController
         return response()->json([
             'message' => $result['message'],
             'synced'  => $result['synced'],
-        ]);
+        ], 202);
     }
 }

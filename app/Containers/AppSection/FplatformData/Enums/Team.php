@@ -13,6 +13,11 @@ enum Team: string
     case DtgPrint      = 'dtg_print';
     case DtgPrintSplit = 'dtg_print_split';
     case OrderInventory = 'order_inventory';
+    case HotshotPrint   = 'hotshot_print';
+    case HotshotPick    = 'hotshot_pick';
+    case HotshotCut     = 'hotshot_cut';
+    case HotshotMockup  = 'hotshot_mockup';
+    case HotshotPackShip = 'hotshot_pack_ship';
 
     public function label(): string
     {
@@ -26,6 +31,11 @@ enum Team: string
             self::DtgPrint       => 'In (DTG)',
             self::DtgPrintSplit  => 'In (DTG) - Machine Split',
             self::OrderInventory => 'Tồn đơn hàng',
+            self::HotshotPrint   => 'Hotshot In',
+            self::HotshotPick    => 'Hotshot Pick',
+            self::HotshotCut     => 'Hotshot Cắt',
+            self::HotshotMockup  => 'Hotshot Mockup',
+            self::HotshotPackShip => 'Hotshot Pack & Ship',
         };
     }
 

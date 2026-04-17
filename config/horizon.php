@@ -169,7 +169,7 @@ return [
     |
     | Queues:
     |   - default: general jobs (CreateDailyShiftJob, SyncHourlyRecordsJob)
-    |   - sync: parallel department sync (SyncDepartmentHourlyJob via Bus::batch)
+    |   - sync: parallel inventory fetch (FetchTeamInventoryJob) + dept sync (SyncDepartmentHourlyJob)
     |   - notifications: email notifications (Welcome, EmailVerified, etc.)
     |   - media: thumbnail generation (GenerateThumbnailsJob)
     |
@@ -194,7 +194,7 @@ return [
     'environments' => [
         'production' => [
             'supervisor-1' => [
-                'maxProcesses' => 10,
+                'maxProcesses' => 15,
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
@@ -202,20 +202,20 @@ return [
 
         'staging' => [
             'supervisor-1' => [
-                'maxProcesses' => 10,
+                'maxProcesses' => 15,
             ],
         ],
 
         'local' => [
             'supervisor-1' => [
-                'maxProcesses' => 10,
+                'maxProcesses' => 15,
             ],
         ],
 
         // Fallback for APP_ENV=fls or APP_ENV=pd (factory-env.sh)
         '*' => [
             'supervisor-1' => [
-                'maxProcesses' => 10,
+                'maxProcesses' => 15,
             ],
         ],
     ],

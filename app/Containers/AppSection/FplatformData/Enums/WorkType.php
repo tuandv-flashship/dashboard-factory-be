@@ -13,14 +13,14 @@ enum WorkType: int
      *
      * - In (0):   work_status = 1 (đã in xong)
      * - Cat (2):  work_status = 0 (đã nhận vào cắt; chưa cắt = NULL)
-     * - Pick (100): work_status = 1 (đã pick xong)
+     * - Pick (100): work_status = 0 (đã pick xong)
      */
     public function doneStatus(): int
     {
         return match ($this) {
             self::In   => 1,
             self::Cat  => 0,
-            self::Pick => 1,
+            self::Pick => 0,
         };
     }
 
