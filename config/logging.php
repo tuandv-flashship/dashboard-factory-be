@@ -32,8 +32,9 @@ return [
     */
 
     'deprecations' => [
-        'channel' => env('LOG_DEPRECATIONS_CHANNEL', 'null'),
+        'channel' => env('LOG_DEPRECATIONS_CHANNEL', 'single'),
         'trace' => env('LOG_DEPRECATIONS_TRACE', false),
+        'path' => storage_path('logs/deprecations.log'),
     ],
 
     /*
