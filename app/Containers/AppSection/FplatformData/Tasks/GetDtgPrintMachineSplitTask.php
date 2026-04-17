@@ -57,20 +57,25 @@ final class GetDtgPrintMachineSplitTask extends ParentTask
             return null;
         }
 
+        $tongViecApollo = (int) $result->tong_viec_apollo;
+        $tongViecAtlas1 = (int) $result->tong_viec_atlas1;
+        $tongViecAtlas2 = (int) $result->tong_viec_atlas2;
+
         return [
             'estimate_date' => $result->estimate_date,
+            'tong_viec'     => $tongViecApollo + $tongViecAtlas1 + $tongViecAtlas2,
             'machines'      => [
                 'apollo' => [
                     'ratio'     => '62.5%',
-                    'tong_viec' => (int) $result->tong_viec_apollo,
+                    'tong_viec' => $tongViecApollo,
                 ],
                 'atlas_1' => [
                     'ratio'     => '18.75%',
-                    'tong_viec' => (int) $result->tong_viec_atlas1,
+                    'tong_viec' => $tongViecAtlas1,
                 ],
                 'atlas_2' => [
                     'ratio'     => '18.75%',
-                    'tong_viec' => (int) $result->tong_viec_atlas2,
+                    'tong_viec' => $tongViecAtlas2,
                 ],
             ],
         ];

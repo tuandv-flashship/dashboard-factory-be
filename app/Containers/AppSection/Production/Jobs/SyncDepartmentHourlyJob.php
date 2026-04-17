@@ -184,14 +184,16 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             }
 
             $actual           = (int) ($productivityMap[$hourKey] ?? 0);
-            $staff            = (int) ($staffCountMap[$hourKey] ?? 0);
+            $staff            = $isPerMachine
+                ? $this->countMachinesFromInventory($team, $allInventory)
+                : (int) ($staffCountMap[$hourKey] ?? 0);
             $productivityJson = $productivityDetailMap[$hourKey] ?? null;
 
             // ── Already completed → re-sync actual + recalc metrics ──
             if ($record->status === HourlyRecordStatus::Completed->value) {
                 $remainingKpiHours = $totalKpiHours - $pastKpiHours;
                 $hourStartInventory = max(0, $dayStartInventory - $pastActual);
-                $staffRequired = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiHours);
+                $staffRequired = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiHours, $detail);
 
                 $target = $this->computeTarget(
                     $staffRequired, $kpiPerHour, $record->kpi_hours,
@@ -219,7 +221,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
             if ($isCurrentSlot || $isPassedSlot) {
                 $this->updateRecord(
-                    $record, $dept, $dayStartInventory,
+                    $record, $dept, $detail, $dayStartInventory,
                     $actual, $staff, $productivityJson,
                     $pastActual, $pastKpiHours, $totalKpiHours,
                     $kpiPerHour, $lastHourIndex,
@@ -235,6 +237,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
     private function updateRecord(
         HourlyRecord $record,
         Department $dept,
+        ShiftDetail $detail,
         int $dayStartInventory,
         int $actual,
         int $staff,
@@ -250,7 +253,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
     ): void {
         $hourStartInventory = max(0, $dayStartInventory - $pastActual);
         $remainingKpiHours  = $totalKpiHours - $pastKpiHours;
-        $staffRequired      = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiHours);
+        $staffRequired      = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiHours, $detail);
 
         $slotStart = $actualSlot ? $actualSlot['start'] : null;
         $slotEnd   = $actualSlot ? $actualSlot['end']   : null;
@@ -340,10 +343,10 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         return $target;
     }
 
-    private function computeStaffRequired(Department $dept, int $inventory, float $remainingKpiHours): ?int
+    private function computeStaffRequired(Department $dept, int $inventory, float $remainingKpiHours, ?ShiftDetail $detail = null): ?int
     {
         if ($dept->productivity_type === ProductivityType::PerMachine) {
-            return 1;
+            return $detail ? $detail->machines()->count() : 0;
         }
 
         $kpiPerHour = $dept->kpi_per_hour ?? 0;
@@ -357,7 +360,14 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
     private function refreshDayStartInventory(ShiftDetail $detail, Team $team, array $allInventory): int
     {
-        $teamData = $allInventory['teams'][$team->value] ?? null;
+        // DtgPrint hourly metrics use Team::DtgPrint,
+        // but inventory is stored under Team::DtgPrintSplit key
+        $inventoryKey = match ($team) {
+            Team::DtgPrint => Team::DtgPrintSplit->value,
+            default        => $team->value,
+        };
+
+        $teamData = $allInventory['teams'][$inventoryKey] ?? null;
         $tongViec = (int) ($teamData['tong_viec'] ?? 0);
 
         if ($tongViec > 0 && $tongViec !== $detail->day_start_inventory) {
@@ -365,6 +375,26 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         }
 
         return $tongViec > 0 ? $tongViec : $detail->day_start_inventory;
+    }
+
+    /**
+     * Count machines from FPlatform inventory for per_machine departments.
+     * e.g. dtg_print_split has 3 machines (apollo, atlas_1, atlas_2) → staff = 3.
+     */
+    private function countMachinesFromInventory(Team $team, array $allInventory): int
+    {
+        $inventoryKey = match ($team) {
+            Team::DtgPrint => Team::DtgPrintSplit->value,
+            default        => $team->value,
+        };
+
+        $teamData = $allInventory['teams'][$inventoryKey] ?? null;
+
+        if (!$teamData || !isset($teamData['machines'])) {
+            return 0;
+        }
+
+        return count($teamData['machines']);
     }
 
     private function parseHourSlot(string $hourSlot, string $shiftDate): array
