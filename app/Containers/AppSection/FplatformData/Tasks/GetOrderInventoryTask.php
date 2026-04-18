@@ -68,14 +68,15 @@ final class GetOrderInventoryTask extends ParentTask
                 ) b
                 GROUP BY estimate_date
             )
-            SELECT * FROM (
+            SELECT tong_viec, tong_viec - con_lai AS da_lam
+            FROM (
                 SELECT
                     estimate_date,
                     total_order + COALESCE(SUM(not_done) OVER (
                         ORDER BY estimate_date
                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
                     ), 0) AS tong_viec,
-                    SUM(not_done) OVER (ORDER BY estimate_date) AS da_lam
+                    SUM(not_done) OVER (ORDER BY estimate_date) AS con_lai
                 FROM daily_aggregated
             ) final_result
             WHERE estimate_date = ?
