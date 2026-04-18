@@ -46,11 +46,11 @@ final class GetHourlyDtgPrintMetricsTask extends ParentTask
 
         $sql = "
             SELECT
-                LEFT(CONVERT_TZ(created_at, '+7:00', 'US/Central'), 13) AS date_hour,
+                LEFT(CONVERT_TZ(printed_at, '+7:00', 'US/Central'), 13) AS date_hour,
                 {$selectClause}
             FROM dtg_printed_product
-            WHERE created_at >= CONVERT_TZ(?, 'US/Central', '+7:00')
-                AND created_at <  CONVERT_TZ(?, 'US/Central', '+7:00')
+            WHERE printed_at >= CONVERT_TZ(?, 'US/Central', '+7:00')
+                AND printed_at <  CONVERT_TZ(?, 'US/Central', '+7:00')
                 AND print_status = 1
             {$groupBy}
             {$orderBy}
