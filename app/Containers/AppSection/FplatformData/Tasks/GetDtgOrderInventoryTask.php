@@ -24,7 +24,7 @@ final class GetDtgOrderInventoryTask extends ParentTask
                     estimate_folder_date AS estimate_date,
                     order_code, index_num
                 FROM dtg_item_detail
-                WHERE estimate_folder_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                WHERE folder_date BETWEEN ? - INTERVAL 10 DAY AND ?
                     AND active = 1
             ),
             daily_aggregated AS (
@@ -43,7 +43,7 @@ final class GetDtgOrderInventoryTask extends ParentTask
                 ) b
                 GROUP BY estimate_date
             )
-            SELECT tong_viec, tong_viec - con_lai AS da_lam
+            SELECT estimate_date, tong_viec, tong_viec - con_lai AS da_lam
             FROM (
                 SELECT
                     estimate_date,

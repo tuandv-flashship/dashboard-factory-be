@@ -68,7 +68,7 @@ final class GetOrderInventoryTask extends ParentTask
                 ) b
                 GROUP BY estimate_date
             )
-            SELECT tong_viec, tong_viec - con_lai AS da_lam
+            SELECT estimate_date, tong_viec, tong_viec - con_lai AS da_lam
             FROM (
                 SELECT
                     estimate_date,

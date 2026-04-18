@@ -4,7 +4,6 @@ namespace App\Containers\AppSection\Order\Tasks;
 
 use App\Containers\AppSection\FplatformData\Enums\FactoryLine;
 use App\Containers\AppSection\FplatformData\Tasks\GetAllTeamsInventoryTask;
-use App\Containers\AppSection\FplatformData\Tasks\GetDtgOrderInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetHotshotOrderInventoryTask;
 use App\Containers\AppSection\Order\Models\OrderSummary;
 use App\Containers\AppSection\Shift\Models\Shift;
@@ -15,14 +14,14 @@ use Illuminate\Support\Facades\Log;
 /**
  * Sync order inventory (tồn đơn hàng) from Fplatform → order_summaries.
  *
- * DTF order inventory is read from the shared allInventory cache
- * (populated by SyncHourlyRecordsTask) to avoid duplicate FPlatform queries.
- * DTG order and hotshot order data are fetched separately.
+ * Both DTF and DTG order inventory are read from the shared allInventory cache
+ * (populated by GetAllTeamsInventoryTask via order_inventory.lines.dtf/dtg),
+ * avoiding duplicate FPlatform queries.
  *
  * Called by SyncHourlyRecordsTask (primary) and SyncOrderInventoryJob (manual resync).
  *
  * Line mapping:
- *   - FLS: line='dtf' (DTF1-FLS)
+ *   - FLS: line='dtf' (DTF1-FLS) only
  *   - PD:  line='dtf' (DTF2-PD) + line='dtg' (DTG-PD)
  *
  * Note: line=null (total) is NOT written — FE computes totals itself.
@@ -31,7 +30,6 @@ final class SyncOrderInventoryTask extends ParentTask
 {
     public function __construct(
         private readonly GetAllTeamsInventoryTask $allTeamsInventoryTask,
-        private readonly GetDtgOrderInventoryTask $dtgTask,
         private readonly GetHotshotOrderInventoryTask $hotshotTask,
     ) {
     }
@@ -64,10 +62,6 @@ final class SyncOrderInventoryTask extends ParentTask
         $allInventory = $this->allTeamsInventoryTask->run($today);
         $dtfResult = $allInventory['teams']['order_inventory'] ?? null;
 
-        $dtgResult = $factory === FactoryLine::PD
-            ? $this->dtgTask->run($today)
-            : null;
-
         // Hotshot orders (DTF only — filters by MayHOTSHOT/MayHOTSHOTPD)
         $hotshotResult = $this->hotshotTask->run($today, $factory);
 
@@ -75,24 +69,34 @@ final class SyncOrderInventoryTask extends ParentTask
         $upserted = 0;
 
         if ($dtfResult) {
-            $rushTotal = $hotshotResult ? $hotshotResult['tong_viec'] : 0;
-            $rushCompleted = $hotshotResult ? $hotshotResult['da_lam'] : 0;
+            // order_inventory contains combined totals + per-line breakdown.
+            // We must use lines.dtf for the DTF line — NOT the combined total.
+            $dtfLine = $dtfResult['lines']['dtf'] ?? null;
 
-            $this->upsertLine(
-                $today, $shiftNumber,
-                'dtf', 'DTF',
-                $dtfResult['tong_viec'], $dtfResult['da_lam'],
-                $rushTotal, $rushCompleted,
-                $estimatedDone,
-            );
-            $upserted++;
+            if ($dtfLine) {
+                $rushTotal     = $hotshotResult ? $hotshotResult['tong_viec'] : 0;
+                $rushCompleted = $hotshotResult ? $hotshotResult['da_lam'] : 0;
+
+                $this->upsertLine(
+                    $today, $shiftNumber,
+                    'dtf', 'DTF',
+                    $dtfLine['tong_viec'], $dtfLine['da_lam'],
+                    $rushTotal, $rushCompleted,
+                    $estimatedDone,
+                );
+                $upserted++;
+            }
         }
 
-        if ($dtgResult) {
+        // DTG: always present in order_inventory.lines.dtg for PD factory
+        // (guaranteed by GetDailyInventoryAction::runOrderInventory)
+        $dtgLine = $dtfResult['lines']['dtg'] ?? null;
+
+        if ($dtgLine && $dtgLine['tong_viec'] > 0) {
             $this->upsertLine(
                 $today, $shiftNumber,
                 'dtg', 'DTG',
-                $dtgResult['tong_viec'], $dtgResult['da_lam'],
+                $dtgLine['tong_viec'], $dtgLine['da_lam'],
                 0, 0,
                 $estimatedDone,
             );
