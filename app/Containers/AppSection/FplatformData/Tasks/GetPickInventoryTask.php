@@ -30,7 +30,7 @@ final class GetPickInventoryTask extends ParentTask
                 LEFT JOIN user_group_scan s
                     ON f.folder_code = s.folder_code
                     AND s.work_type = 100
-                    AND s.work_status = 1
+                    AND s.work_status = 0
                     AND s.copy_job = 0
                 WHERE f.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
                     AND f.status_folder <> 2
