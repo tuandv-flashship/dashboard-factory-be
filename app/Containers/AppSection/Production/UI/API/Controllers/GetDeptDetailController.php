@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Production\UI\API\Controllers;
 
+use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Containers\AppSection\Production\Actions\GetDeptDetailAction;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyIssueTransformer;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyRecordTransformer;
@@ -62,20 +63,27 @@ final class GetDeptDetailController extends ApiController
                     'code' => $data['line']->code,
                     'label' => $data['line']->label,
                 ],
-                'department' => isset($data['department']) ? [
-                    'id' => $data['department']->getHashedKey(),
-                    'code' => $data['department']->code,
-                    'label' => $data['department']->label,
-                    'label_en' => $data['department']->label_en,
-                    'description' => $data['department']->description,
-                    'icon' => $data['department']->icon,
-                    'unit' => $data['department']->unit,
-                    'kpi_per_hour' => $data['department']->kpi_per_hour,
-                    'factory' => $data['department']->factory,
-                    'sort_order' => $data['department']->sort_order,
-                    'is_active' => $data['department']->is_active,
-                    'productivity_type' => $data['department']->productivity_type,
-                ] : null,
+                'department' => isset($data['department']) ? (static function ($dept, $shiftDetail) {
+                    $isPerMachine = $dept->productivity_type === ProductivityType::PerMachine;
+                    $kpiPerHour = $isPerMachine
+                        ? ($shiftDetail?->kpi_per_hour ?? 0)
+                        : $dept->kpi_per_hour;
+
+                    return [
+                        'id'               => $dept->getHashedKey(),
+                        'code'             => $dept->code,
+                        'label'            => $dept->label,
+                        'label_en'         => $dept->label_en,
+                        'description'      => $dept->description,
+                        'icon'             => $dept->icon,
+                        'unit'             => $dept->unit,
+                        'kpi_per_hour'     => $kpiPerHour,
+                        'factory'          => $dept->factory,
+                        'sort_order'       => $dept->sort_order,
+                        'is_active'        => $dept->is_active,
+                        'productivity_type'=> $dept->productivity_type,
+                    ];
+                })($data['department'], $data['shift_detail']) : null,
                 'hours' => $recordsData->values(),
                 'summary' => [
                     'total_target' => $totalTarget,
