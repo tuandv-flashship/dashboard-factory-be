@@ -58,6 +58,8 @@ final class GetDeptDetailController extends ApiController
         $completedRecords = $records->whereNotNull('actual');
         $totalCompleted = $completedRecords->sum('actual');
         $totalTarget = $records->sum('target');
+        $day_start_inventory = $data['shift_detail']?->day_start_inventory ?? 0;
+        $remaining = max(0, $day_start_inventory - $totalCompleted);
 
         $response = [
             'data' => [
@@ -93,13 +95,17 @@ final class GetDeptDetailController extends ApiController
                 'summary' => [
                     'total_target' => $totalTarget,
                     'completed' => $totalCompleted,
-                    'remaining' => max(0, $totalTarget - $totalCompleted),
-                    'day_start_inventory' => $data['shift_detail']?->day_start_inventory ?? 0,
+                    'remaining' => $remaining,
+                    'day_start_inventory' => $day_start_inventory,
                     'hotshot_total' => $data['shift_detail']?->hotshot_total ?? 0,
                     'hotshot_completed' => $data['shift_detail']?->hotshot_completed ?? 0,
-                    'staff' => $records->first()?->staff ?? 0,
-                    'efficiency' => $records->first()?->efficiency ?? 0,
-                    'error_rate' => $records->first()?->error_rate ?? 0,
+                    'efficiency' => (function () use ($completedRecords) {
+                        $withEfficiency = $completedRecords->where('efficiency', '>', 0);
+                        return $withEfficiency->isNotEmpty()
+                            ? round($withEfficiency->avg('efficiency'), 2)
+                            : 0;
+                    })(),
+                    'error_rate' => 0,
                 ],
             ],
         ];

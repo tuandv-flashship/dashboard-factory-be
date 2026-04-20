@@ -225,6 +225,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         }
 
         $currentInv = $dayStartInventory; // ← single source of truth, updated each slot
+        $currentSlotStaffRequired = null; // staff_required of the currently active slot
 
         foreach ($records as $record) {
             [$queryStart, $queryEnd] = $this->parseHourSlot($record->hour_slot, $shiftDate);
@@ -242,17 +243,26 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             $remainingKpiMinutes = $totalKpiMinutes - $pastKpiMinutes;
             $staffRequired       = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail);
 
+            // Capture staff_required of the currently active slot for future slots to inherit
+            if ($isCurrentSlot) {
+                $currentSlotStaffRequired = $staffRequired;
+            }
+
             // ── Future slot: compute target only, preserve actual=0/null ──
             if ($isFutureSlot) {
+                // Use current slot's staff_required so future slots reflect the same
+                // headcount needed right now, rather than a per-slot recomputation.
+                $futureStaffRequired = $currentSlotStaffRequired ?? $staffRequired;
+
                 $target = $this->computeTarget(
-                    $staffRequired, $kpiPerHour, $record->kpi_percent,
+                    $futureStaffRequired, $kpiPerHour, $record->kpi_percent,
                     $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
                 );
 
-                if ($record->target !== $target || $record->hour_start_inventory !== $hourStartInventory) {
+                if ($record->target !== $target || $record->hour_start_inventory !== $hourStartInventory || $record->staff_required !== $futureStaffRequired) {
                     $record->update([
                         'target'               => $target,
-                        'staff_required'       => $staffRequired,
+                        'staff_required'       => $futureStaffRequired,
                         'hour_start_inventory' => $hourStartInventory,
                     ]);
                 }
