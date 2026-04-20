@@ -281,10 +281,13 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
             // ── Already completed → re-sync actual + recalc metrics ──
             if ($record->status === HourlyRecordStatus::Completed->value) {
-                $target = $this->computeTarget(
-                    $staffRequired, $kpiPerHour, $record->kpi_percent,
-                    $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
-                );
+                // Completed (past) slots: target = staff × kpi_per_hour × kpi_percent
+                $target = $staff > 0
+                    ? (int) round($staff * $kpiPerHour * $record->kpi_percent / 100)
+                    : $this->computeTarget(
+                        $staffRequired, $kpiPerHour, $record->kpi_percent,
+                        $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
+                    );
 
                 $record->update([
                     'actual'               => $actual,
@@ -320,6 +323,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                     : max(0, $currentInv - $target);
                 $updated++;
             }
+
         }
 
         return $updated;
@@ -364,10 +368,14 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             $kpiPercent = $record->kpi_percent;
         }
 
-        $target = $this->computeTarget(
-            $staffRequired, $kpiPerHour, $kpiPercent,
-            $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
-        );
+        // Passed (completed) slots: target = staff × kpi_per_hour × kpi_percent
+        // Active (current) slots: target = staff_required × kpi_per_hour × kpi_percent
+        $target = ($isCompleted && $staff > 0)
+            ? (int) round($staff * $kpiPerHour * $kpiPercent / 100)
+            : $this->computeTarget(
+                $staffRequired, $kpiPerHour, $kpiPercent,
+                $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
+            );
 
         $status = $isCompleted
             ? HourlyRecordStatus::Completed
