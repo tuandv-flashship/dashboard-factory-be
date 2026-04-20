@@ -9,6 +9,7 @@ use App\Containers\AppSection\FplatformData\Enums\HourlyMetricType;
 use App\Containers\AppSection\FplatformData\Enums\Team;
 use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Traits\ComputesKpiHours;
@@ -19,6 +20,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -90,6 +92,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
             if ($synced > 0) {
                 Log::info("[SyncDepartmentHourly] Synced {$synced} records for {$dept->code}.");
+                $this->invalidateCache($shift, $dept);
             }
         } catch (\Throwable $e) {
             Log::warning('[SyncDepartmentHourly] Failed', [
@@ -99,6 +102,39 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
             throw $e; // Let the batch handle the failure
         }
+    }
+
+    /**
+     * Flush cached API responses for the synced date+shift so the
+     * next request always returns fresh numbers after a sync completes.
+     *
+     * Only historical dates are ever cached, so today's requests
+     * are always live and don't need flushing.
+     */
+    private function invalidateCache(Shift $shift, Department $dept): void
+    {
+        $date      = $shift->date->toDateString();
+        $shiftNum  = $shift->shift;
+
+        if (!ProductionCacheKeys::isHistorical($date)) {
+            return; // live data is never cached — nothing to flush
+        }
+
+        $line = $dept->productionLine?->code;
+
+        $keys = array_filter([
+            $line ? ProductionCacheKeys::deptDetail($line, $dept->code, $date, $shiftNum) : null,
+            $line ? ProductionCacheKeys::lineSummary($line, $date, $shiftNum)             : null,
+            ProductionCacheKeys::quality($date, $shiftNum),
+        ]);
+
+        foreach ($keys as $key) {
+            Cache::forget($key);
+        }
+
+        Log::debug('[SyncDepartmentHourly] Cache invalidated', [
+            'keys' => array_values($keys),
+        ]);
     }
 
     private function syncDepartment(

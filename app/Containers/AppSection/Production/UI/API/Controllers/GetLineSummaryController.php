@@ -9,6 +9,7 @@ use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftDetailTransformer;
 use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
@@ -21,12 +22,12 @@ final class GetLineSummaryController extends ApiController
 
     public function __invoke(string $line, ShiftFilterRequest $request): JsonResponse
     {
-        $date = $request->filterDate();
+        $date  = $request->filterDate();
         $shift = $request->filterShift();
-        $isHistorical = $date !== null && $date < now()->toDateString();
 
-        // Cache historical data for 1 hour (it won't change)
-        $cacheKey = $isHistorical ? "line-summary:{$line}:{$date}:{$shift}" : null;
+        $cacheKey = ProductionCacheKeys::isHistorical($date)
+            ? ProductionCacheKeys::lineSummary($line, $date, $shift)
+            : null;
 
         if ($cacheKey && Cache::has($cacheKey)) {
             return response()->json(Cache::get($cacheKey));
@@ -68,7 +69,7 @@ final class GetLineSummaryController extends ApiController
         ];
 
         if ($cacheKey) {
-            Cache::put($cacheKey, $response, now()->addHour());
+            Cache::put($cacheKey, $response, ProductionCacheKeys::TTL_HISTORICAL);
         }
 
         return response()->json($response);

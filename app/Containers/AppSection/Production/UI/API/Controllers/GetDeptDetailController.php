@@ -10,6 +10,7 @@ use App\Containers\AppSection\Production\UI\API\Transformers\ShiftTransformer;
 use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftDetailTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
@@ -22,14 +23,12 @@ final class GetDeptDetailController extends ApiController
 
     public function __invoke(string $line, string $dept, ShiftFilterRequest $request): JsonResponse
     {
-        $date = $request->filterDate();
+        $date  = $request->filterDate();
         $shift = $request->filterShift();
 
-        // Only treat as historical (and cache) if the date is strictly in the past.
-        // Today's date — even when passed explicitly — is a live shift, not historical.
-        $isHistorical = $date !== null && $date < now()->toDateString();
-
-        $cacheKey = $isHistorical ? "dept-detail:{$line}:{$dept}:{$date}:{$shift}" : null;
+        $cacheKey = ProductionCacheKeys::isHistorical($date)
+            ? ProductionCacheKeys::deptDetail($line, $dept, $date, $shift)
+            : null;
 
         if ($cacheKey && Cache::has($cacheKey)) {
             return response()->json(Cache::get($cacheKey));
@@ -106,7 +105,7 @@ final class GetDeptDetailController extends ApiController
         ];
 
         if ($cacheKey) {
-            Cache::put($cacheKey, $response, now()->addHour());
+            Cache::put($cacheKey, $response, ProductionCacheKeys::TTL_HISTORICAL);
         }
 
         return response()->json($response);

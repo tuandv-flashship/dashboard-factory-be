@@ -7,6 +7,7 @@ use App\Containers\AppSection\Quality\Actions\GetQualityDataAction;
 use App\Containers\AppSection\Quality\UI\API\Transformers\QualityRecordTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
@@ -19,11 +20,12 @@ final class GetQualityDataController extends ApiController
 
     public function __invoke(ShiftFilterRequest $request): JsonResponse
     {
-        $date = $request->filterDate();
+        $date  = $request->filterDate();
         $shift = $request->filterShift();
-        $isHistorical = $date !== null && $date < now()->toDateString();
 
-        $cacheKey = $isHistorical ? "quality:{$date}:{$shift}" : null;
+        $cacheKey = ProductionCacheKeys::isHistorical($date)
+            ? ProductionCacheKeys::quality($date, $shift)
+            : null;
 
         if ($cacheKey && Cache::has($cacheKey)) {
             return response()->json(Cache::get($cacheKey));
@@ -38,7 +40,7 @@ final class GetQualityDataController extends ApiController
         $response = Response::create($record, QualityRecordTransformer::class)->ok();
 
         if ($cacheKey) {
-            Cache::put($cacheKey, $response->getData(true), now()->addHour());
+            Cache::put($cacheKey, $response->getData(true), ProductionCacheKeys::TTL_HISTORICAL);
         }
 
         return $response;
