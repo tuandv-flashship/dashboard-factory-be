@@ -15,13 +15,19 @@ use Illuminate\Support\Carbon;
 trait ComputesKpiHours
 {
     /**
-     * Compute effective KPI hours for a slot by subtracting break overlaps.
+     * Compute effective KPI data for a slot by subtracting break overlaps.
+     *
+     * Returns:
+     *   - minutes: int   — exact integer minutes (no rounding loss, single source of truth)
+     *   - percent: float — kpi_minutes / 60 * 100, rounded to 2dp
+     *   - hours:   float — kpi_minutes / 60, rounded to 2dp (backward-compat)
      *
      * @param  Carbon                                    $slotStart
      * @param  Carbon                                    $slotEnd
      * @param  array<array{start: Carbon, end: Carbon}>  $breaks
+     * @return array{minutes: int, percent: float, hours: float}
      */
-    protected function computeKpiHours(Carbon $slotStart, Carbon $slotEnd, array $breaks): float
+    protected function computeKpiHoursData(Carbon $slotStart, Carbon $slotEnd, array $breaks): array
     {
         $overlapMinutes = 0;
 
@@ -37,18 +43,58 @@ trait ComputesKpiHours
         $slotMinutes = $slotStart->diffInMinutes($slotEnd);
         $kpiMinutes  = max(0, $slotMinutes - $overlapMinutes);
 
-        return round($kpiMinutes / 60, 2);
+        return [
+            'minutes' => $kpiMinutes,
+            'percent' => round($kpiMinutes / 60 * 100, 2),
+            'hours'   => round($kpiMinutes / 60, 2),
+        ];
     }
+
+    /**
+     * Compute effective KPI hours for a slot (backward-compatible wrapper).
+     *
+     * Prefer computeKpiHoursData() for new code to get all three values at once.
+     *
+     * @param  Carbon                                    $slotStart
+     * @param  Carbon                                    $slotEnd
+     * @param  array<array{start: Carbon, end: Carbon}>  $breaks
+     */
+    protected function computeKpiHours(Carbon $slotStart, Carbon $slotEnd, array $breaks): float
+    {
+        return $this->computeKpiHoursData($slotStart, $slotEnd, $breaks)['hours'];
+    }
+
 
     /**
      * Collect all break periods from a ShiftDetail as Carbon time ranges.
      *
+     * Optionally includes prep_minutes as a synthetic break at the very start
+     * of the shift (anchored to $shiftStartTime) so that the first hourly slot's
+     * kpi_hours is automatically reduced by the preparation time.
+     *
+     * @param  string|null  $shiftStartTime  e.g. '06:30:00' — the department start_time.
+     *                                       When provided, prep_minutes is inserted as
+     *                                       the first entry in the returned array.
      * @return array<array{start: Carbon, end: Carbon}>
      */
-    protected function collectBreaks(ShiftDetail $detail): array
+    protected function collectBreaks(ShiftDetail $detail, ?string $shiftStartTime = null): array
     {
         $breaks = [];
 
+        // ── Prep time as a synthetic break at shift start ──
+        $prepMinutes = (int) ($detail->prep_minutes ?? 0);
+        $startTime   = $shiftStartTime ?? $detail->start_time;
+
+        if ($prepMinutes > 0 && $startTime) {
+            $format     = substr_count($startTime, ':') === 2 ? 'H:i:s' : 'H:i';
+            $prepStart  = Carbon::createFromFormat($format, $startTime);
+            $breaks[] = [
+                'start' => $prepStart,
+                'end'   => $prepStart->copy()->addMinutes($prepMinutes),
+            ];
+        }
+
+        // ── Regular breaks ──
         $breakFields = [
             ['break1_start',      'break1_minutes'],
             ['meal_break_start',  'meal_break_minutes'],
@@ -57,12 +103,12 @@ trait ComputesKpiHours
         ];
 
         foreach ($breakFields as [$startField, $minutesField]) {
-            $startTime = $detail->{$startField};
+            $breakTime = $detail->{$startField};
             $minutes   = $detail->{$minutesField} ?? 0;
 
-            if ($startTime && $minutes > 0) {
-                $format = substr_count($startTime, ':') === 2 ? 'H:i:s' : 'H:i';
-                $breakStart = Carbon::createFromFormat($format, $startTime);
+            if ($breakTime && $minutes > 0) {
+                $format = substr_count($breakTime, ':') === 2 ? 'H:i:s' : 'H:i';
+                $breakStart = Carbon::createFromFormat($format, $breakTime);
                 $breaks[] = [
                     'start' => $breakStart,
                     'end'   => $breakStart->copy()->addMinutes($minutes),

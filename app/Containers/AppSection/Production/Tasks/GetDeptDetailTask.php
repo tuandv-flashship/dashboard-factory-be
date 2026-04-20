@@ -39,6 +39,7 @@ final class GetDeptDetailTask extends ParentTask
         $shiftDetail = ShiftDetail::query()
             ->where('shift_id', $shift->id)
             ->where('department_id', $dept->id)
+            ->with(['department.productionLine'])
             ->first();
 
         return [

@@ -16,23 +16,25 @@ final class HourlyRecord extends ParentModel
 
     protected $fillable = [
         'shift_id', 'department_id', 'hour_slot', 'hour_index',
-        'target', 'kpi_hours', 'actual', 'staff', 'staff_required',
+        'target', 'kpi_hours', 'kpi_minutes', 'kpi_percent', 'actual', 'staff', 'staff_required',
         'hour_start_inventory',
         'efficiency', 'error_rate', 'status', 'productivity_json',
     ];
 
     protected $casts = [
-        'hour_index' => 'integer',
-        'target' => 'integer',
-        'kpi_hours' => 'float',
-        'actual' => 'integer',
-        'staff' => 'integer',
-        'staff_required' => 'integer',
+        'hour_index'           => 'integer',
+        'target'               => 'integer',
+        'kpi_hours'            => 'float',
+        'kpi_minutes'          => 'integer',
+        'kpi_percent'          => 'float',
+        'actual'               => 'integer',
+        'staff'                => 'integer',
+        'staff_required'       => 'integer',
         'hour_start_inventory' => 'integer',
-        'efficiency' => 'float',
-        'error_rate' => 'float',
-        'status'     => 'string',
-        'productivity_json' => 'array',
+        'efficiency'           => 'float',
+        'error_rate'           => 'float',
+        'status'               => 'string',
+        'productivity_json'    => 'array',
     ];
 
     public function shift(): BelongsTo

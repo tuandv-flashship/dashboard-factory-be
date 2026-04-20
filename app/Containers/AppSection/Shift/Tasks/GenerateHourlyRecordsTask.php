@@ -62,13 +62,12 @@ final class GenerateHourlyRecordsTask extends ParentTask
             $start = Carbon::createFromFormat('H:i:s', $detail->start_time);
             $end = $start->copy()->addMinutes((int) ($detail->work_hours * 60));
 
-            $breaks = $this->collectBreaks($detail);
+            $breaks = $this->collectBreaks($detail, $detail->start_time);
             $slots = $this->buildAlignedSlots($start, $end);
             $hourIndex = 0;
 
             foreach ($slots as $slot) {
-                $target = (int) round($fullHourTarget * $slot['fraction']);
-                $kpiHours = $this->computeKpiHours($slot['start'], $slot['end'], $breaks);
+                $kpiData  = $this->computeKpiHoursData($slot['start'], $slot['end'], $breaks);
 
                 $records[] = [
                     'shift_id'             => $shift->id,
@@ -77,8 +76,10 @@ final class GenerateHourlyRecordsTask extends ParentTask
                     'hour_index'           => $hourIndex,
                     'staff'                => $detail->headcount,
                     'hour_start_inventory' => 0,
-                    'target'               => $target,
-                    'kpi_hours'            => $kpiHours,
+                    'target'               => (int) round($fullHourTarget * $slot['fraction']),
+                    'kpi_hours'            => $kpiData['hours'],
+                    'kpi_minutes'          => $kpiData['minutes'],
+                    'kpi_percent'          => $kpiData['percent'],
                     'actual'               => null,
                     'efficiency'           => 0,
                     'error_rate'           => 0,

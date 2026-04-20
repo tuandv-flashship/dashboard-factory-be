@@ -7,6 +7,7 @@ use App\Containers\AppSection\Production\Actions\GetDeptDetailAction;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyIssueTransformer;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyRecordTransformer;
 use App\Containers\AppSection\Production\UI\API\Transformers\ShiftTransformer;
+use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftDetailTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
 use Illuminate\Http\JsonResponse;
@@ -39,6 +40,7 @@ final class GetDeptDetailController extends ApiController
 
         $hourlyTransformer = new HourlyRecordTransformer();
         $issueTransformer = new HourlyIssueTransformer();
+        $shiftDetailTransformer = new ShiftDetailTransformer();
 
         $recordsData = $data['records']->map(
             fn ($r) => array_merge(
@@ -84,6 +86,7 @@ final class GetDeptDetailController extends ApiController
                         'productivity_type'=> $dept->productivity_type,
                     ];
                 })($data['department'], $data['shift_detail']) : null,
+                'shift_detail' => $shiftDetailTransformer->transform($data['shift_detail']),
                 'hours' => $recordsData->values(),
                 'summary' => [
                     'total_target' => $totalTarget,

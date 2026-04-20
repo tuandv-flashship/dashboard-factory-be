@@ -125,7 +125,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
         $dayStartInventory = $this->refreshDayStartInventory($detail, $team, $allInventory);
         $this->syncHotshotData($detail, $dept, $allInventory);
-        $breaks = $this->collectBreaks($detail);
+        $breaks = $this->collectBreaks($detail, $detail->start_time);
 
         // Build slot map
         $deptWorkStart = Carbon::createFromFormat('H:i:s', $detail->start_time);
@@ -137,25 +137,31 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             $slotMap[$i] = $slot;
         }
 
-        // ── Pass 1: Recalculate kpi_hours ──
+        // ── Pass 1: Recalculate kpi fields ──
         foreach ($records as $record) {
             $slot = $slotMap[$record->hour_index] ?? null;
 
-            $kpiHours = $slot
-                ? $this->computeKpiHours($slot['start'], $slot['end'], $breaks)
-                : $this->computeKpiHoursFromLabel($record->hour_slot, $shiftDate, $breaks);
+            $kpiData = $slot
+                ? $this->computeKpiHoursData($slot['start'], $slot['end'], $breaks)
+                : $this->computeKpiHoursDataFromLabel($record->hour_slot, $shiftDate, $breaks);
 
-            if ($record->kpi_hours != $kpiHours) {
-                $record->update(['kpi_hours' => $kpiHours]);
-                $record->kpi_hours = $kpiHours;
+            if ($record->kpi_minutes !== $kpiData['minutes']) {
+                $record->update([
+                    'kpi_hours'   => $kpiData['hours'],
+                    'kpi_minutes' => $kpiData['minutes'],
+                    'kpi_percent' => $kpiData['percent'],
+                ]);
+                $record->kpi_hours   = $kpiData['hours'];
+                $record->kpi_minutes = $kpiData['minutes'];
+                $record->kpi_percent = $kpiData['percent'];
             }
         }
 
         // ── Pre-compute shared values ──
-        $totalKpiHours = $records->sum('kpi_hours');
-        $lastHourIndex = $records->max('hour_index');
-        $isPerMachine  = $dept->productivity_type === ProductivityType::PerMachine;
-        $kpiPerHour    = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
+        $totalKpiMinutes = $records->sum('kpi_minutes');  // integer, exact
+        $lastHourIndex   = $records->max('hour_index');
+        $isPerMachine    = $dept->productivity_type === ProductivityType::PerMachine;
+        $kpiPerHour      = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
 
         // ── Batch-fetch FPlatform data (3 API calls) ──
         $shiftStart = $deptStart->format('Y-m-d H:i:s');
@@ -174,18 +180,18 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
         // Pre-compute cumulative actual for each slot index so future slots
         // can use only the actual work done (not zeros from other future slots).
-        $cumulativeActual   = [];
-        $cumulativeKpiHours = [];
-        $runActual   = 0;
-        $runKpiHours = 0.0;
+        $cumulativeActual      = [];
+        $cumulativeKpiMinutes  = [];
+        $runActual      = 0;
+        $runKpiMinutes  = 0;
         foreach ($records as $record) {
-            $cumulativeActual[$record->hour_index]   = $runActual;
-            $cumulativeKpiHours[$record->hour_index] = $runKpiHours;
+            $cumulativeActual[$record->hour_index]     = $runActual;
+            $cumulativeKpiMinutes[$record->hour_index] = $runKpiMinutes;
             // Only add actual that has been genuinely recorded (slot not pending)
             if ($record->actual !== null) {
                 $runActual += (int) $record->actual;
             }
-            $runKpiHours += (float) $record->kpi_hours;
+            $runKpiMinutes += (int) $record->kpi_minutes;
         }
 
         foreach ($records as $record) {
@@ -199,18 +205,18 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             $isCurrentSlot = !$isFutureSlot && $now < $queryEnd;
             $isPassedSlot  = $now >= $queryEnd;
 
-            $pastActual   = $cumulativeActual[$record->hour_index]   ?? 0;
-            $pastKpiHours = $cumulativeKpiHours[$record->hour_index] ?? 0.0;
+            $pastActual      = $cumulativeActual[$record->hour_index]     ?? 0;
+            $pastKpiMinutes  = $cumulativeKpiMinutes[$record->hour_index]  ?? 0;
 
             // ── Future slot: compute target only, preserve actual=0/null ──
             if ($isFutureSlot) {
-                $remainingKpiHours  = $totalKpiHours - $pastKpiHours;
-                $hourStartInventory = max(0, $dayStartInventory - $pastActual);
-                $staffRequired      = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiHours, $detail);
-                $kpiHours           = $record->kpi_hours;
+                $remainingKpiMinutes = $totalKpiMinutes - $pastKpiMinutes;
+                $hourStartInventory  = max(0, $dayStartInventory - $pastActual);
+                $staffRequired       = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail);
+                $kpiMinutes          = $record->kpi_minutes;
 
                 $target = $this->computeTarget(
-                    $staffRequired, $kpiPerHour, $kpiHours,
+                    $staffRequired, $kpiPerHour, $kpiMinutes,
                     $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
                 );
 
@@ -234,12 +240,12 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
             // ── Already completed → re-sync actual + recalc metrics ──
             if ($record->status === HourlyRecordStatus::Completed->value) {
-                $remainingKpiHours = $totalKpiHours - $pastKpiHours;
-                $hourStartInventory = max(0, $dayStartInventory - $pastActual);
-                $staffRequired = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiHours, $detail);
+                $remainingKpiMinutes = $totalKpiMinutes - $pastKpiMinutes;
+                $hourStartInventory  = max(0, $dayStartInventory - $pastActual);
+                $staffRequired       = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail);
 
                 $target = $this->computeTarget(
-                    $staffRequired, $kpiPerHour, $record->kpi_hours,
+                    $staffRequired, $kpiPerHour, $record->kpi_minutes,
                     $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
                 );
 
@@ -263,7 +269,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 $this->updateRecord(
                     $record, $dept, $detail, $dayStartInventory,
                     $actual, $staff, $productivityJson,
-                    $pastActual, $pastKpiHours, $totalKpiHours,
+                    $pastActual, $pastKpiMinutes, $totalKpiMinutes,
                     $kpiPerHour, $lastHourIndex,
                     $breaks, $actualSlot, $isPassedSlot,
                 );
@@ -284,27 +290,34 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         int $staff,
         ?array $productivityJson,
         int $pastActual,
-        float $pastKpiHours,
-        float $totalKpiHours,
+        int $pastKpiMinutes,
+        int $totalKpiMinutes,
         float $kpiPerHour,
         int $lastHourIndex,
         array $breaks,
         ?array $actualSlot,
         bool $isCompleted,
     ): void {
-        $hourStartInventory = max(0, $dayStartInventory - $pastActual);
-        $remainingKpiHours  = $totalKpiHours - $pastKpiHours;
-        $staffRequired      = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiHours, $detail);
+        $hourStartInventory  = max(0, $dayStartInventory - $pastActual);
+        $remainingKpiMinutes = $totalKpiMinutes - $pastKpiMinutes;
+        $staffRequired       = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail);
 
         $slotStart = $actualSlot ? $actualSlot['start'] : null;
         $slotEnd   = $actualSlot ? $actualSlot['end']   : null;
 
-        $kpiHours = ($slotStart && $slotEnd)
-            ? $this->computeKpiHours($slotStart, $slotEnd, $breaks)
-            : $record->kpi_hours;
+        if ($slotStart && $slotEnd) {
+            $kpiData    = $this->computeKpiHoursData($slotStart, $slotEnd, $breaks);
+            $kpiMinutes = $kpiData['minutes'];
+            $kpiHours   = $kpiData['hours'];
+            $kpiPercent = $kpiData['percent'];
+        } else {
+            $kpiMinutes = $record->kpi_minutes;
+            $kpiHours   = $record->kpi_hours;
+            $kpiPercent = $record->kpi_percent;
+        }
 
         $target = $this->computeTarget(
-            $staffRequired, $kpiPerHour, $kpiHours,
+            $staffRequired, $kpiPerHour, $kpiMinutes,
             $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
         );
 
@@ -319,6 +332,8 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             'target'               => $target,
             'hour_start_inventory' => $hourStartInventory,
             'kpi_hours'            => $kpiHours,
+            'kpi_minutes'          => $kpiMinutes,
+            'kpi_percent'          => $kpiPercent,
             'efficiency'           => $target > 0
                 ? round(($actual / $target) * 100, 1)
                 : 0,
@@ -370,11 +385,11 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
     }
 
     private function computeTarget(
-        ?int $staffRequired, float $kpiPerHour, float $kpiHours,
+        ?int $staffRequired, float $kpiPerHour, int $kpiMinutes,
         int $hourStartInventory, int $hourIndex, int $lastHourIndex, int $fallbackTarget,
     ): int {
         $target = ($staffRequired !== null && $staffRequired > 0)
-            ? (int) round($staffRequired * $kpiPerHour * $kpiHours)
+            ? (int) round($staffRequired * $kpiPerHour * $kpiMinutes / 60)
             : $fallbackTarget;
 
         if ($hourIndex === $lastHourIndex && $hourStartInventory < $target) {
@@ -384,7 +399,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         return $target;
     }
 
-    private function computeStaffRequired(Department $dept, int $inventory, float $remainingKpiHours, ?ShiftDetail $detail = null): ?int
+    private function computeStaffRequired(Department $dept, int $inventory, int $remainingKpiMinutes, ?ShiftDetail $detail = null): ?int
     {
         if ($dept->productivity_type === ProductivityType::PerMachine) {
             return $detail ? $detail->machines()->count() : 0;
@@ -392,11 +407,14 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
         $kpiPerHour = $dept->kpi_per_hour ?? 0;
 
-        if ($inventory <= 0 || $remainingKpiHours <= 0 || $kpiPerHour <= 0) {
+        if ($inventory <= 0 || $remainingKpiMinutes <= 0 || $kpiPerHour <= 0) {
             return $inventory <= 0 ? 0 : null;
         }
 
-        return (int) ceil($inventory / $remainingKpiHours / $kpiPerHour);
+        // Use minutes directly to avoid float precision loss:
+        // staffRequired = ceil(inventory / (remainingKpiMinutes / 60) / kpiPerHour)
+        //               = ceil(inventory * 60 / remainingKpiMinutes / kpiPerHour)
+        return (int) ceil($inventory * 60 / $remainingKpiMinutes / $kpiPerHour);
     }
 
     private function refreshDayStartInventory(ShiftDetail $detail, Team $team, array $allInventory): int
@@ -478,5 +496,16 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
     {
         [$start, $end] = $this->parseHourSlot($hourSlot, $shiftDate);
         return $this->computeKpiHours($start, $end, $breaks);
+    }
+
+    /**
+     * Compute full KPI data (minutes, percent, hours) from an hour_slot label.
+     *
+     * @return array{minutes: int, percent: float, hours: float}
+     */
+    private function computeKpiHoursDataFromLabel(string $hourSlot, string $shiftDate, array $breaks): array
+    {
+        [$start, $end] = $this->parseHourSlot($hourSlot, $shiftDate);
+        return $this->computeKpiHoursData($start, $end, $breaks);
     }
 }
