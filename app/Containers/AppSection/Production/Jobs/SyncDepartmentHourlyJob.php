@@ -152,7 +152,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             'Y-m-d H:i:s',
             $shiftDate . ' ' . $detail->start_time
         );
-        $deptEnd = $deptStart->copy()->addMinutes((int) ($detail->work_hours * 60));
+        $deptEnd = $deptStart->copy()->addMinutes((int) ($detail->work_hours * 60) + ($detail->meal_break_minutes ?? 0));
 
         $records = HourlyRecord::where('shift_id', $shift->id)
             ->where('department_id', $dept->id)
@@ -165,7 +165,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
         // Build slot map
         $deptWorkStart = Carbon::createFromFormat('H:i:s', $detail->start_time);
-        $deptWorkEnd   = $deptWorkStart->copy()->addMinutes((int) ($detail->work_hours * 60));
+        $deptWorkEnd   = $deptWorkStart->copy()->addMinutes((int) ($detail->work_hours * 60) + ($detail->meal_break_minutes ?? 0));
         $alignedSlots  = $this->buildAlignedSlots($deptWorkStart, $deptWorkEnd);
 
         $slotMap = [];

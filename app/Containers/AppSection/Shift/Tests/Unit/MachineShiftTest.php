@@ -228,15 +228,24 @@ final class MachineShiftTest extends UnitTestCase
             ->get();
 
         $this->assertTrue($machineRecords->isNotEmpty());
-        $machineRecords->each(fn ($r) => $this->assertSame(325, $r->target));
+        // Business rule: per-machine target = kpi_per_hour × kpi_percent/100 (NOT × headcount)
+        // Full-hour slots → 325, partial last slot → round(325 × fraction)
+        $machineRecords->each(fn ($r) => $this->assertSame(
+            (int) round(325 * $r->kpi_percent / 100),
+            $r->target,
+            "Slot {$r->hour_slot}: expected target proportional to kpi_percent, not multiplied by headcount"
+        ));
 
         // Per-person: target = 50 × 5 = 250
         $personRecords = HourlyRecord::where('shift_id', $shift->id)
             ->where('department_id', $this->perPersonDept->id)
             ->get();
 
-        $this->assertTrue($personRecords->isNotEmpty());
-        $personRecords->each(fn ($r) => $this->assertSame(250, $r->target));
+        // Per-person: target = fullHourTarget × kpi_percent/100 (250 for full slots, less for partial)
+        $personRecords->each(fn ($r) => $this->assertSame(
+            (int) round(250 * $r->kpi_percent / 100),
+            $r->target
+        ));
     }
 
     // ── SyncShiftDetailsTask ──────────────────────────
