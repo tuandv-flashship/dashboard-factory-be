@@ -216,7 +216,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 $kpiMinutes          = $record->kpi_minutes;
 
                 $target = $this->computeTarget(
-                    $staffRequired, $kpiPerHour, $kpiMinutes,
+                    $staffRequired, $kpiPerHour, $record->kpi_percent,
                     $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
                 );
 
@@ -245,7 +245,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 $staffRequired       = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail);
 
                 $target = $this->computeTarget(
-                    $staffRequired, $kpiPerHour, $record->kpi_minutes,
+                    $staffRequired, $kpiPerHour, $record->kpi_percent,
                     $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
                 );
 
@@ -317,7 +317,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         }
 
         $target = $this->computeTarget(
-            $staffRequired, $kpiPerHour, $kpiMinutes,
+            $staffRequired, $kpiPerHour, $kpiPercent,
             $hourStartInventory, $record->hour_index, $lastHourIndex, $record->target
         );
 
@@ -384,12 +384,19 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         return $map;
     }
 
+    /**
+     * Compute hourly target for a slot.
+     *
+     * Formula: ceil(inventory / giờ_còn_lại / kpiPerHour) × kpiPerHour × (kpi_percent / 100)
+     *
+     * @param float $kpiPercent  kpi_percent field (0-100), proportional slot weight
+     */
     private function computeTarget(
-        ?int $staffRequired, float $kpiPerHour, int $kpiMinutes,
+        ?int $staffRequired, float $kpiPerHour, float $kpiPercent,
         int $hourStartInventory, int $hourIndex, int $lastHourIndex, int $fallbackTarget,
     ): int {
         $target = ($staffRequired !== null && $staffRequired > 0)
-            ? (int) round($staffRequired * $kpiPerHour * $kpiMinutes / 60)
+            ? (int) round($staffRequired * $kpiPerHour * $kpiPercent / 100)
             : $fallbackTarget;
 
         if ($hourIndex === $lastHourIndex && $hourStartInventory < $target) {
