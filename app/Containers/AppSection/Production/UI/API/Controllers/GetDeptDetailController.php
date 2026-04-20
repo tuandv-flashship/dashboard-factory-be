@@ -24,7 +24,10 @@ final class GetDeptDetailController extends ApiController
     {
         $date = $request->filterDate();
         $shift = $request->filterShift();
-        $isHistorical = $date !== null;
+
+        // Only treat as historical (and cache) if the date is strictly in the past.
+        // Today's date — even when passed explicitly — is a live shift, not historical.
+        $isHistorical = $date !== null && $date < now()->toDateString();
 
         $cacheKey = $isHistorical ? "dept-detail:{$line}:{$dept}:{$date}:{$shift}" : null;
 

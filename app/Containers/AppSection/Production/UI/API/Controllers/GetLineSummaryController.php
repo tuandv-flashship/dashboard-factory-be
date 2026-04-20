@@ -23,7 +23,7 @@ final class GetLineSummaryController extends ApiController
     {
         $date = $request->filterDate();
         $shift = $request->filterShift();
-        $isHistorical = $date !== null;
+        $isHistorical = $date !== null && $date < now()->toDateString();
 
         // Cache historical data for 1 hour (it won't change)
         $cacheKey = $isHistorical ? "line-summary:{$line}:{$date}:{$shift}" : null;

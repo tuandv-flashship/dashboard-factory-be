@@ -21,7 +21,7 @@ final class GetQualityDataController extends ApiController
     {
         $date = $request->filterDate();
         $shift = $request->filterShift();
-        $isHistorical = $date !== null;
+        $isHistorical = $date !== null && $date < now()->toDateString();
 
         $cacheKey = $isHistorical ? "quality:{$date}:{$shift}" : null;
 
