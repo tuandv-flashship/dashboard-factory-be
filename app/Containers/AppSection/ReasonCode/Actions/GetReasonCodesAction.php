@@ -13,8 +13,21 @@ final class GetReasonCodesAction extends ParentAction
     ) {
     }
 
-    public function run(?string $line = null, ?string $dept = null): Collection
-    {
-        return $this->getReasonCodesTask->run($line, $dept);
+    public function run(
+        ?string $line         = null,
+        ?string $dept         = null,
+        ?string $scopeType    = null,
+        ?bool   $isActive     = true,
+        ?string $search       = null,
+        ?string $categoryCode = null,
+    ): Collection {
+        return $this->getReasonCodesTask->run(
+            line:         $line,
+            dept:         $dept,
+            scopeType:    $scopeType,
+            isActive:     $isActive,
+            search:       $search,
+            categoryCode: $categoryCode,
+        );
     }
 }

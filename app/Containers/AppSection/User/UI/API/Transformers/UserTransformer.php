@@ -38,11 +38,17 @@ class UserTransformer extends ParentTransformer
 
     public function includeRoles(User $user): Collection
     {
-        return $this->collection($user->roles, new RoleTransformer());
+        $guard = config('auth.defaults.guard', 'api');
+        $roles = $user->roles->where('guard_name', $guard);
+
+        return $this->collection($roles, new RoleTransformer());
     }
 
     public function includePermissions(User $user): Collection
     {
-        return $this->collection($user->permissions, new PermissionTransformer());
+        $guard = config('auth.defaults.guard', 'api');
+        $permissions = $user->permissions->where('guard_name', $guard);
+
+        return $this->collection($permissions, new PermissionTransformer());
     }
 }

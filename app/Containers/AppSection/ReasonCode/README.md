@@ -36,9 +36,51 @@ reason_categories     (Nhóm lỗi: Machine / Human / Material / Process)
 
 ### Public
 
-| Method | Endpoint           | Mô tả                                                     |
-| ------ | ------------------ | --------------------------------------------------------- |
-| GET    | `/v1/reason-codes` | Lấy toàn bộ cây 3 cấp, filter theo `?line=dtf&dept=print` |
+#### `GET /v1/reason-codes`
+
+Lấy toàn bộ cây lý do lỗi (3 cấp), hỗ trợ nhiều filter kết hợp.
+
+**Query Parameters:**
+
+| Param           | Type    | Default | Mô tả                                                                                               |
+| --------------- | ------- | ------- | --------------------------------------------------------------------------------------------------- |
+| `line`          | string  | –       | Code của production line (phải tồn tại trong `production_lines.code`). Lọc scope_line của sub_items |
+| `dept`          | string  | –       | Code của department (phải tồn tại trong `departments.code`). Lọc scope_dept của sub_items           |
+| `scope_type`    | string  | –       | Lọc sub_items theo loại phạm vi: `global` / `per_department` / `per_line_department`                |
+| `is_active`     | boolean | `true`  | `true` = chỉ active, `false` = chỉ inactive, **bỏ qua param** = tất cả                              |
+| `search`        | string  | –       | Tìm kiếm category theo `code`, `label`, hoặc `label_en` (max 100 ký tự)                             |
+| `category_code` | string  | –       | Lọc đúng 1 category theo code (phải tồn tại trong `reason_categories.code`)                         |
+| `include`       | string  | –       | Eager-load mối quan hệ: `sub_items`, `errors`, `sub_items.errors`                                   |
+
+**Ví dụ:**
+
+```bash
+# Toàn bộ cây active (mặc định)
+GET /v1/reason-codes
+
+# Lọc theo context line + dept
+GET /v1/reason-codes?line=dtf&dept=print
+
+# Chỉ lấy sub_items global scope
+GET /v1/reason-codes?scope_type=global
+
+# Tìm kiếm theo từ khóa, kèm full hierarchy
+GET /v1/reason-codes?search=machine&include=sub_items
+
+# Lấy đúng 1 category với full tree
+GET /v1/reason-codes?category_code=human&include=sub_items
+
+# Xem cả inactive categories
+GET /v1/reason-codes?is_active=false
+
+# Kết hợp nhiều filter
+GET /v1/reason-codes?dept=print&scope_type=per_department&include=sub_items
+```
+
+**Validation errors (422):**
+
+- `scope_type` không thuộc `global|per_department|per_line_department`
+- `line` / `dept` / `category_code` không tồn tại trong DB
 
 ### Admin — Categories
 

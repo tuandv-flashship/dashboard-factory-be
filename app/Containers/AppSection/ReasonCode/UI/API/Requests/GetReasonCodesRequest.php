@@ -12,13 +12,20 @@ final class GetReasonCodesRequest extends ParentRequest
     ];
 
     /**
-     * @return array<string, string[]>
+     * @return array<string, mixed>
      */
     public function rules(): array
     {
         return [
-            'line' => ['sometimes', 'string', 'exists:production_lines,code'],
-            'dept' => ['sometimes', 'string', 'exists:departments,code'],
+            // Context filters (existing)
+            'line'          => ['sometimes', 'nullable', 'string', 'exists:production_lines,code'],
+            'dept'          => ['sometimes', 'nullable', 'string', 'exists:departments,code'],
+
+            // New filters
+            'scope_type'    => ['sometimes', 'nullable', 'string', 'in:global,per_department,per_line_department'],
+            'is_active'     => ['sometimes', 'nullable', 'boolean'],
+            'search'        => ['sometimes', 'nullable', 'string', 'max:100'],
+            'category_code' => ['sometimes', 'nullable', 'string', 'exists:reason_categories,code'],
         ];
     }
 
