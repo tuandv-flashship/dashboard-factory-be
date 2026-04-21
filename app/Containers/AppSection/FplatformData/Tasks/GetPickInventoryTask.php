@@ -9,8 +9,10 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 /**
  * Get daily inventory (tổng việc) for team Pick (DTF).
  *
- * Source: docs/rpt_factory_ops_metrics_v5.sql
- * Uses total_product, work_type=100, copy_job=0
+ * Source: FplatformData/sql/02_tong_viec_team_pick.sql (v1.1.0)
+ *
+ * Logic: Flat IF — sum total_product where pick scan has not occurred yet
+ *        OR occurred on/after the estimate date boundary (US/Central midnight).
  */
 final class GetPickInventoryTask extends ParentTask
 {
@@ -21,44 +23,32 @@ final class GetPickInventoryTask extends ParentTask
         $extraUnions = $this->buildExtraPrinterUnions($factory);
 
         $sql = "
-            WITH daily_stats AS (
-                SELECT
-                    f.estimate_date,
-                    SUM(IF(s.work_status IS NULL, f.total_product, 0)) AS chua_pick,
-                    SUM(f.total_product) AS total_product
-                FROM folder_manage f
-                LEFT JOIN user_group_scan s
-                    ON f.folder_code = s.folder_code
-                    AND s.work_type = 100
-                    AND s.work_status = 0
-                    AND s.copy_job = 0
-                WHERE f.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
-                    AND f.status_folder <> 2
-                    AND COALESCE(f.printer_share, f.printer_run, f.printer_default) IN (
-                        SELECT REPLACE(NAME, 'Machine ', 'May')
-                        FROM printer_manage
-                        WHERE factory = ?
-                        {$extraUnions}
-                    )
-                GROUP BY f.estimate_date
-            )
-            SELECT estimate_date, tong_viec
-            FROM (
-                SELECT
-                    estimate_date,
-                    total_product + COALESCE(SUM(chua_pick) OVER (
-                        ORDER BY estimate_date
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS tong_viec
-                FROM daily_stats
-            ) c
-            WHERE estimate_date = ?
+            SELECT
+                ? AS estimate_date,
+                SUM(IF(
+                    s.created_at IS NULL
+                    OR s.created_at >= CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00'),
+                    f.total_product, 0
+                )) AS tong_viec
+            FROM folder_manage f
+            LEFT JOIN user_group_scan s
+                ON f.folder_code = s.folder_code
+                AND s.work_type = 100
+                AND s.work_status = 0
+                AND s.copy_job = 0
+            WHERE f.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                AND f.status_folder <> 2
+                AND COALESCE(f.printer_share, f.printer_run, f.printer_default) IN (
+                    SELECT REPLACE(NAME, 'Machine ', 'May')
+                    FROM printer_manage
+                    WHERE factory = ?
+                    {$extraUnions}
+                )
         ";
 
         $bindings = array_merge(
-            [$date, $date],
+            [$date, $date, $date, $date],
             $this->printerBindings($factory),
-            [$date],
         );
 
         return $this->formatResult($this->queryFplatform($sql, $bindings));

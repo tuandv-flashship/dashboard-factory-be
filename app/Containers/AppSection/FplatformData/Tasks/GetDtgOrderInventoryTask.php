@@ -6,11 +6,12 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get daily inventory (tổng việc & đã làm) for ORDER count — DTG (PD only).
+ * Get daily inventory (chua_lam / da_lam) for ORDER count — DTG (PD only).
  *
- * Source: docs/rpt_factory_ops_metrics_v5.sql
- * Uses: dtg_item_detail → scan_label_history
- * Counts: COUNT(DISTINCT order_code)
+ * Source: FplatformData/sql/06_tong_don_theo_don.sql — DTG section (v1.1.0)
+ *
+ * Logic: target_items → item_status CTE via scan_label_history.
+ *        Output: { estimate_date, chua_lam, da_lam }
  */
 final class GetDtgOrderInventoryTask extends ParentTask
 {
@@ -19,44 +20,35 @@ final class GetDtgOrderInventoryTask extends ParentTask
     public function run(string $date): ?array
     {
         $sql = "
-            WITH detail_item AS (
+            WITH
+            target_items AS (
                 SELECT
                     estimate_folder_date AS estimate_date,
-                    order_code, index_num
+                    folder_key AS folder,
+                    order_code AS file_name_order_code,
+                    index_num AS file_name_index_number
                 FROM dtg_item_detail
-                WHERE folder_date BETWEEN ? - INTERVAL 10 DAY AND ?
-                    AND active = 1
+                WHERE estimate_folder_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                GROUP BY estimate_folder_date, folder_key, order_code, index_num
             ),
-            daily_aggregated AS (
+            item_status AS (
                 SELECT
-                    estimate_date,
-                    COUNT(DISTINCT IF(created_at IS NULL, order_code, NULL)) AS not_done,
-                    COUNT(DISTINCT order_code) AS total_order
-                FROM (
-                    SELECT a.*, l.created_at
-                    FROM detail_item a
-                    LEFT JOIN scan_label_history l
-                        ON a.order_code = l.barcode
-                        AND l.created_at >= ? - INTERVAL 15 DAY
-                        AND a.index_num = l.index_num
-                    GROUP BY 1, 2, 3, 4
-                ) b
-                GROUP BY estimate_date
+                    ti.file_name_order_code,
+                    DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central'))) AS ngay_lam
+                FROM target_items ti
+                LEFT JOIN scan_label_history s
+                    ON s.barcode = ti.file_name_order_code
+                    AND s.index_num = ti.file_name_index_number
+                    AND s.created_at >= ? - INTERVAL 15 DAY
+                GROUP BY ti.estimate_date, ti.folder, ti.file_name_order_code, ti.file_name_index_number
             )
-            SELECT estimate_date, tong_viec, tong_viec - con_lai AS da_lam
-            FROM (
-                SELECT
-                    estimate_date,
-                    total_order + COALESCE(SUM(not_done) OVER (
-                        ORDER BY estimate_date
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS tong_viec,
-                    SUM(not_done) OVER (ORDER BY estimate_date) AS con_lai
-                FROM daily_aggregated
-            ) final_result
-            WHERE estimate_date = ?
+            SELECT
+                ? AS estimate_date,
+                COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ?, file_name_order_code, NULL)) AS tong_viec,
+                COUNT(DISTINCT IF(ngay_lam = ?, file_name_order_code, NULL)) AS da_lam
+            FROM item_status
         ";
 
-        return $this->formatOrderResult($this->queryFplatform($sql, [$date, $date, $date, $date]));
+        return $this->formatOrderResult($this->queryFplatform($sql, [$date, $date, $date, $date, $date, $date]));
     }
 }

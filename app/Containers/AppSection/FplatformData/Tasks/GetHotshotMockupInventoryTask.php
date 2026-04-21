@@ -7,10 +7,13 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get hotshot mockup inventory (tổng việc & đã làm hotshot team mockup).
+ * Get hotshot mockup inventory (tổng việc & đã làm — hotshot team mockup).
  *
- * Source: rpt_factory_ops_metrics_v8_1.sql lines 1985-2091
- * Filters by printer_default = MayHOTSHOT / MayHOTSHOTPD
+ * Source: FplatformData/sql/25_hotshot_file_team_mockup.sql (v1.1.0)
+ *
+ * Logic: target_folders → file_groups → file_status CTE.
+ *        HOTSHOT printer uses strict date >= estimate_date cutoff (ngay_lam).
+ *        tong_viec = total_file - done_before; da_lam = done on estimate date.
  */
 final class GetHotshotMockupInventoryTask extends ParentTask
 {
@@ -25,56 +28,60 @@ final class GetHotshotMockupInventoryTask extends ParentTask
 
         $sql = "
             WITH
-            folder_printer AS (
-                SELECT fm.estimate_date, fm.folder
+            target_folders AS (
+                SELECT
+                    fm.folder,
+                    fm.estimate_date,
+                    fm.printer_default,
+                    fm.total_file
                 FROM folder_manage fm
                 WHERE fm.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
                     AND fm.printer_default = ?
                     AND fm.status_folder <> 2
             ),
-            a AS (
+            calc_total AS (
+                SELECT SUM(total_file) AS sum_total_file
+                FROM target_folders
+            ),
+            file_groups AS (
                 SELECT
                     f.estimate_date,
-                    f.folder,
+                    f.printer_default,
                     d.file_name_order_code,
                     d.file_name_index_number,
                     COUNT(*) AS num_file
-                FROM folder_printer f
+                FROM target_folders f
                 JOIN order_check_file_dropbox d
                     ON d.folder = f.folder COLLATE utf8mb4_unicode_ci
                     AND d.status <> 2
-                GROUP BY f.estimate_date, f.folder, d.file_name_order_code, d.file_name_index_number
+                GROUP BY f.estimate_date, f.printer_default, d.file_name_order_code, d.file_name_index_number
             ),
-            daily_aggregated AS (
+            file_status AS (
                 SELECT
-                    estimate_date,
-                    SUM(IF(created IS NULL, num_file, 0)) AS chua_lam,
-                    SUM(num_file) AS total_file
-                FROM (
-                    SELECT a.*, l.created
-                    FROM a
-                    LEFT JOIN log_check_mockup l
-                        ON a.file_name_order_code COLLATE utf8mb4_0900_ai_ci = l.barcode
-                        AND l.created >= ? - INTERVAL 15 DAY
-                        AND a.file_name_index_number = l.index_number
-                    GROUP BY 1, 2, 3, 4
-                ) b
-                GROUP BY estimate_date
+                    fg.num_file,
+                    CASE
+                        WHEN fg.printer_default = ?
+                        THEN MIN(CASE
+                                WHEN DATE(CONVERT_TZ(l.created, '+7:00', 'US/Central')) >= fg.estimate_date
+                                THEN DATE(CONVERT_TZ(l.created, '+7:00', 'US/Central'))
+                             END)
+                        ELSE DATE(MIN(CONVERT_TZ(l.created, '+7:00', 'US/Central')))
+                    END AS ngay_lam
+                FROM file_groups fg
+                LEFT JOIN log_check_mockup l
+                    ON l.barcode = fg.file_name_order_code COLLATE utf8mb4_0900_ai_ci
+                    AND l.index_number = fg.file_name_index_number
+                    AND l.created >= ? - INTERVAL 15 DAY
+                GROUP BY fg.estimate_date, fg.printer_default, fg.file_name_order_code, fg.file_name_index_number, fg.num_file
             )
-            SELECT tong_viec, tong_viec - con_lai AS da_lam FROM (
-                SELECT
-                    estimate_date,
-                    total_file + COALESCE(SUM(chua_lam) OVER (
-                        ORDER BY estimate_date
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS tong_viec,
-                    SUM(chua_lam) OVER (ORDER BY estimate_date) AS con_lai
-                FROM daily_aggregated
-            ) result
-            WHERE estimate_date = ?
+            SELECT
+                ? AS estimate_date,
+                COALESCE((SELECT sum_total_file FROM calc_total), 0)
+                    - COALESCE((SELECT SUM(num_file) FROM file_status WHERE ngay_lam < ?), 0) AS tong_viec,
+                COALESCE((SELECT SUM(num_file) FROM file_status WHERE ngay_lam = ?), 0) AS da_lam
         ";
 
-        $bindings = [$date, $date, $hotshotPrinter, $date, $date];
+        $bindings = [$date, $date, $hotshotPrinter, $hotshotPrinter, $date, $date, $date, $date];
 
         return $this->formatHotshotResult($this->queryFplatform($sql, $bindings));
     }
@@ -86,8 +93,9 @@ final class GetHotshotMockupInventoryTask extends ParentTask
         }
 
         return [
-            'tong_viec' => (int) $result->tong_viec,
-            'da_lam'    => (int) $result->da_lam,
+            'estimate_date' => $result->estimate_date,
+            'tong_viec'     => (int) $result->tong_viec,
+            'da_lam'        => (int) $result->da_lam,
         ];
     }
 }

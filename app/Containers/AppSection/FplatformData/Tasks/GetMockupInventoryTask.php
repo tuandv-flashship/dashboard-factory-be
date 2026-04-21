@@ -9,8 +9,11 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 /**
  * Get daily inventory (tổng việc) for team Mockup (DTF).
  *
- * Source: docs/rpt_factory_ops_metrics_v5.sql
- * Complex: folder_manage → order_check_file_dropbox → log_check_mockup
+ * Source: FplatformData/sql/04_tong_viec_team_mockup.sql (v1.1.0)
+ *
+ * Logic: target_folders → file_groups → calc_done (HAVING with HOTSHOT date cutoff).
+ *        HOTSHOT/REPRINT printers use strict date >= estimate_date cutoff;
+ *        regular printers use first scan date.
  */
 final class GetMockupInventoryTask extends ParentTask
 {
@@ -18,70 +21,88 @@ final class GetMockupInventoryTask extends ParentTask
 
     public function run(string $date, FactoryLine $factory): ?array
     {
-        $extraUnions = $this->buildExtraPrinterUnions($factory);
+        $extraUnions     = $this->buildExtraPrinterUnions($factory);
+        $hotshotPrinters = $this->hotshotPrinterList($factory);
 
         $sql = "
             WITH
-            target_printers AS (
-                SELECT REPLACE(name, 'Machine ', 'May') AS printer_id
-                FROM printer_manage
-                WHERE factory = ?
-                {$extraUnions}
-            ),
-            folder_printer AS (
-                SELECT fm.estimate_date, fm.folder
+            target_folders AS (
+                SELECT
+                    fm.folder,
+                    fm.estimate_date,
+                    fm.printer_default,
+                    fm.total_file
                 FROM folder_manage fm
-                JOIN target_printers p
-                    ON p.printer_id = COALESCE(fm.printer_share, fm.printer_run, fm.printer_default)
                 WHERE fm.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
                     AND fm.status_folder <> 2
+                    AND COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) IN (
+                        SELECT REPLACE(name, 'Machine ', 'May')
+                        FROM printer_manage
+                        WHERE factory = ?
+                        {$extraUnions}
+                    )
             ),
-            a AS (
+            calc_total AS (
+                SELECT SUM(total_file) AS sum_total_file
+                FROM target_folders
+            ),
+            file_groups AS (
                 SELECT
                     f.estimate_date,
-                    f.folder,
+                    f.printer_default,
                     d.file_name_order_code,
                     d.file_name_index_number,
                     COUNT(*) AS num_file
-                FROM folder_printer f
+                FROM target_folders f
                 JOIN order_check_file_dropbox d
                     ON d.folder = f.folder COLLATE utf8mb4_unicode_ci
                     AND d.status <> 2
-                GROUP BY f.estimate_date, f.folder, d.file_name_order_code, d.file_name_index_number
+                GROUP BY f.estimate_date, f.printer_default, d.file_name_order_code, d.file_name_index_number
             ),
-            daily_aggregated AS (
-                SELECT
-                    estimate_date,
-                    SUM(IF(created IS NULL, num_file, 0)) AS not_done,
-                    SUM(num_file) AS total_file
+            calc_done AS (
+                SELECT SUM(num_file) AS sum_done_file
                 FROM (
-                    SELECT a.*, l.created
-                    FROM a
+                    SELECT fg.num_file
+                    FROM file_groups fg
                     LEFT JOIN log_check_mockup l
-                        ON a.file_name_order_code COLLATE utf8mb4_0900_ai_ci = l.barcode
+                        ON l.barcode = fg.file_name_order_code COLLATE utf8mb4_0900_ai_ci
+                        AND l.index_number = fg.file_name_index_number
                         AND l.created >= ? - INTERVAL 15 DAY
-                        AND a.file_name_index_number = l.index_number
-                    GROUP BY 1, 2, 3, 4
-                ) b
-                GROUP BY estimate_date
+                    GROUP BY fg.estimate_date, fg.printer_default, fg.file_name_order_code, fg.file_name_index_number, fg.num_file
+                    HAVING
+                        CASE
+                            WHEN fg.printer_default IN ({$hotshotPrinters}) THEN
+                                MIN(CASE
+                                    WHEN DATE(CONVERT_TZ(l.created, '+7:00', 'US/Central')) >= fg.estimate_date
+                                    THEN DATE(CONVERT_TZ(l.created, '+7:00', 'US/Central'))
+                                END)
+                            ELSE DATE(MIN(CONVERT_TZ(l.created, '+7:00', 'US/Central')))
+                        END < ?
+                ) done_groups
             )
-            SELECT * FROM (
-                SELECT
-                    estimate_date,
-                    total_file + COALESCE(SUM(not_done) OVER (
-                        ORDER BY estimate_date
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS tong_viec
-                FROM daily_aggregated
-            ) final_result
-            WHERE estimate_date = ?
+            SELECT
+                ? AS estimate_date,
+                COALESCE((SELECT sum_total_file FROM calc_total), 0)
+                    - COALESCE((SELECT sum_done_file FROM calc_done), 0) AS tong_viec
         ";
 
         $bindings = array_merge(
+            [$date, $date],
             $this->printerBindings($factory),
-            [$date, $date, $date, $date],
+            [$date, $date, $date],
         );
 
         return $this->formatResult($this->queryFplatform($sql, $bindings));
+    }
+
+    /**
+     * Comma-separated quoted hotshot printer names for IN clause.
+     */
+    private function hotshotPrinterList(FactoryLine $factory): string
+    {
+        return match ($factory) {
+            FactoryLine::FLS => "'MayHOTSHOT', 'MayREPRINT'",
+            FactoryLine::PD  => "'MayHOTSHOTPD', 'MayREPRINTPD'",
+        };
     }
 }
