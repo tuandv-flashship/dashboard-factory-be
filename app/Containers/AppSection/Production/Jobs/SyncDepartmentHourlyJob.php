@@ -254,7 +254,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
                 $target = $this->computeTarget(
                     $futureStaffRequired, $kpiPerHour, $record->kpi_percent,
-                    $hourStartInventory, $record->target
+                    $hourStartInventory, $record->target, $isPerMachine
                 );
 
                 if ($record->target !== $target || $record->hour_start_inventory !== $hourStartInventory || $record->staff_required !== $futureStaffRequired) {
@@ -280,11 +280,12 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             // ── Already completed → re-sync actual + recalc metrics ──
             if ($record->status === HourlyRecordStatus::Completed->value) {
                 // Completed (past) slots: target = staff × kpi_per_hour × kpi_percent, capped by inventory
+                // For per_machine: kpi_per_hour is already total capacity — do NOT multiply by machine count.
                 $target = $staff > 0
-                    ? min($hourStartInventory, (int) round($staff * $kpiPerHour * $record->kpi_percent / 100))
+                    ? min($hourStartInventory, (int) round(($isPerMachine ? 1 : $staff) * $kpiPerHour * $record->kpi_percent / 100))
                     : $this->computeTarget(
                         $staffRequired, $kpiPerHour, $record->kpi_percent,
-                        $hourStartInventory, $record->target
+                        $hourStartInventory, $record->target, $isPerMachine
                     );
 
                 $record->update([
@@ -311,7 +312,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                     $record, $dept, $detail,
                     $hourStartInventory, $remainingKpiMinutes,
                     $actual, $staff, $productivityJson,
-                    $kpiPerHour,
+                    $kpiPerHour, $machineCount,
                     $breaks, $actualSlot, $isPassedSlot,
                 );
 
@@ -345,11 +346,12 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         int $staff,
         ?array $productivityJson,
         float $kpiPerHour,
+        ?int $cachedMachineCount,   // pass-through from syncDepartment to avoid extra DB query
         array $breaks,
         ?array $actualSlot,
         bool $isCompleted,
     ): int {
-        $staffRequired = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail, null);
+        $staffRequired = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail, $cachedMachineCount);
 
         $slotStart = $actualSlot ? $actualSlot['start'] : null;
         $slotEnd   = $actualSlot ? $actualSlot['end']   : null;
@@ -365,13 +367,16 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             $kpiPercent = $record->kpi_percent;
         }
 
+        $isPerMachine = $dept->productivity_type === ProductivityType::PerMachine;
+
         // Passed (completed) slots: target = staff × kpi_per_hour × kpi_percent, capped by inventory
+        // For per_machine: kpi_per_hour is already total capacity — do NOT multiply by machine count.
         // Active (current) slots: target = staff_required × kpi_per_hour × kpi_percent
         $target = ($isCompleted && $staff > 0)
-            ? min($hourStartInventory, (int) round($staff * $kpiPerHour * $kpiPercent / 100))
+            ? min($hourStartInventory, (int) round(($isPerMachine ? 1 : $staff) * $kpiPerHour * $kpiPercent / 100))
             : $this->computeTarget(
                 $staffRequired, $kpiPerHour, $kpiPercent,
-                $hourStartInventory, $record->target
+                $hourStartInventory, $record->target, $isPerMachine
             );
 
         $status = $isCompleted
@@ -442,17 +447,28 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
     /**
      * Compute hourly target for a slot.
      *
-     * Formula: ceil(inventory / giờ_còn_lại / kpiPerHour) × kpiPerHour × (kpi_percent / 100)
+     * Per-staff:   target = staffRequired × kpiPerHour × (kpiPercent / 100)
+     * Per-machine: target = kpiPerHour × (kpiPercent / 100)
+     *              (kpiPerHour is already the TOTAL capacity of all machines combined)
      *
      * @param float $kpiPercent  kpi_percent field (0-100), proportional slot weight
      */
     private function computeTarget(
         ?int $staffRequired, float $kpiPerHour, float $kpiPercent,
         int $hourStartInventory, int $fallbackTarget,
+        bool $perMachine = false,
     ): int {
-        $target = ($staffRequired !== null && $staffRequired > 0)
-            ? (int) round($staffRequired * $kpiPerHour * $kpiPercent / 100)
-            : $fallbackTarget;
+        if ($perMachine) {
+            // kpi_per_hour is already the TOTAL capacity of all machines combined.
+            // Only produce target if machines are assigned (staffRequired > 0).
+            $target = ($staffRequired !== null && $staffRequired > 0)
+                ? (int) round($kpiPerHour * $kpiPercent / 100)
+                : $fallbackTarget;
+        } else {
+            $target = ($staffRequired !== null && $staffRequired > 0)
+                ? (int) round($staffRequired * $kpiPerHour * $kpiPercent / 100)
+                : $fallbackTarget;
+        }
 
         // Cap target by available inventory — every slot, not just the last.
         return min($target, $hourStartInventory);
