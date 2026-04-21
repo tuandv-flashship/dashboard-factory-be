@@ -198,6 +198,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         $lastHourIndex   = $records->max('hour_index');
         $isPerMachine    = $dept->productivity_type === ProductivityType::PerMachine;
         $kpiPerHour      = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
+        $machineCount    = $isPerMachine ? $detail->machines()->count() : null; // cached once
 
         // ── Batch-fetch FPlatform data (3 API calls) ──
         $shiftStart = $deptStart->format('Y-m-d H:i:s');
@@ -241,7 +242,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             $pastKpiMinutes      = $cumulativeKpiMinutes[$record->hour_index] ?? 0;
             $hourStartInventory  = max(0, $currentInv);
             $remainingKpiMinutes = $totalKpiMinutes - $pastKpiMinutes;
-            $staffRequired       = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail);
+            $staffRequired       = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail, $machineCount);
 
             // Capture staff_required of the currently active slot for future slots to inherit
             if ($isCurrentSlot) {
@@ -352,7 +353,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         ?array $actualSlot,
         bool $isCompleted,
     ): int {
-        $staffRequired = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail);
+        $staffRequired = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail, null);
 
         $slotStart = $actualSlot ? $actualSlot['start'] : null;
         $slotEnd   = $actualSlot ? $actualSlot['end']   : null;
@@ -464,9 +465,17 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         return $target;
     }
 
-    private function computeStaffRequired(Department $dept, int $inventory, int $remainingKpiMinutes, ?ShiftDetail $detail = null): ?int
-    {
+    private function computeStaffRequired(
+        Department $dept,
+        int $inventory,
+        int $remainingKpiMinutes,
+        ?ShiftDetail $detail = null,
+        ?int $cachedMachineCount = null,
+    ): ?int {
         if ($dept->productivity_type === ProductivityType::PerMachine) {
+            if ($cachedMachineCount !== null) {
+                return $cachedMachineCount;
+            }
             return $detail ? $detail->machines()->count() : 0;
         }
 
@@ -555,12 +564,6 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             Carbon::createFromFormat('Y-m-d H:i:s', "{$shiftDate} {$startHour}:00:00"),
             Carbon::createFromFormat('Y-m-d H:i:s', "{$shiftDate} {$endHour}:00:00"),
         ];
-    }
-
-    private function computeKpiHoursFromLabel(string $hourSlot, string $shiftDate, array $breaks): float
-    {
-        [$start, $end] = $this->parseHourSlot($hourSlot, $shiftDate);
-        return $this->computeKpiHours($start, $end, $breaks);
     }
 
     /**
