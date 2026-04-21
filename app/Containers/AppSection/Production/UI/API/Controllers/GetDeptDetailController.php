@@ -12,6 +12,7 @@ use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
 use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 final class GetDeptDetailController extends ApiController
@@ -40,8 +41,8 @@ final class GetDeptDetailController extends ApiController
             return response()->json(['message' => 'No active shift found'], 404);
         }
 
-        $hourlyTransformer = new HourlyRecordTransformer();
-        $issueTransformer = new HourlyIssueTransformer();
+        $hourlyTransformer      = new HourlyRecordTransformer();
+        $issueTransformer       = new HourlyIssueTransformer();
         $shiftDetailTransformer = new ShiftDetailTransformer();
 
         $recordsData = $data['records']->map(
@@ -53,59 +54,35 @@ final class GetDeptDetailController extends ApiController
             )
         );
 
-        // Calculate summary
-        $records = $data['records'];
-        $completedRecords = $records->whereNotNull('actual');
-        $totalCompleted = $completedRecords->sum('actual');
-        $totalTarget = $records->sum('target');
-        $day_start_inventory = $data['shift_detail']?->day_start_inventory ?? 0;
-        $remaining = max(0, $day_start_inventory - $totalCompleted);
+        $records           = $data['records'];
+        $completedRecords  = $records->whereNotNull('actual');
+        $totalCompleted    = $completedRecords->sum('actual');
+        $totalTarget       = $records->sum('target');
+        $dayStartInventory = $data['shift_detail']?->day_start_inventory ?? 0;
+        $remaining         = max(0, $dayStartInventory - $totalCompleted);
 
         $response = [
             'data' => [
-                'shift' => (new ShiftTransformer())->transform($data['shift']),
-                'type' => $data['type'],
-                'line' => [
-                    'code' => $data['line']->code,
+                'shift'        => (new ShiftTransformer())->transform($data['shift']),
+                'type'         => $data['type'],
+                'line'         => [
+                    'code'  => $data['line']->code,
                     'label' => $data['line']->label,
                 ],
-                'department' => isset($data['department']) ? (static function ($dept, $shiftDetail) {
-                    $isPerMachine = $dept->productivity_type === ProductivityType::PerMachine;
-                    $kpiPerHour = $isPerMachine
-                        ? ($shiftDetail?->kpi_per_hour ?? 0)
-                        : $dept->kpi_per_hour;
-
-                    return [
-                        'id'               => $dept->getHashedKey(),
-                        'code'             => $dept->code,
-                        'label'            => $dept->label,
-                        'label_en'         => $dept->label_en,
-                        'description'      => $dept->description,
-                        'icon'             => $dept->icon,
-                        'unit'             => $dept->unit,
-                        'kpi_per_hour'     => $kpiPerHour,
-                        'factory'          => $dept->factory,
-                        'sort_order'       => $dept->sort_order,
-                        'is_active'        => $dept->is_active,
-                        'productivity_type'=> $dept->productivity_type,
-                    ];
-                })($data['department'], $data['shift_detail']) : null,
+                'department'   => isset($data['department'])
+                    ? $this->transformDepartment($data['department'], $data['shift_detail'])
+                    : null,
                 'shift_detail' => $shiftDetailTransformer->transform($data['shift_detail']),
-                'hours' => $recordsData->values(),
-                'summary' => [
-                    'total_target' => $totalTarget,
-                    'completed' => $totalCompleted,
-                    'remaining' => $remaining,
-                    'day_start_inventory' => $day_start_inventory,
-                    'hotshot_total' => $data['shift_detail']?->hotshot_total ?? 0,
-                    'hotshot_completed' => $data['shift_detail']?->hotshot_completed ?? 0,
-                    'efficiency' => (function () use ($completedRecords) {
-                        $withEfficiency = $completedRecords->where('efficiency', '>', 0);
-                        return $withEfficiency->isNotEmpty()
-                            ? round($withEfficiency->avg('efficiency'), 2)
-                            : 0;
-                    })(),
-                    'error_rate' => 0,
+                'hours'        => $recordsData->values(),
+                'summary'      => [
+                    'total_target'        => $totalTarget,
+                    'completed'           => $totalCompleted,
+                    'remaining'           => $remaining,
+                    'day_start_inventory' => $dayStartInventory,
+                    'hotshot_total'       => $data['shift_detail']?->hotshot_total ?? 0,
+                    'hotshot_completed'   => $data['shift_detail']?->hotshot_completed ?? 0,
+                    'efficiency'          => $this->calculateEfficiency($completedRecords),
+                    'error_rate'          => 0,
                 ],
             ],
         ];
@@ -116,5 +93,36 @@ final class GetDeptDetailController extends ApiController
 
         return response()->json($response);
     }
-}
 
+    private function transformDepartment(mixed $dept, mixed $shiftDetail): array
+    {
+        $isPerMachine = $dept->productivity_type === ProductivityType::PerMachine;
+        $kpiPerHour   = $isPerMachine
+            ? ($shiftDetail?->kpi_per_hour ?? 0)
+            : $dept->kpi_per_hour;
+
+        return [
+            'id'               => $dept->getHashedKey(),
+            'code'             => $dept->code,
+            'label'            => $dept->label,
+            'label_en'         => $dept->label_en,
+            'description'      => $dept->description,
+            'icon'             => $dept->icon,
+            'unit'             => $dept->unit,
+            'kpi_per_hour'     => $kpiPerHour,
+            'factory'          => $dept->factory,
+            'sort_order'       => $dept->sort_order,
+            'is_active'        => $dept->is_active,
+            'productivity_type'=> $dept->productivity_type,
+        ];
+    }
+
+    private function calculateEfficiency(Collection $completedRecords): float|int
+    {
+        $withEfficiency = $completedRecords->where('efficiency', '>', 0);
+
+        return $withEfficiency->isNotEmpty()
+            ? round($withEfficiency->avg('efficiency'), 2)
+            : 0;
+    }
+}
