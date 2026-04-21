@@ -16,7 +16,7 @@ final class ReasonErrorRepository extends ParentRepository
         'code'        => '=',
         'label'       => 'like',
         'category_id' => '=',
-        'scope_dept'  => '=',
+        'sub_item_id' => '=',
         'is_active'   => '=',
     ];
 

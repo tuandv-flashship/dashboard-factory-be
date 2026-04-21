@@ -9,8 +9,12 @@ use App\Ship\Parents\Actions\Action as ParentAction;
 
 final class FindReasonCategoryAction extends ParentAction
 {
+    public function __construct(
+        private readonly FindReasonCategoryByIdTask $task,
+    ) {}
+
     public function run(FindReasonCategoryRequest $request): ReasonCategory
     {
-        return app(FindReasonCategoryByIdTask::class)->run($request->id);
+        return $this->task->run($request->id);
     }
 }

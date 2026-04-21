@@ -9,10 +9,15 @@ use App\Ship\Parents\Actions\Action as ParentAction;
 
 final class DeleteReasonCategoryAction extends ParentAction
 {
+    public function __construct(
+        private readonly FindReasonCategoryByIdTask $findTask,
+        private readonly DeleteReasonCategoryTask $deleteTask,
+    ) {}
+
     public function run(DeleteReasonCategoryRequest $request): bool
     {
-        app(FindReasonCategoryByIdTask::class)->run($request->id);
+        $this->findTask->run($request->id); // 404 if not found
 
-        return app(DeleteReasonCategoryTask::class)->run($request->id);
+        return $this->deleteTask->run($request->id);
     }
 }

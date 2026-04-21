@@ -6,15 +6,15 @@ use App\Ship\Parents\Requests\Request as ParentRequest;
 
 final class UpdateReasonErrorRequest extends ParentRequest
 {
-    protected array $decode = ['id', 'category_id'];
+    protected array $decode = ['id', 'category_id', 'sub_item_id'];
 
     public function rules(): array
     {
         return [
             'category_id' => ['sometimes', 'integer', 'exists:reason_categories,id'],
+            'sub_item_id' => ['sometimes', 'integer', 'exists:reason_sub_items,id'],
             'code'        => ['sometimes', 'string', 'max:100'],
             'label'       => ['sometimes', 'string', 'max:255'],
-            'scope_dept'  => ['nullable', 'string', 'max:20'],
             'sort_order'  => ['sometimes', 'integer', 'min:0'],
             'is_active'   => ['sometimes', 'boolean'],
         ];

@@ -450,16 +450,16 @@ final class ReasonCodeSeeder_2 extends Seeder
             $slugCounter[$subItemSlug] = ($slugCounter[$subItemSlug] ?? 0) + 1;
             $order = $slugCounter[$subItemSlug];
 
-            $categoryId = $subItemCatMap[$subItemSlug]
-                ?? $categoryMap['process']->id; // fallback
+            $categoryId  = $subItemCatMap[$subItemSlug] ?? $categoryMap['process']->id;
+            $subItemId   = $subItemIds[$subItemSlug] ?? null;  // FK → level 2
 
             $errCode = "err-{$dept}-{$subItemSlug}-" . $this->slugify($errorLabel);
 
             ReasonError::create([
                 'category_id' => $categoryId,
+                'sub_item_id' => $subItemId,
                 'code'        => mb_substr($errCode, 0, 100),
                 'label'       => $errorLabel,
-                'scope_dept'  => $dept,
                 'sort_order'  => $order,
             ]);
         }

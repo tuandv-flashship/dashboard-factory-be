@@ -8,8 +8,12 @@ use App\Ship\Parents\Actions\Action as ParentAction;
 
 final class DeleteReasonSubItemAction extends ParentAction
 {
+    public function __construct(
+        private readonly DeleteReasonSubItemTask $task,
+    ) {}
+
     public function run(DeleteReasonSubItemRequest $request): bool
     {
-        return app(DeleteReasonSubItemTask::class)->run($request->id);
+        return $this->task->run($request->id);
     }
 }

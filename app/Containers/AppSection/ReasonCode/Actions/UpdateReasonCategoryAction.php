@@ -9,6 +9,10 @@ use App\Ship\Parents\Actions\Action as ParentAction;
 
 final class UpdateReasonCategoryAction extends ParentAction
 {
+    public function __construct(
+        private readonly UpdateReasonCategoryTask $task,
+    ) {}
+
     public function run(UpdateReasonCategoryRequest $request): ReasonCategory
     {
         $data = array_filter([
@@ -21,6 +25,6 @@ final class UpdateReasonCategoryAction extends ParentAction
             'is_active'  => $request->is_active,
         ], fn ($v) => $v !== null);
 
-        return app(UpdateReasonCategoryTask::class)->run($request->id, $data);
+        return $this->task->run($request->id, $data);
     }
 }

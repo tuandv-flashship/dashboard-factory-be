@@ -11,33 +11,33 @@ final class ReasonError extends ParentModel
 
     protected $fillable = [
         'category_id',
+        'sub_item_id',
         'code',
         'label',
-        'scope_dept',
         'sort_order',
         'is_active',
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
-        'is_active' => 'boolean',
+        'is_active'  => 'boolean',
     ];
 
+    // ── Relationships ──────────────────────────────────────────────────
+
+    /**
+     * Denormalized FK — direct access to category without JOIN through sub_item.
+     */
     public function category(): BelongsTo
     {
         return $this->belongsTo(ReasonCategory::class, 'category_id');
     }
 
     /**
-     * Scope: filter errors applicable to a given department context.
+     * Primary FK — level 2 parent in the 3-level hierarchy.
      */
-    public function scopeForDept($query, ?string $dept)
+    public function subItem(): BelongsTo
     {
-        return $query->where('is_active', true)
-            ->where(function ($q) use ($dept) {
-                $q->whereNull('scope_dept')        // common errors (all depts)
-                    ->orWhere('scope_dept', $dept); // dept-specific errors
-            })
-            ->orderBy('sort_order');
+        return $this->belongsTo(ReasonSubItem::class, 'sub_item_id');
     }
 }

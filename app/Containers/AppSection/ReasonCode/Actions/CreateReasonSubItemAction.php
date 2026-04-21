@@ -9,9 +9,13 @@ use App\Ship\Parents\Actions\Action as ParentAction;
 
 final class CreateReasonSubItemAction extends ParentAction
 {
+    public function __construct(
+        private readonly CreateReasonSubItemTask $task,
+    ) {}
+
     public function run(CreateReasonSubItemRequest $request): ReasonSubItem
     {
-        return app(CreateReasonSubItemTask::class)->run([
+        return $this->task->run([
             'category_id' => $request->category_id,
             'code'        => $request->code,
             'label'       => $request->label,

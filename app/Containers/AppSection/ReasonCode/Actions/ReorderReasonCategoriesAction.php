@@ -8,8 +8,12 @@ use App\Ship\Parents\Actions\Action as ParentAction;
 
 final class ReorderReasonCategoriesAction extends ParentAction
 {
+    public function __construct(
+        private readonly ReorderReasonCategoriesTask $task,
+    ) {}
+
     public function run(ReorderReasonCategoriesRequest $request): void
     {
-        app(ReorderReasonCategoriesTask::class)->run($request->items);
+        $this->task->run($request->items);
     }
 }

@@ -9,17 +9,22 @@ use App\Ship\Parents\Actions\Action as ParentAction;
 
 final class UpdateReasonErrorAction extends ParentAction
 {
+    public function __construct(
+        private readonly UpdateReasonErrorTask $task,
+    ) {}
+
     public function run(UpdateReasonErrorRequest $request): ReasonError
     {
         $data = array_filter([
             'category_id' => $request->category_id,
+            'sub_item_id' => $request->sub_item_id,
             'code'        => $request->code,
             'label'       => $request->label,
-            'scope_dept'  => $request->scope_dept,
             'sort_order'  => $request->sort_order,
             'is_active'   => $request->is_active,
         ], fn ($v) => $v !== null);
 
-        return app(UpdateReasonErrorTask::class)->run($request->id, $data);
+        return $this->task->run($request->id, $data);
     }
 }
+

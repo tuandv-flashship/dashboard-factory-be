@@ -114,7 +114,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
     private function invalidateCache(Shift $shift, Department $dept): void
     {
         $date      = $shift->date->toDateString();
-        $shiftNum  = $shift->shift;
+        $shiftNum  = $shift->shift_number;
 
         if (!ProductionCacheKeys::isHistorical($date)) {
             return; // live data is never cached — nothing to flush

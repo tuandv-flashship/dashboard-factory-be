@@ -9,9 +9,13 @@ use App\Ship\Parents\Actions\Action as ParentAction;
 
 final class CreateReasonCategoryAction extends ParentAction
 {
+    public function __construct(
+        private readonly CreateReasonCategoryTask $task,
+    ) {}
+
     public function run(CreateReasonCategoryRequest $request): ReasonCategory
     {
-        return app(CreateReasonCategoryTask::class)->run([
+        return $this->task->run([
             'code'       => $request->code,
             'label'      => $request->label,
             'label_en'   => $request->label_en,

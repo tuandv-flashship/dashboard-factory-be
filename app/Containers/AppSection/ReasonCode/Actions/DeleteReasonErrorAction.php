@@ -8,8 +8,12 @@ use App\Ship\Parents\Actions\Action as ParentAction;
 
 final class DeleteReasonErrorAction extends ParentAction
 {
+    public function __construct(
+        private readonly DeleteReasonErrorTask $task,
+    ) {}
+
     public function run(DeleteReasonErrorRequest $request): bool
     {
-        return app(DeleteReasonErrorTask::class)->run($request->id);
+        return $this->task->run($request->id);
     }
 }

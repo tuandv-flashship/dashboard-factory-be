@@ -9,7 +9,10 @@ use Illuminate\Database\Eloquent\Collection;
 final class GetReasonCodesForContextTask extends ParentTask
 {
     /**
-     * Get all reason categories with sub-items and errors filtered by context.
+     * Get all reason categories with sub-items (and their nested errors),
+     * filtered by the given line + department context.
+     *
+     * Hierarchy: category → subItems (filtered by context) → errors (nested)
      *
      * @return Collection<int, ReasonCategory>
      */
@@ -20,12 +23,12 @@ final class GetReasonCodesForContextTask extends ParentTask
             ->orderBy('sort_order')
             ->with([
                 'subItems' => function ($query) use ($line, $dept) {
-                    $query->forContext($line, $dept);
-                },
-                'errors' => function ($query) use ($dept) {
-                    $query->forDept($dept);
+                    $query->forContext($line, $dept)->with([
+                        'errors' => fn($q) => $q->where('is_active', true)->orderBy('sort_order'),
+                    ]);
                 },
             ])
             ->get();
     }
 }
+

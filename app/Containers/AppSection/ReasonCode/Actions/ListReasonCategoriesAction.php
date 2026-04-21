@@ -9,8 +9,12 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 final class ListReasonCategoriesAction extends ParentAction
 {
+    public function __construct(
+        private readonly ListReasonCategoriesTask $task,
+    ) {}
+
     public function run(ListReasonCategoriesRequest $request): LengthAwarePaginator
     {
-        return app(ListReasonCategoriesTask::class)->run();
+        return $this->task->run();
     }
 }

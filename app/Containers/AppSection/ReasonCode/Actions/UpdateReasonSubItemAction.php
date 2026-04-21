@@ -9,6 +9,10 @@ use App\Ship\Parents\Actions\Action as ParentAction;
 
 final class UpdateReasonSubItemAction extends ParentAction
 {
+    public function __construct(
+        private readonly UpdateReasonSubItemTask $task,
+    ) {}
+
     public function run(UpdateReasonSubItemRequest $request): ReasonSubItem
     {
         $data = array_filter([
@@ -22,6 +26,6 @@ final class UpdateReasonSubItemAction extends ParentAction
             'is_active'   => $request->is_active,
         ], fn ($v) => $v !== null);
 
-        return app(UpdateReasonSubItemTask::class)->run($request->id, $data);
+        return $this->task->run($request->id, $data);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Containers\AppSection\ReasonCode\Models;
 
 use App\Ship\Parents\Models\Model as ParentModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class ReasonSubItem extends ParentModel
 {
@@ -22,8 +23,10 @@ final class ReasonSubItem extends ParentModel
 
     protected $casts = [
         'sort_order' => 'integer',
-        'is_active' => 'boolean',
+        'is_active'  => 'boolean',
     ];
+
+    // ── Relationships ──────────────────────────────────────────────────
 
     public function category(): BelongsTo
     {
@@ -31,33 +34,31 @@ final class ReasonSubItem extends ParentModel
     }
 
     /**
-     * Scope: filter sub-items applicable to a given line + dept context.
+     * Level 3 — specific errors belonging to this sub-item.
+     */
+    public function errors(): HasMany
+    {
+        return $this->hasMany(ReasonError::class, 'sub_item_id')->orderBy('sort_order');
+    }
+
+    // ── Scopes ─────────────────────────────────────────────────────────
+
+    /**
+     * Filter sub-items applicable to a given line + department context.
      */
     public function scopeForContext($query, ?string $line, ?string $dept)
     {
         return $query->where('is_active', true)
             ->where(function ($q) use ($line, $dept) {
-                // Global items always included
                 $q->where('scope_type', 'global')
-                    // Per-department items matching dept
                     ->orWhere(function ($q2) use ($dept) {
                         $q2->where('scope_type', 'per_department')
-                            ->where(function ($q3) use ($dept) {
-                                $q3->whereNull('scope_dept')
-                                    ->orWhere('scope_dept', $dept);
-                            });
+                            ->where(fn($q3) => $q3->whereNull('scope_dept')->orWhere('scope_dept', $dept));
                     })
-                    // Per-line-department items matching both line and dept
                     ->orWhere(function ($q2) use ($line, $dept) {
                         $q2->where('scope_type', 'per_line_department')
-                            ->where(function ($q3) use ($line) {
-                                $q3->whereNull('scope_line')
-                                    ->orWhere('scope_line', $line);
-                            })
-                            ->where(function ($q3) use ($dept) {
-                                $q3->whereNull('scope_dept')
-                                    ->orWhere('scope_dept', $dept);
-                            });
+                            ->where(fn($q3) => $q3->whereNull('scope_line')->orWhere('scope_line', $line))
+                            ->where(fn($q3) => $q3->whereNull('scope_dept')->orWhere('scope_dept', $dept));
                     });
             })
             ->orderBy('sort_order');
