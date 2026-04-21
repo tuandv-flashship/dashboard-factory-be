@@ -93,7 +93,7 @@ Client (HTTPS)
 │  Crontab                                            │
 │  └── * * * * * schedule:run                         │ ← Short-lived, mỗi phút
 │      ├── ActivateHourlyRecordsJob  (hourly)         │
-│      ├── CreateDailyShiftJob       (05:50)          │
+│      ├── CreateDailyShiftJob       (04:50)          │
 │      └── horizon:snapshot          (5min)           │
 ├─────────────────────────────────────────────────────┤
 │  PrintDash (PD) — /var/www/dashboard-pd             │
@@ -105,7 +105,7 @@ Client (HTTPS)
 │  Crontab                                            │
 │  └── * * * * * schedule:run                         │ ← Short-lived, mỗi phút
 │      ├── ActivateHourlyRecordsJob  (hourly)         │
-│      ├── CreateDailyShiftJob       (05:50)          │
+│      ├── CreateDailyShiftJob       (04:50)          │
 │      └── horizon:snapshot          (5min)           │
 └─────────────────────────────────────────────────────┘
           │                │
@@ -334,7 +334,7 @@ MAIL_FROM_ADDRESS=noreply@example.com
 MAIL_FROM_NAME="${APP_NAME}"
 
 # ── Shift Schedule ───────────────────────
-DAILY_SHIFT_JOB_AT=05:50      # Chạy 10 phút trước ca sớm nhất
+DAILY_SHIFT_JOB_AT=04:50      # Chạy 1h10 phút trước ca sớm nhất
 
 # ── Passport OAuth Client ────────────────
 # Credentials để Frontend (Next.js) xác thực với API
@@ -614,7 +614,7 @@ Thêm:
 | -------------------------- | ----------------- | ----------------------------------------------------------- |
 | `SyncHourlyRecordsJob`     | Mỗi N phút        | Dispatch batch song song `SyncDepartmentHourlyJob` per dept |
 | `ActivateHourlyRecordsJob` | Mỗi giờ (`:00`)   | Chuyển status hourly records: pending → active → completed  |
-| `CreateDailyShiftJob`      | `05:50` hàng ngày | Tự tạo Ca 1, fetch tồn đầu ngày từ Fplatform                |
+| `CreateDailyShiftJob`      | `04:50` hàng ngày | Tự tạo Ca 1, fetch tồn đầu ngày từ Fplatform                |
 | `horizon:snapshot`         | Mỗi 5 phút        | Capture metrics cho Horizon dashboard graphs                |
 
 ### Verify

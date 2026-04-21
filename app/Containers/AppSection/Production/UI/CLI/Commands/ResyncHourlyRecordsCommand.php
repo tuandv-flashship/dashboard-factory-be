@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Production\UI\CLI\Commands;
 
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Containers\AppSection\Production\Tasks\SyncHourlyRecordsTask;
 use App\Ship\Parents\Commands\Command as ParentCommand;
 use Illuminate\Support\Facades\Cache;
@@ -50,7 +51,7 @@ final class ResyncHourlyRecordsCommand extends ParentCommand
         // Clear cached hourly response
         $resolvedDate = $result['shift']->date->toDateString();
         $resolvedShift = $result['shift']->shift_number;
-        Cache::forget("all-lines-hourly:{$resolvedDate}:{$resolvedShift}");
+        Cache::forget(ProductionCacheKeys::allLinesHourly($resolvedDate, $resolvedShift));
 
         if ($result['synced'] > 0) {
             $this->info("✓ {$result['message']}");

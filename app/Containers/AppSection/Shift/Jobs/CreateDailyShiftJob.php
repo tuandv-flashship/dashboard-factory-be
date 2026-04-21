@@ -11,7 +11,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Scheduled Job — runs daily before shift starts (default 05:50, configurable via DAILY_SHIFT_JOB_AT).
+ * Scheduled Job — runs daily before shift starts (default 04:50, configurable via DAILY_SHIFT_JOB_AT).
  *
  * Auto-creates shift 1 for today from the default template (Ca 1).
  * If shift already exists, refreshes day_start_inventory from Fplatform.

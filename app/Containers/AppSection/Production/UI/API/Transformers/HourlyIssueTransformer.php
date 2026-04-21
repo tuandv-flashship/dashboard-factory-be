@@ -10,13 +10,15 @@ final class HourlyIssueTransformer extends ParentTransformer
     public function transform(HourlyIssue $issue): array
     {
         return [
-            'id' => $issue->getHashedKey(),
-            'category' => $issue->category,
-            'sub_item' => $issue->sub_item,
-            'error' => $issue->error,
-            'note' => $issue->note,
-            'resolved_at' => $issue->resolved_at?->toIso8601String(),
-            'resolution' => $issue->resolution,
+            'id'               => $issue->getHashedKey(),
+            'hourly_record_id' => hashids()->encode($issue->hourly_record_id),
+            'category'         => $issue->category,
+            'sub_item'         => $issue->sub_item,
+            'error'            => $issue->error,
+            'note'             => $issue->note,
+            'resolved_at'      => $issue->resolved_at?->toIso8601String(),
+            'resolution'       => $issue->resolution,
+            'created_at'       => $issue->created_at?->toIso8601String(),
         ];
     }
 }

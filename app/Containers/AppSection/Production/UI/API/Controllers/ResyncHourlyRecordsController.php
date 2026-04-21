@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Production\UI\API\Controllers;
 
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Containers\AppSection\Production\Tasks\SyncHourlyRecordsTask;
 use App\Containers\AppSection\Production\UI\API\Requests\ResyncHourlyRecordsRequest;
 use App\Ship\Parents\Controllers\ApiController;
@@ -29,7 +30,7 @@ final class ResyncHourlyRecordsController extends ApiController
         if ($result['shift']) {
             $resolvedDate  = $result['shift']->date->toDateString();
             $resolvedShift = $result['shift']->shift_number;
-            Cache::forget("all-lines-hourly:{$resolvedDate}:{$resolvedShift}");
+            Cache::forget(ProductionCacheKeys::allLinesHourly($resolvedDate, $resolvedShift));
         }
 
         return response()->json([

@@ -19,7 +19,7 @@ final class ShiftServiceProvider extends ParentServiceProvider
 
             // Auto-create shift 1 & refresh inventory before shift starts
             $schedule->job(new CreateDailyShiftJob())
-                ->dailyAt(config('factory.daily_shift_job_at', '05:50'))
+                ->dailyAt(config('factory.daily_shift_job_at', '04:50'))
                 ->timezone(config('app.timezone'))
                 ->withoutOverlapping();
 

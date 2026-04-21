@@ -46,6 +46,15 @@ final class ProductionCacheKeys
         return "quality:{$date}:{$shift}";
     }
 
+    /**
+     * all-lines-hourly:{date}:{shift}
+     * Used by: GetAllLinesHourlyController, ResyncHourlyRecordsController/Command
+     */
+    public static function allLinesHourly(string $date, int|string $shift): string
+    {
+        return "all-lines-hourly:{$date}:{$shift}";
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────
 
     /**
