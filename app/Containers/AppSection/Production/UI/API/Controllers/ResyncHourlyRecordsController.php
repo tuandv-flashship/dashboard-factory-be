@@ -19,14 +19,15 @@ final class ResyncHourlyRecordsController extends ApiController
 {
     public function __invoke(ResyncHourlyRecordsRequest $request): JsonResponse
     {
-        $date = $request->input('date');
-        $shift = $request->input('shift') ? (int) $request->input('shift') : null;
+        $date          = $request->input('date');
+        $shift         = $request->input('shift') ? (int) $request->input('shift') : null;
+        $shiftDetailId = $request->input('shift_detail_id') ? (int) $request->input('shift_detail_id') : null;
 
-        $result = app(SyncHourlyRecordsTask::class)->run($date, $shift);
+        $result = app(SyncHourlyRecordsTask::class)->run($date, $shift, $shiftDetailId);
 
         // Clear cached hourly response so next GET reflects fresh data
         if ($result['shift']) {
-            $resolvedDate = $result['shift']->date->toDateString();
+            $resolvedDate  = $result['shift']->date->toDateString();
             $resolvedShift = $result['shift']->shift_number;
             Cache::forget("all-lines-hourly:{$resolvedDate}:{$resolvedShift}");
         }

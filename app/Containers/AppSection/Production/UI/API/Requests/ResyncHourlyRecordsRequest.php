@@ -14,8 +14,9 @@ final class ResyncHourlyRecordsRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'date'  => ['nullable', 'date_format:Y-m-d'],
-            'shift' => ['nullable', 'integer', 'min:1'],
+            'date'            => ['nullable', 'date_format:Y-m-d'],
+            'shift'           => ['nullable', 'integer', 'min:1'],
+            'shift_detail_id' => ['nullable', 'integer', 'exists:shift_details,id'],
         ];
     }
 

@@ -17,14 +17,16 @@ final class ResyncHourlyRecordsCommand extends ParentCommand
 {
     protected $signature = 'production:resync
                             {--date= : Target date (Y-m-d). Defaults to today}
-                            {--shift= : Shift number (1, 2, ...). Defaults to latest active}';
+                            {--shift= : Shift number (1, 2, ...). Defaults to latest active}
+                            {--shift-detail= : Shift detail ID to resync. Omit to sync all departments}';
 
     protected $description = 'Manually resync hourly records (actual, staff, inventory, efficiency) from FPlatform';
 
     public function handle(): int
     {
-        $date = $this->option('date');
-        $shift = $this->option('shift') ? (int) $this->option('shift') : null;
+        $date          = $this->option('date');
+        $shift         = $this->option('shift') ? (int) $this->option('shift') : null;
+        $shiftDetailId = $this->option('shift-detail') ? (int) $this->option('shift-detail') : null;
 
         if ($date && !strtotime($date)) {
             $this->error("Invalid date format: {$date}");
@@ -32,10 +34,12 @@ final class ResyncHourlyRecordsCommand extends ParentCommand
             return self::FAILURE;
         }
 
-        $label = ($date ?? 'today') . ($shift ? " shift {$shift}" : '');
+        $label = ($date ?? 'today')
+            . ($shift ? " shift {$shift}" : '')
+            . ($shiftDetailId ? " [shift_detail #{$shiftDetailId}]" : '');
         $this->info("Resyncing hourly records for {$label}...");
 
-        $result = app(SyncHourlyRecordsTask::class)->run($date, $shift);
+        $result = app(SyncHourlyRecordsTask::class)->run($date, $shift, $shiftDetailId);
 
         if (!$result['shift']) {
             $this->error("✗ {$result['message']}");

@@ -46,9 +46,13 @@ final class SyncHourlyRecordsTask extends ParentTask
     }
 
     /**
+     * @param int|null $shiftDetailId  When provided, only the matching ShiftDetail is synced.
+     *                                   Useful for targeted resync after a single dept's
+     *                                   work_hours / break schedule is updated.
+     *
      * @return array{synced: int, shift: Shift|null, message: string}
      */
-    public function run(?string $date = null, ?int $shiftNumber = null): array
+    public function run(?string $date = null, ?int $shiftNumber = null, ?int $shiftDetailId = null): array
     {
         $shift = ($date || $shiftNumber)
             ? Shift::resolve($date, $shiftNumber)
@@ -73,7 +77,7 @@ final class SyncHourlyRecordsTask extends ParentTask
         }
 
         // Build dept job data for Stage 2 callback (serializable)
-        $deptJobData = $this->buildDeptJobData($shift, $shiftDetails);
+        $deptJobData = $this->buildDeptJobData($shift, $shiftDetails, $shiftDetailId);
         $deptCount = count($deptJobData);
 
         if ($deptCount === 0) {
@@ -141,7 +145,8 @@ final class SyncHourlyRecordsTask extends ParentTask
             })
             ->dispatch();
 
-        $msg = "Pipeline dispatched: {$deptCount} depts for {$shiftDate} shift {$shiftNum}.";
+        $target = $shiftDetailId ? "shift_detail #{$shiftDetailId}" : "{$deptCount} depts";
+        $msg = "Pipeline dispatched: {$target} for {$shiftDate} shift {$shiftNum}.";
         Log::info("[SyncHourlyRecords] {$msg}");
 
         return ['synced' => $deptCount, 'shift' => $shift, 'message' => $msg];
@@ -151,13 +156,19 @@ final class SyncHourlyRecordsTask extends ParentTask
      * Build serializable dept job data (shift_id + detail_id arrays).
      * Used in the then() callback to create SyncDepartmentHourlyJob instances.
      *
+     * @param int|null $shiftDetailId  When set, only that ShiftDetail is included.
      * @return array<int, array{shift_id: int, detail_id: int}>
      */
-    private function buildDeptJobData(Shift $shift, $shiftDetails): array
+    private function buildDeptJobData(Shift $shift, $shiftDetails, ?int $shiftDetailId = null): array
     {
         $data = [];
 
         foreach ($shiftDetails as $detail) {
+            // ── Targeted resync: skip all other departments ──
+            if ($shiftDetailId !== null && $detail->id !== $shiftDetailId) {
+                continue;
+            }
+
             $dept = $detail->department;
             if (!$dept) {
                 continue;
