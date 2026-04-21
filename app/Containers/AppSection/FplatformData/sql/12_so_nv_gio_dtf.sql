@@ -1,3 +1,13 @@
+-- ============================================================
+-- @file    : 12_so_nv_gio_dtf.sql
+-- @version : v1.0.0
+-- @updated : 2026-04-21
+-- @desc    : Lấy tổng số nhân viên theo giờ team in/cắt/pick - DTF (FLS, PD)
+-- ------------------------------------------------------------
+-- Changelog:
+--   v1.0.0 (2026-04-21) - Initial version (split from rpt_factory_ops_metrics_v8_1.sql)
+-- ============================================================
+
 -- =========================================
 -- Description: Lấy tổng số nhân viên theo từng giờ của team in, cắt, pick theo line DTF - PD, DTF -FLS
 -- =========================================

@@ -1,3 +1,13 @@
+-- ============================================================
+-- @file    : 25_hotshot_file_team_mockup.sql
+-- @version : v1.0.0
+-- @updated : 2026-04-21
+-- @desc    : Lấy số file hotshot - team mockup (DTF1-FLS, DTF2-PD)
+-- ------------------------------------------------------------
+-- Changelog:
+--   v1.0.0 (2026-04-21) - Initial version (split from rpt_factory_ops_metrics_v8_1.sql)
+-- ============================================================
+
 -- =========================================
 -- Description: Lấy số file hotshot (team mockup)
 -- =========================================
