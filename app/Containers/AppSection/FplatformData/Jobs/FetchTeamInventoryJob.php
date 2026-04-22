@@ -60,9 +60,12 @@ final class FetchTeamInventoryJob implements ShouldQueue
             $result = null;
         }
 
+        // Laravel's Redis driver silently drops Cache::put(key, null) — the key is never written.
+        // Store false as a safe sentinel for "fetched but no data returned",
+        // so assembleFromCache() can distinguish this from "job hasn't run yet" (key missing).
         Cache::put(
             self::cacheKey($this->teamValue, $this->date),
-            $result,
+            $result ?? false,
             $this->cacheTtl(),
         );
     }

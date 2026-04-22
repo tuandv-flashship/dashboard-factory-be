@@ -130,7 +130,9 @@ final class GetAllTeamsInventoryTask extends ParentTask
                 return null; // FetchTeamInventoryJob for this team hasn't completed yet
             }
 
-            $results[$team->value] = $cached; // may be null — formatResponse handles it gracefully
+            // FetchTeamInventoryJob stores false when FPlatform returned no data (null can't be cached in Redis).
+            // Convert false → null so formatResponse() applies its default values (tong_viec=0).
+            $results[$team->value] = $cached === false ? null : $cached;
         }
 
         $allInventory = $this->formatResponse($date, $results);
