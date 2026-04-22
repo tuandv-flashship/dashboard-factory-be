@@ -118,14 +118,19 @@ final class GetAllTeamsInventoryTask extends ParentTask
         $teams = $this->resolveTeams();
         $results = [];
 
+        // Use a sentinel to distinguish "job hasn't run yet" from "job ran but got null".
+        // Cache::has() returns false for null values in Laravel, so we can't use it directly.
+        $missing = new \stdClass();
+
         foreach ($teams as $team) {
             $cacheKey = FetchTeamInventoryJob::cacheKey($team->value, $date);
+            $cached   = Cache::get($cacheKey, $missing);
 
-            if (!Cache::has($cacheKey)) {
-                return null; // Not all teams are cached yet
+            if ($cached === $missing) {
+                return null; // FetchTeamInventoryJob for this team hasn't completed yet
             }
 
-            $results[$team->value] = Cache::get($cacheKey);
+            $results[$team->value] = $cached; // may be null — formatResponse handles it gracefully
         }
 
         $allInventory = $this->formatResponse($date, $results);
