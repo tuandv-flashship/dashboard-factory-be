@@ -16,13 +16,29 @@ final class UpdateHourlyIssueTask extends ParentTask
 
         // Only update fields actually present in the validated payload.
         // 'sometimes' validation ensures only sent fields are in $data.
-        // collect()->only() safely handles partial payloads including note=null.
-        $issue->update(
-            collect($data)->only(['category', 'sub_item', 'error', 'note'])->toArray()
-        );
+        $payload = collect($data)->only(['category', 'sub_item', 'error', 'note'])->toArray();
+
+        // Handle resolved toggle when explicitly sent
+        if (array_key_exists('resolved', $data)) {
+            $resolving = (bool) $data['resolved'];
+
+            $payload['resolved_at'] = $resolving
+                ? ($issue->resolved_at ?? now())   // preserve existing timestamp if already resolved
+                : null;
+
+            $payload['resolution'] = $resolving
+                ? ($data['resolution'] ?? $issue->resolution) // keep existing if not re-sent
+                : null;
+        } elseif (array_key_exists('resolution', $data)) {
+            // Allow updating resolution text without toggling resolved state
+            $payload['resolution'] = $data['resolution'];
+        }
+
+        $issue->update($payload);
 
         $this->invalidateCacheForIssue($issue);
 
         return $issue->fresh();
     }
 }
+

@@ -17,10 +17,12 @@ final class UpdateHourlyIssueRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'category' => ['sometimes', 'string', Rule::exists('reason_categories', 'code')->where('is_active', true)],
-            'sub_item' => ['sometimes', 'string', 'max:200'],
-            'error'    => ['sometimes', 'string', 'max:500'],
-            'note'     => ['nullable', 'string', 'max:2000'],
+            'category'   => ['sometimes', 'string', Rule::exists('reason_categories', 'code')->where('is_active', true)],
+            'sub_item'   => ['sometimes', 'string', 'max:200'],
+            'error'      => ['sometimes', 'string', 'max:500'],
+            'note'       => ['nullable', 'string', 'max:2000'],
+            'resolved'   => ['sometimes', 'boolean'],
+            'resolution' => ['nullable', 'string', 'max:1000'],
         ];
     }
 
