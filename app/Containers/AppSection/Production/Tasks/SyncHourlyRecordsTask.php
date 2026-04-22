@@ -129,7 +129,7 @@ final class SyncHourlyRecordsTask extends ParentTask
 
                 // Order sync (uses cached allInventory — fast)
                 try {
-                    app(SyncOrderInventoryTask::class)->run($shiftDate);
+                    $this->syncOrderInventoryTask->run($shiftDate);
                 } catch (\Throwable $e) {
                     Log::warning('[SyncHourlyRecords] Order inventory sync failed', [
                         'date'  => $shiftDate,
