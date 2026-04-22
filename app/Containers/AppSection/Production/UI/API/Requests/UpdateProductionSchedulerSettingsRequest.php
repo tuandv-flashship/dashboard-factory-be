@@ -2,13 +2,14 @@
 
 namespace App\Containers\AppSection\Production\UI\API\Requests;
 
+use App\Containers\AppSection\Setting\Models\Setting;
 use App\Ship\Parents\Requests\Request as ParentRequest;
 
 final class UpdateProductionSchedulerSettingsRequest extends ParentRequest
 {
     protected array $access = [
         'permissions' => '',
-        'roles'       => '',
+        'roles'       => 'admin',
     ];
 
     public function rules(): array
@@ -24,6 +25,6 @@ final class UpdateProductionSchedulerSettingsRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('update', Setting::class);
     }
 }
