@@ -6,7 +6,8 @@ use App\Ship\Parents\Requests\Request as ParentRequest;
 
 final class CreateHourlyIssueRequest extends ParentRequest
 {
-    protected bool|array $decode = ['id'];
+    protected array $decode = ['id'];
+
 
     protected array $access = [
         'permissions' => '',
