@@ -17,8 +17,8 @@ final class UpdateProductionSchedulerSettingsRequest extends ParentRequest
         return [
             'in_shift_interval'        => ['sometimes', 'integer', 'min:0', 'max:60'],
             'off_shift_interval'       => ['sometimes', 'integer', 'min:0', 'max:60'],
-            'off_shift_before_minutes' => ['sometimes', 'integer', 'min:0', 'max:120'],
-            'off_shift_after_minutes'  => ['sometimes', 'integer', 'min:0', 'max:120'],
+            'off_shift_before_minutes' => ['sometimes', 'integer', 'min:0', 'max:480'],
+            'off_shift_after_minutes'  => ['sometimes', 'integer', 'min:0', 'max:480'],
             'daily_shift_job_at'       => ['sometimes', 'string', 'date_format:H:i'],
         ];
     }
