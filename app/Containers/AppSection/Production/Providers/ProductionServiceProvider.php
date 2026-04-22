@@ -16,15 +16,8 @@ final class ProductionServiceProvider extends ParentServiceProvider
     private function registerScheduler(): void
     {
         $this->app->afterResolving(Schedule::class, function (Schedule $schedule): void {
-            $interval = (int) config('factory.hourly_records_sync_interval', 5);
-
-            // Interval = 0 → disabled
-            if ($interval <= 0) {
-                return;
-            }
-
             $schedule->job(new SyncHourlyRecordsJob())
-                ->cron("*/{$interval} * * * *")
+                ->everyMinute()
                 ->withoutOverlapping()
                 ->onOneServer();
         });

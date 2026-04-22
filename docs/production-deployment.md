@@ -409,6 +409,7 @@ sudo chmod -R 775 /var/www/dashboard-pd/bootstrap/cache
 # FLS
 cd /var/www/dashboard-fls
 php artisan key:generate       # Chỉ lần đầu
+php artisan storage:link       # Chỉ lần đầu: tạo symlink public/storage → storage/app/public
 php artisan config:cache       # Cache config → file (không cần parse .env mỗi request)
 php artisan route:cache        # Cache routes → file
 php artisan view:cache         # Compile tất cả Blade templates
@@ -417,11 +418,14 @@ php artisan event:cache        # Cache event-listener mappings
 # PD — lặp lại tương tự
 cd /var/www/dashboard-pd
 php artisan key:generate
+php artisan storage:link       # Chỉ lần đầu
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 php artisan event:cache
 ```
+
+> **📝 `storage:link`:** Tạo symlink `public/storage → storage/app/public` để Nginx có thể serve các file được upload lên `Storage::disk('public')`. Chỉ cần chạy **1 lần** khi setup server. Không cần chạy lại khi deploy code mới (trừ khi symlink bị xóa).
 
 ### 4.6 Database
 
@@ -799,6 +803,7 @@ sudo certbot renew --dry-run
 □ php artisan apiato:permissions-sync đã chạy (cả FLS + PD)
 □ Passport clients đã tạo (passport:client --password) cho cả FLS + PD
 □ CLIENT_WEB_ID / CLIENT_WEB_SECRET đã điền vào .env cả 2 factory
+□ php artisan storage:link đã chạy (cả FLS + PD)
 □ php artisan config:cache đã chạy
 □ php artisan route:cache đã chạy
 □ Permissions storage + bootstrap/cache đã set

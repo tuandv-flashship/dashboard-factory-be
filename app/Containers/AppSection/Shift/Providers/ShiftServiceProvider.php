@@ -17,14 +17,16 @@ final class ShiftServiceProvider extends ParentServiceProvider
     {
         $this->app->afterResolving(Schedule::class, function (Schedule $schedule): void {
 
-            // Auto-create shift 1 & refresh inventory before shift starts
+            // Time-check + dedup guard inside the job itself, enabling
+            // dynamic daily_shift_job_at config without scheduler restart.
             $schedule->job(new CreateDailyShiftJob())
-                ->dailyAt(config('factory.daily_shift_job_at', '04:50'))
+                ->everyMinute()
                 ->timezone(config('app.timezone'))
-                ->withoutOverlapping();
+                ->withoutOverlapping()
+                ->onOneServer();
 
             // Horizon metrics snapshot (powers dashboard graphs)
-            $schedule->command('horizon:snapshot')->everyFiveMinutes();
+            $schedule->command('horizon:snapshot')->everyFiveMinutes()->onOneServer();
         });
     }
 }

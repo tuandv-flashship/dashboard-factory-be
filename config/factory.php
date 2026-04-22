@@ -61,4 +61,25 @@ return [
 
     'hourly_records_sync_interval' => (int) env('HOURLY_RECORDS_SYNC_INTERVAL', 5),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Off-Shift Sync Settings
+    |--------------------------------------------------------------------------
+    |
+    | Controls sync behaviour when no active shift is running.
+    | The job fires within a time window before/after each shift:
+    |
+    |   off_shift_sync_interval   — minutes between syncs (0 = disabled)
+    |   off_shift_before_minutes  — minutes before shift start to begin syncing
+    |   off_shift_after_minutes   — minutes after shift end to keep syncing
+    |
+    | All values can be overridden dynamically via the scheduler-settings API
+    | (stored in the settings table, cached with 1h TTL).
+    |
+    */
+
+    'off_shift_sync_interval'    => (int) env('OFF_SHIFT_SYNC_INTERVAL', 15),
+    'off_shift_before_minutes'   => (int) env('OFF_SHIFT_BEFORE_MINUTES', 120),
+    'off_shift_after_minutes'    => (int) env('OFF_SHIFT_AFTER_MINUTES', 180),
+
 ];
