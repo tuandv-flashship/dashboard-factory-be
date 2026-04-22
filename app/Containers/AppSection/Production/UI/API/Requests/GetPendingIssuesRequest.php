@@ -6,7 +6,7 @@ use App\Ship\Parents\Requests\Request as ParentRequest;
 
 final class GetPendingIssuesRequest extends ParentRequest
 {
-    protected bool|array $decode = ['department_id'];
+    protected array $decode = ['department_id'];
 
     protected array $access = [
         'permissions' => '',

@@ -3,10 +3,11 @@
 namespace App\Containers\AppSection\Production\UI\API\Requests;
 
 use App\Ship\Parents\Requests\Request as ParentRequest;
+use Illuminate\Validation\Rule;
 
 final class UpdateHourlyIssueRequest extends ParentRequest
 {
-    protected bool|array $decode = ['id'];
+    protected array $decode = ['id'];
 
     protected array $access = [
         'permissions' => '',
@@ -16,7 +17,7 @@ final class UpdateHourlyIssueRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'category' => ['sometimes', 'string', 'in:machine,human,material,process'],
+            'category' => ['sometimes', 'string', Rule::exists('reason_categories', 'code')->where('is_active', true)],
             'sub_item' => ['sometimes', 'string', 'max:200'],
             'error'    => ['sometimes', 'string', 'max:500'],
             'note'     => ['nullable', 'string', 'max:2000'],

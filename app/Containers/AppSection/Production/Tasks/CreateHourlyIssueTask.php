@@ -21,6 +21,8 @@ final class CreateHourlyIssueTask extends ParentTask
             'sub_item'         => $data['sub_item'],
             'error'            => $data['error'],
             'note'             => $data['note'] ?? null,
+            'resolved_at'      => ($data['resolved'] ?? false) ? now() : null,
+            'resolution'       => ($data['resolved'] ?? false) ? ($data['resolution'] ?? null) : null,
         ]);
 
         $this->invalidateCacheForIssue($issue);
