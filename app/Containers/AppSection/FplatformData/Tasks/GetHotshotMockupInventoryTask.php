@@ -9,11 +9,12 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 /**
  * Get hotshot mockup inventory (tổng việc & đã làm — hotshot team mockup).
  *
- * Source: FplatformData/sql/25_hotshot_file_team_mockup.sql (v1.1.0)
+ * Source: FplatformData/sql/25_hotshot_file_team_mockup.sql (v2.0.0)
  *
- * Logic: target_folders → file_groups → file_status CTE.
+ * Logic: target_folders (JOIN order_check_file_dropbox) → order_status (JOIN orders) →
+ *        calc_total / file_status CTE.
  *        HOTSHOT printer uses strict date >= estimate_date cutoff (ngay_lam).
- *        tong_viec = total_file - done_before; da_lam = done on estimate date.
+ *        calc_total uses SUM(num_file) from order_status.
  */
 final class GetHotshotMockupInventoryTask extends ParentTask
 {
@@ -33,28 +34,29 @@ final class GetHotshotMockupInventoryTask extends ParentTask
                     fm.folder,
                     fm.estimate_date,
                     fm.printer_default,
-                    fm.total_file
-                FROM folder_manage fm
-                WHERE fm.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
-                    AND fm.printer_default = ?
-                    AND fm.status_folder <> 2
-            ),
-            calc_total AS (
-                SELECT SUM(total_file) AS sum_total_file
-                FROM target_folders
-            ),
-            file_groups AS (
-                SELECT
-                    f.estimate_date,
-                    f.printer_default,
                     d.file_name_order_code,
                     d.file_name_index_number,
                     COUNT(*) AS num_file
-                FROM target_folders f
+                FROM folder_manage fm
                 JOIN order_check_file_dropbox d
-                    ON d.folder = f.folder COLLATE utf8mb4_unicode_ci
+                    ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
                     AND d.status <> 2
-                GROUP BY f.estimate_date, f.printer_default, d.file_name_order_code, d.file_name_index_number
+                WHERE fm.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                    AND fm.printer_default = ?
+                    AND fm.status_folder <> 2
+                GROUP BY fm.estimate_date, fm.folder, fm.printer_default, d.file_name_order_code, d.file_name_index_number
+            ),
+            order_status AS (
+                SELECT tf.*
+                FROM target_folders tf
+                JOIN orders o ON o.order_code = tf.file_name_order_code COLLATE utf8mb4_unicode_ci
+                    AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
+                                       AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
+                    AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+            ),
+            calc_total AS (
+                SELECT SUM(num_file) AS sum_total_file
+                FROM order_status
             ),
             file_status AS (
                 SELECT
@@ -67,7 +69,7 @@ final class GetHotshotMockupInventoryTask extends ParentTask
                              END)
                         ELSE DATE(MIN(CONVERT_TZ(l.created, '+7:00', 'US/Central')))
                     END AS ngay_lam
-                FROM file_groups fg
+                FROM order_status fg
                 LEFT JOIN log_check_mockup l
                     ON l.barcode = fg.file_name_order_code COLLATE utf8mb4_0900_ai_ci
                     AND l.index_number = fg.file_name_index_number
@@ -81,21 +83,8 @@ final class GetHotshotMockupInventoryTask extends ParentTask
                 COALESCE((SELECT SUM(num_file) FROM file_status WHERE ngay_lam = ?), 0) AS da_lam
         ";
 
-        $bindings = [$date, $date, $hotshotPrinter, $hotshotPrinter, $date, $date, $date, $date];
+        $bindings = [$date, $date, $hotshotPrinter, $date, $date, $hotshotPrinter, $date, $date, $date, $date];
 
         return $this->formatHotshotResult($this->queryFplatform($sql, $bindings));
-    }
-
-    private function formatHotshotResult(?object $result): ?array
-    {
-        if (!$result) {
-            return null;
-        }
-
-        return [
-            'estimate_date' => $result->estimate_date,
-            'tong_viec'     => (int) $result->tong_viec,
-            'da_lam'        => (int) $result->da_lam,
-        ];
     }
 }

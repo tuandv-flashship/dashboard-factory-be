@@ -1,19 +1,20 @@
 -- ============================================================
 -- @file    : 16_so_don_hotshot.sql
--- @version : v1.1.0
--- @updated : 2026-04-21
+-- @version : v2.0.0
+-- @updated : 2026-04-24
 -- @desc    : Lấy số đơn hotshot (DTF1-FLS, DTF2-PD)
 -- ------------------------------------------------------------
 -- Changelog:
 --   v1.0.0 (2026-04-21) - Initial version (split from rpt_factory_ops_metrics_v8_1.sql)
 --   v1.1.0 (2026-04-21) - Refactor: target_items/item_status CTE; output chua_lam+da_lam
+--   v2.0.0 (2026-04-24) - Add order_status CTE filtering orders table
 -- ============================================================
 
 -- =========================================
 -- Description: Lấy số đơn hotshot
 -- =========================================
 -- Parameters:
--- :estimate_date (date) - ngày estimate
+-- :estimate_date (DAT) - Ngày estimate
 
 -- DTF1 - FLS
 WITH target_items AS (
@@ -31,6 +32,13 @@ WITH target_items AS (
       AND f.status_folder <> 2
     GROUP BY f.estimate_date, f.folder, d.file_name_order_code, d.file_name_index_number
 ),
+order_status AS (
+    SELECT t.*
+    FROM target_items t
+    JOIN orders o ON o.order_code = t.file_name_order_code
+        AND o.created BETWEEN CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00') - INTERVAL 24 DAY AND CONVERT_TZ(':estimate_date 23:59:59', 'US/Central', '+7:00')
+        AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+),
 item_status AS (
     SELECT
         ti.file_name_order_code,
@@ -40,7 +48,7 @@ item_status AS (
                 THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central'))
             END
         ) AS ngay_lam
-    FROM target_items ti
+    FROM order_status ti
     LEFT JOIN fplatform.scan_label_history s
         ON s.barcode = ti.file_name_order_code COLLATE utf8mb4_0900_ai_ci
         AND s.index_num = ti.file_name_index_number
@@ -49,7 +57,7 @@ item_status AS (
 )
 SELECT
     ':estimate_date' AS estimate_date,
-    COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ':estimate_date', file_name_order_code, NULL)) AS tong_viec,
+    COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ':estimate_date', file_name_order_code, NULL)) AS tong_don,
     COUNT(DISTINCT IF(ngay_lam = ':estimate_date', file_name_order_code, NULL)) AS da_lam
 FROM item_status;
 
@@ -70,6 +78,13 @@ WITH target_items AS (
       AND f.status_folder <> 2
     GROUP BY f.estimate_date, f.folder, d.file_name_order_code, d.file_name_index_number
 ),
+order_status AS (
+    SELECT t.*
+    FROM target_items t
+    JOIN orders o ON o.order_code = t.file_name_order_code
+        AND o.created BETWEEN CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00') - INTERVAL 24 DAY AND CONVERT_TZ(':estimate_date 23:59:59', 'US/Central', '+7:00')
+        AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+),
 item_status AS (
     SELECT
         ti.file_name_order_code,
@@ -79,7 +94,7 @@ item_status AS (
                 THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central'))
             END
         ) AS ngay_lam
-    FROM target_items ti
+    FROM order_status ti
     LEFT JOIN fplatform.scan_label_history s
         ON s.barcode = ti.file_name_order_code COLLATE utf8mb4_0900_ai_ci
         AND s.index_num = ti.file_name_index_number
@@ -88,6 +103,6 @@ item_status AS (
 )
 SELECT
     ':estimate_date' AS estimate_date,
-    COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ':estimate_date', file_name_order_code, NULL)) AS tong_viec,
+    COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ':estimate_date', file_name_order_code, NULL)) AS tong_don,
     COUNT(DISTINCT IF(ngay_lam = ':estimate_date', file_name_order_code, NULL)) AS da_lam
 FROM item_status;

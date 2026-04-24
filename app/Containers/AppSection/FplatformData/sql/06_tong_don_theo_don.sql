@@ -1,12 +1,14 @@
 -- ============================================================
 -- @file    : 06_tong_don_theo_don.sql
--- @version : v1.1.0
--- @updated : 2026-04-21
+-- @version : v2.0.0
+-- @updated : 2026-04-24
 -- @desc    : Lấy tổng việc & đã làm theo đơn (DTF1-FLS, DTF2-PD, DTG)
 -- ------------------------------------------------------------
 -- Changelog:
 --   v1.0.0 (2026-04-21) - Initial version (split from rpt_factory_ops_metrics_v8_1.sql)
 --   v1.1.0 (2026-04-21) - Refactor: target_items/item_status CTE; output chua_lam+da_lam thay tong_don
+--   v2.0.0 (2026-04-24) - Add order_status CTE filtering orders table between target_items and item_status,
+--                          DTG adds JOIN orders by order_code
 -- ============================================================
 
 -- =========================================
@@ -38,6 +40,13 @@ WITH target_items AS (
       )
     GROUP BY f.estimate_date, f.folder, f.printer_default, d.file_name_order_code, d.file_name_index_number
 ),
+order_status AS (
+    SELECT t.*
+    FROM target_items t
+    JOIN orders o ON o.order_code = t.file_name_order_code
+        AND o.created BETWEEN CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00') - INTERVAL 24 DAY AND CONVERT_TZ(':estimate_date 23:59:59', 'US/Central', '+7:00')
+        AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+),
 item_status AS (
     SELECT
         ti.estimate_date,
@@ -48,7 +57,7 @@ item_status AS (
                          THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) END)
             ELSE DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')))
         END AS ngay_lam
-    FROM target_items ti
+    FROM order_status ti
     LEFT JOIN fplatform.scan_label_history s
         ON s.barcode = ti.file_name_order_code COLLATE utf8mb4_0900_ai_ci
         AND s.index_num = ti.file_name_index_number
@@ -64,7 +73,7 @@ SELECT
             FROM item_status
             GROUP BY estimate_date
         ) sub_chua
-    ) AS tong_viec,
+    ) AS tong_don,
     (
         SELECT COUNT(DISTINCT IF(ngay_lam = ':estimate_date', file_name_order_code, NULL))
         FROM item_status
@@ -94,6 +103,13 @@ WITH target_items AS (
       )
     GROUP BY f.estimate_date, f.folder, f.printer_default, d.file_name_order_code, d.file_name_index_number
 ),
+order_status AS (
+    SELECT t.*
+    FROM target_items t
+    JOIN orders o ON o.order_code = t.file_name_order_code
+        AND o.created BETWEEN CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00') - INTERVAL 24 DAY AND CONVERT_TZ(':estimate_date 23:59:59', 'US/Central', '+7:00')
+        AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+),
 item_status AS (
     SELECT
         ti.estimate_date,
@@ -104,7 +120,7 @@ item_status AS (
                          THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) END)
             ELSE DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')))
         END AS ngay_lam
-    FROM target_items ti
+    FROM order_status ti
     LEFT JOIN fplatform.scan_label_history s
         ON s.barcode = ti.file_name_order_code COLLATE utf8mb4_0900_ai_ci
         AND s.index_num = ti.file_name_index_number
@@ -120,11 +136,12 @@ SELECT
             FROM item_status
             GROUP BY estimate_date
         ) sub_chua
-    ) AS tong_viec,
+    ) AS tong_don,
     (
         SELECT COUNT(DISTINCT IF(ngay_lam = ':estimate_date', file_name_order_code, NULL))
         FROM item_status
     ) AS da_lam;
+
 
 
 -- DTG - PD
@@ -137,7 +154,15 @@ WITH target_items AS (
         index_num AS file_name_index_number
     FROM fplatform.dtg_item_detail
     WHERE estimate_folder_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+    AND active = 1
     GROUP BY estimate_folder_date, folder_key, order_code, index_num
+),
+order_status AS (
+    SELECT t.*
+    FROM target_items t
+    JOIN orders o ON o.order_code = t.file_name_order_code
+        AND o.created BETWEEN CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00') - INTERVAL 24 DAY AND CONVERT_TZ(':estimate_date 23:59:59', 'US/Central', '+7:00')
+        AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
 ),
 item_status AS (
     SELECT
@@ -149,7 +174,7 @@ item_status AS (
                          THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) END)
             ELSE DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')))
         END AS ngay_lam
-    FROM target_items ti
+    FROM order_status ti
     LEFT JOIN fplatform.scan_label_history s
         ON s.barcode = ti.file_name_order_code
         AND s.index_num = ti.file_name_index_number
@@ -165,7 +190,7 @@ SELECT
             FROM item_status
             GROUP BY estimate_date
         ) sub_chua
-    ) AS tong_viec,
+    ) AS tong_don,
     (
         SELECT COUNT(DISTINCT IF(ngay_lam = ':estimate_date', file_name_order_code, NULL))
         FROM item_status

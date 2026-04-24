@@ -23,17 +23,26 @@ final class ReasonCodeSeeder_2 extends Seeder
 {
     public function run(): void
     {
-        // Ensure categories exist
-        $machine  = ReasonCategory::where('code', 'machine')->firstOrFail();
-        $human    = ReasonCategory::where('code', 'human')->firstOrFail();
-        $material = ReasonCategory::where('code', 'material')->firstOrFail();
-        $process  = ReasonCategory::where('code', 'process')->firstOrFail();
+        // Ensure categories exist (gracefully skip if ReasonCodeSeeder_1 hasn't run)
+        $machine  = ReasonCategory::where('code', 'machine')->first();
+        $human    = ReasonCategory::where('code', 'human')->first();
+        $material = ReasonCategory::where('code', 'material')->first();
+        $process  = ReasonCategory::where('code', 'process')->first();
+
+        if (! $machine || ! $human || ! $material || ! $process) {
+            return; // Categories not seeded yet — skip gracefully
+        }
 
         // Truncate dependent tables (errors first, then sub_items due to possible FK)
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        $isMysql = DB::getDriverName() === 'mysql';
+        if ($isMysql) {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        }
         ReasonError::truncate();
         ReasonSubItem::truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        if ($isMysql) {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
 
         // ═══════════════════════════════════════════════════════════════════
         // PRINT (scope_dept = 'print')

@@ -1,12 +1,14 @@
 -- ============================================================
 -- @file    : 03_tong_viec_team_cat.sql
--- @version : v1.1.0
--- @updated : 2026-04-21
+-- @version : v2.0.0
+-- @updated : 2026-04-24
 -- @desc    : Lấy tổng việc team cắt (DTF1-FLS, DTF2-PD)
 -- ------------------------------------------------------------
 -- Changelog:
 --   v1.0.0 (2026-04-21) - Initial version (split from rpt_factory_ops_metrics_v8_1.sql)
 --   v1.1.0 (2026-04-21) - Replace sliding window → flat IF(created_at IS NULL OR ...) logic
+--   v2.0.0 (2026-04-24) - JOIN order_check_file_dropbox for file-level granularity,
+--                          add order_status CTE filtering orders table, add copy_job=0
 -- ============================================================
 
 -- =========================================
@@ -16,39 +18,78 @@
 -- :estimate_date (date) - ngày estimate
 
 -- DTF1 - FLS
-SELECT
-    ':estimate_date' AS estimate_date,
-    SUM(IF(s.created_at IS NULL OR s.created_at >= CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00'), f.total_file, 0)) AS tong_viec
-FROM fplatform.folder_manage f
-LEFT JOIN fplatform.user_group_scan s
-    ON f.folder_code = s.folder_code
+WITH target_folders AS (
+    SELECT
+        fm.folder,
+        fm.estimate_date,
+        d.file_name_order_code,
+        d.file_name_index_number,
+        COUNT(*) AS num_file
+    FROM fplatform.folder_manage fm
+    JOIN fplatform.order_check_file_dropbox d
+        ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
+        AND d.status <> 2
+    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+      AND fm.status_folder <> 2
+      AND COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) IN (
+          SELECT REPLACE(name, 'Machine ', 'May')
+          FROM fplatform.printer_manage
+          WHERE factory = 'FLS'
+          UNION ALL SELECT 'MayHOTSHOT'
+          UNION ALL SELECT 'MayREPRINT'
+      )
+    GROUP BY fm.estimate_date, fm.folder, d.file_name_order_code, d.file_name_index_number
+),
+order_status AS (
+    SELECT tf.*
+    FROM target_folders tf
+    JOIN orders o ON o.order_code = tf.file_name_order_code
+        AND o.created BETWEEN CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00') - INTERVAL 24 DAY AND CONVERT_TZ(':estimate_date 23:59:59', 'US/Central', '+7:00')
+        AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+)
+SELECT ':estimate_date' AS estimate_date,
+SUM(IF(s.created_at IS NULL OR s.created_at >= CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00'), o.num_file, 0)) AS tong_viec
+FROM order_status o
+LEFT JOIN fplatform.user_group_scan s ON s.folder = o.folder
+    AND s.copy_job = 0
     AND s.work_type = 2
-    AND s.work_status = 0
-WHERE f.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
-  AND f.status_folder <> 2
-  AND COALESCE(f.printer_share, f.printer_run, f.printer_default) IN (
-      SELECT REPLACE(NAME, 'Machine ', 'May')
-      FROM fplatform.printer_manage
-      WHERE factory = 'FLS'
-      UNION ALL SELECT 'MayHOTSHOT'
-      UNION ALL SELECT 'MayREPRINT'
-  );
+    AND s.work_status = 0;
+
 
 -- DTF2 - Printdash
-SELECT
-    ':estimate_date' AS estimate_date,
-    SUM(IF(s.created_at IS NULL OR s.created_at >= CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00'), f.total_file, 0)) AS tong_viec
-FROM fplatform.folder_manage f
-LEFT JOIN fplatform.user_group_scan s
-    ON f.folder_code = s.folder_code
+WITH target_folders AS (
+    SELECT
+        fm.folder,
+        fm.estimate_date,
+        d.file_name_order_code,
+        d.file_name_index_number,
+        COUNT(*) AS num_file
+    FROM fplatform.folder_manage fm
+    JOIN fplatform.order_check_file_dropbox d
+        ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
+        AND d.status <> 2
+    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+      AND fm.status_folder <> 2
+      AND COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) IN (
+          SELECT REPLACE(name, 'Machine ', 'May')
+          FROM fplatform.printer_manage
+          WHERE factory = 'PD'
+          UNION ALL SELECT 'MayHOTSHOTPD'
+          UNION ALL SELECT 'MayREPRINTPD'
+      )
+    GROUP BY fm.estimate_date, fm.folder, d.file_name_order_code, d.file_name_index_number
+),
+order_status AS (
+    SELECT tf.*
+    FROM target_folders tf
+    JOIN orders o ON o.order_code = tf.file_name_order_code
+        AND o.created BETWEEN CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00') - INTERVAL 24 DAY AND CONVERT_TZ(':estimate_date 23:59:59', 'US/Central', '+7:00')
+        AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+)
+SELECT ':estimate_date' AS estimate_date,
+SUM(IF(s.created_at IS NULL OR s.created_at >= CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00'), o.num_file, 0)) AS tong_viec
+FROM order_status o
+LEFT JOIN fplatform.user_group_scan s ON s.folder = o.folder
+    AND copy_job = 0
     AND s.work_type = 2
-    AND s.work_status = 0
-WHERE f.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
-  AND f.status_folder <> 2
-  AND COALESCE(f.printer_share, f.printer_run, f.printer_default) IN (
-      SELECT REPLACE(NAME, 'Machine ', 'May')
-      FROM fplatform.printer_manage
-      WHERE factory = 'PD'
-      UNION ALL SELECT 'MayHOTSHOTPD'
-      UNION ALL SELECT 'MayREPRINTPD'
-  );
+    AND s.work_status = 0;

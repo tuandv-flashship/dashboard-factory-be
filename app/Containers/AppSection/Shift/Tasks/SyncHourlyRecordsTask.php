@@ -8,11 +8,17 @@ use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Traits\ComputesHourlyTarget;
+use App\Containers\AppSection\Shift\Traits\ComputesKpiHours;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Carbon;
 
 /**
  * Smart-sync hourly_records after shift_details have been updated.
+ *
+ * Uses the same aligned-slot logic as GenerateHourlyRecordsTask:
+ * – Partial first/last slots for departments starting/ending mid-hour
+ * – kpi_hours, kpi_minutes, kpi_percent computed per slot
+ * – Target prorated by kpi_percent for partial slots
  *
  * – Preserves actual, hour_start_inventory, efficiency, error_rate
  * – Soft-deletes stale records via bulk query (not N loops)
@@ -22,6 +28,7 @@ use Illuminate\Support\Carbon;
 final class SyncHourlyRecordsTask extends ParentTask
 {
     use ComputesHourlyTarget;
+    use ComputesKpiHours;
 
     public function run(Shift $shift): void
     {
@@ -37,38 +44,40 @@ final class SyncHourlyRecordsTask extends ParentTask
             ->get()
             ->keyBy('id');
 
-        // ── 3. Compute new record set ──
-        $newKeys       = [];
-        $records       = [];
-        $deptHourIndex = [];
-        $now           = now();
+        // ── 3. Compute new record set (aligned slots) ──
+        $newKeys = [];
+        $records = [];
+        $now     = now();
 
         foreach ($shiftDetails as $detail) {
-            $deptId = $detail->department_id;
-            $dept   = $departments->get($deptId);
-            $target = $this->computeTarget($dept, $detail, $detail->headcount);
+            $deptId         = $detail->department_id;
+            $dept           = $departments->get($deptId);
+            $fullHourTarget = $this->computeTarget($dept, $detail, $detail->headcount);
 
-            $hours = (int) floor($detail->work_hours);
-            $start = Carbon::createFromFormat('H:i:s', $detail->start_time);
+            $start  = Carbon::createFromFormat('H:i:s', $detail->start_time);
+            $end    = $start->copy()->addMinutes((int) ($detail->work_hours * 60) + ($detail->meal_break_minutes ?? 0));
+            $breaks = $this->collectBreaks($detail, $detail->start_time);
+            $slots  = $this->buildAlignedSlots($start, $end);
 
-            for ($i = 0; $i < $hours; $i++) {
-                $deptHourIndex[$deptId] = ($deptHourIndex[$deptId] ?? -1) + 1;
-                $idx = $deptHourIndex[$deptId];
-                $key = "{$deptId}_{$idx}";
+            $hourIndex = 0;
+
+            foreach ($slots as $slot) {
+                $key       = "{$deptId}_{$hourIndex}";
                 $newKeys[] = $key;
+                $prev      = $existing->get($key);
 
-                $slotStart = $start->copy()->addHours($i);
-                $slotEnd   = $slotStart->copy()->addHour();
-
-                $prev = $existing->get($key);
+                $kpiData = $this->computeKpiHoursData($slot['start'], $slot['end'], $breaks);
 
                 $records[$key] = [
                     'shift_id'             => $shift->id,
                     'department_id'        => $deptId,
-                    'hour_slot'            => $slotStart->format('G') . 'h-' . $slotEnd->format('G') . 'h',
-                    'hour_index'           => $idx,
+                    'hour_slot'            => $slot['label'],
+                    'hour_index'           => $hourIndex,
                     'staff'                => $detail->headcount,
-                    'target'               => $target,
+                    'target'               => (int) round($fullHourTarget * $kpiData['percent'] / 100),
+                    'kpi_hours'            => $kpiData['hours'],
+                    'kpi_minutes'          => $kpiData['minutes'],
+                    'kpi_percent'          => $kpiData['percent'],
                     // ── Preserve actual data when it exists ──
                     'actual'               => $prev?->actual,
                     'hour_start_inventory' => $prev?->hour_start_inventory ?? 0,
@@ -82,6 +91,8 @@ final class SyncHourlyRecordsTask extends ParentTask
                     'created_at'           => $prev?->created_at ?? $now,
                     'updated_at'           => $now,
                 ];
+
+                $hourIndex++;
             }
         }
 
@@ -102,6 +113,7 @@ final class SyncHourlyRecordsTask extends ParentTask
                 ['shift_id', 'department_id', 'hour_index'],
                 [
                     'hour_slot', 'staff', 'target', 'actual',
+                    'kpi_hours', 'kpi_minutes', 'kpi_percent',
                     'hour_start_inventory', 'efficiency', 'error_rate',
                     'status', 'productivity_json', 'deleted_at', 'updated_at',
                 ]

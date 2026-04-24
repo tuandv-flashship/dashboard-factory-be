@@ -1,12 +1,15 @@
 -- ============================================================
 -- @file    : 26_hotshot_ao_pack_ship.sql
--- @version : v1.1.0
--- @updated : 2026-04-21
+-- @version : v2.0.0
+-- @updated : 2026-04-24
 -- @desc    : Lấy số áo hotshot - team pack & ship (DTF1-FLS, DTF2-PD)
 -- ------------------------------------------------------------
 -- Changelog:
 --   v1.0.0 (2026-04-21) - Initial version (split from rpt_factory_ops_metrics_v8_1.sql)
 --   v1.1.0 (2026-04-21) - Refactor: folder_printer/file_groups/item_status/aggregated_status CTE
+--   v2.0.0 (2026-04-24) - target_folders JOIN order_check_file_dropbox,
+--                          add order_status CTE filtering orders table,
+--                          total_per_date uses COUNT(*) instead of SUM(total_product)
 -- ============================================================
 
 -- =========================================
@@ -16,30 +19,33 @@
 -- :estimate_date (date) - ngày estimate
 
 -- DTF1 - FLS
-WITH folder_printer AS (
-    SELECT fm.estimate_date, fm.folder, fm.total_product, fm.printer_default
-    FROM fplatform.folder_manage fm
-    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
-      AND fm.printer_default = 'MayHOTSHOT'
-      AND fm.status_folder <> 2
-),
-total_per_date AS (
-    SELECT estimate_date, SUM(total_product) AS total_product
-    FROM folder_printer
-    GROUP BY estimate_date
-),
-file_groups AS (
+WITH target_folders AS (
     SELECT
-        f.estimate_date,
-        f.folder,
-        f.printer_default,
+        fm.folder,
+        fm.estimate_date,
+        fm.printer_default,
         d.file_name_order_code,
         d.file_name_index_number
-    FROM folder_printer f
+    FROM fplatform.folder_manage fm
     JOIN fplatform.order_check_file_dropbox d
-        ON d.folder = f.folder COLLATE utf8mb4_unicode_ci
+        ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
         AND d.status <> 2
-    GROUP BY f.estimate_date, f.folder, f.printer_default, d.file_name_order_code, d.file_name_index_number
+    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+      AND fm.status_folder <> 2
+      AND fm.printer_default = 'MayHOTSHOT'
+    GROUP BY fm.estimate_date, fm.folder, fm.printer_default, d.file_name_order_code, d.file_name_index_number
+),
+order_status AS (
+    SELECT tf.*
+    FROM target_folders tf
+    JOIN orders o ON o.order_code = tf.file_name_order_code
+        AND o.created BETWEEN CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00') - INTERVAL 24 DAY AND CONVERT_TZ(':estimate_date 23:59:59', 'US/Central', '+7:00')
+        AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+),
+total_per_date AS (
+    SELECT estimate_date, COUNT(*) AS total_product
+    FROM order_status
+    GROUP BY estimate_date
 ),
 item_status AS (
     SELECT
@@ -50,7 +56,7 @@ item_status AS (
                          THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) END)
             ELSE DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')))
         END AS ngay_lam
-    FROM file_groups fg
+    FROM order_status fg
     LEFT JOIN fplatform.scan_label_history s
         ON s.barcode = fg.file_name_order_code COLLATE utf8mb4_0900_ai_ci
         AND s.index_num = fg.file_name_index_number
@@ -74,30 +80,33 @@ LEFT JOIN aggregated_status a ON t.estimate_date = a.estimate_date;
 
 
 -- DTF2 - PD
-WITH folder_printer AS (
-    SELECT fm.estimate_date, fm.folder, fm.total_product, fm.printer_default
-    FROM fplatform.folder_manage fm
-    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
-      AND fm.printer_default = 'MayHOTSHOTPD'
-      AND fm.status_folder <> 2
-),
-total_per_date AS (
-    SELECT estimate_date, SUM(total_product) AS total_product
-    FROM folder_printer
-    GROUP BY estimate_date
-),
-file_groups AS (
+WITH target_folders AS (
     SELECT
-        f.estimate_date,
-        f.folder,
-        f.printer_default,
+        fm.folder,
+        fm.estimate_date,
+        fm.printer_default,
         d.file_name_order_code,
         d.file_name_index_number
-    FROM folder_printer f
+    FROM fplatform.folder_manage fm
     JOIN fplatform.order_check_file_dropbox d
-        ON d.folder = f.folder COLLATE utf8mb4_unicode_ci
+        ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
         AND d.status <> 2
-    GROUP BY f.estimate_date, f.folder, f.printer_default, d.file_name_order_code, d.file_name_index_number
+    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+      AND fm.status_folder <> 2
+      AND fm.printer_default = 'MayHOTSHOTPD'
+    GROUP BY fm.estimate_date, fm.folder, fm.printer_default, d.file_name_order_code, d.file_name_index_number
+),
+order_status AS (
+    SELECT tf.*
+    FROM target_folders tf
+    JOIN orders o ON o.order_code = tf.file_name_order_code
+        AND o.created BETWEEN CONVERT_TZ(':estimate_date 00:00:00', 'US/Central', '+7:00') - INTERVAL 24 DAY AND CONVERT_TZ(':estimate_date 23:59:59', 'US/Central', '+7:00')
+        AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+),
+total_per_date AS (
+    SELECT estimate_date, COUNT(*) AS total_product
+    FROM order_status
+    GROUP BY estimate_date
 ),
 item_status AS (
     SELECT
@@ -108,7 +117,7 @@ item_status AS (
                          THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) END)
             ELSE DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')))
         END AS ngay_lam
-    FROM file_groups fg
+    FROM order_status fg
     LEFT JOIN fplatform.scan_label_history s
         ON s.barcode = fg.file_name_order_code COLLATE utf8mb4_0900_ai_ci
         AND s.index_num = fg.file_name_index_number

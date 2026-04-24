@@ -29,67 +29,91 @@ return new class extends Migration
 
         // Step 2: clean up scope_dept if it still exists
         if (Schema::hasColumn('reason_errors', 'scope_dept')) {
-            Schema::table('reason_errors', static function (Blueprint $table) {
-                // Drop FK on category_id (backed by composite index)
-                $fks = collect(DB::select("
-                    SELECT CONSTRAINT_NAME
-                    FROM information_schema.TABLE_CONSTRAINTS
-                    WHERE TABLE_SCHEMA = DATABASE()
-                      AND TABLE_NAME = 'reason_errors'
-                      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
-                      AND CONSTRAINT_NAME LIKE '%category_id%'
-                "));
+            $isMysql = DB::getDriverName() === 'mysql';
 
-                foreach ($fks as $fk) {
-                    $table->dropForeign($fk->CONSTRAINT_NAME);
-                }
+            if ($isMysql) {
+                Schema::table('reason_errors', static function (Blueprint $table) {
+                    // Drop FK on category_id (backed by composite index)
+                    $fks = collect(DB::select("
+                        SELECT CONSTRAINT_NAME
+                        FROM information_schema.TABLE_CONSTRAINTS
+                        WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME = 'reason_errors'
+                          AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+                          AND CONSTRAINT_NAME LIKE '%category_id%'
+                    "));
 
-                // Drop composite index then the column
-                $indexes = collect(DB::select("SHOW INDEX FROM reason_errors WHERE Key_name = 'reason_errors_category_id_scope_dept_index'"));
-                if ($indexes->isNotEmpty()) {
-                    $table->dropIndex('reason_errors_category_id_scope_dept_index');
-                }
+                    foreach ($fks as $fk) {
+                        $table->dropForeign($fk->CONSTRAINT_NAME);
+                    }
 
-                $table->dropColumn('scope_dept');
-            });
+                    // Drop composite index then the column
+                    $indexes = collect(DB::select("SHOW INDEX FROM reason_errors WHERE Key_name = 'reason_errors_category_id_scope_dept_index'"));
+                    if ($indexes->isNotEmpty()) {
+                        $table->dropIndex('reason_errors_category_id_scope_dept_index');
+                    }
 
-            // Re-add FK on category_id with a dedicated single-column index
-            Schema::table('reason_errors', static function (Blueprint $table) {
-                $fks = collect(DB::select("
-                    SELECT CONSTRAINT_NAME
-                    FROM information_schema.TABLE_CONSTRAINTS
-                    WHERE TABLE_SCHEMA = DATABASE()
-                      AND TABLE_NAME = 'reason_errors'
-                      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
-                      AND CONSTRAINT_NAME LIKE '%category_id%'
-                "));
+                    $table->dropColumn('scope_dept');
+                });
 
-                if ($fks->isEmpty()) {
-                    $table->foreign('category_id')
-                        ->references('id')
-                        ->on('reason_categories')
-                        ->cascadeOnDelete();
-                }
-            });
+                // Re-add FK on category_id with a dedicated single-column index
+                Schema::table('reason_errors', static function (Blueprint $table) {
+                    $fks = collect(DB::select("
+                        SELECT CONSTRAINT_NAME
+                        FROM information_schema.TABLE_CONSTRAINTS
+                        WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME = 'reason_errors'
+                          AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+                          AND CONSTRAINT_NAME LIKE '%category_id%'
+                    "));
+
+                    if ($fks->isEmpty()) {
+                        $table->foreign('category_id')
+                            ->references('id')
+                            ->on('reason_categories')
+                            ->cascadeOnDelete();
+                    }
+                });
+            } else {
+                // SQLite: drop index first, then column
+                Schema::table('reason_errors', static function (Blueprint $table) {
+                    try {
+                        $table->dropIndex('reason_errors_category_id_scope_dept_index');
+                    } catch (\Throwable) {
+                        // Index may not exist
+                    }
+                });
+                Schema::table('reason_errors', static function (Blueprint $table) {
+                    $table->dropColumn('scope_dept');
+                });
+            }
         }
     }
 
     public function down(): void
     {
-        Schema::table('reason_errors', static function (Blueprint $table) {
+        $isMysql = DB::getDriverName() === 'mysql';
+
+        Schema::table('reason_errors', static function (Blueprint $table) use ($isMysql) {
             if (Schema::hasColumn('reason_errors', 'sub_item_id')) {
-                $table->dropForeign(['sub_item_id']);
+                if ($isMysql) {
+                    $table->dropForeign(['sub_item_id']);
+                }
                 $table->dropColumn('sub_item_id');
             }
 
             if (! Schema::hasColumn('reason_errors', 'scope_dept')) {
-                $table->dropForeign(['category_id']);
+                if ($isMysql) {
+                    $table->dropForeign(['category_id']);
+                }
                 $table->string('scope_dept', 20)->nullable()->after('label');
                 $table->index(['category_id', 'scope_dept']);
-                $table->foreign('category_id')
-                    ->references('id')
-                    ->on('reason_categories')
-                    ->cascadeOnDelete();
+                if ($isMysql) {
+                    $table->foreign('category_id')
+                        ->references('id')
+                        ->on('reason_categories')
+                        ->cascadeOnDelete();
+                }
             }
         });
     }

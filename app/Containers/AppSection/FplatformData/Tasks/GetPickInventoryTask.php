@@ -9,10 +9,10 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 /**
  * Get daily inventory (tổng việc) for team Pick (DTF).
  *
- * Source: FplatformData/sql/02_tong_viec_team_pick.sql (v1.1.0)
+ * Source: FplatformData/sql/02_tong_viec_team_pick.sql (v2.0.0)
  *
- * Logic: Flat IF — sum total_product where pick scan has not occurred yet
- *        OR occurred on/after the estimate date boundary (US/Central midnight).
+ * Logic: target_folders (JOIN order_check_file_dropbox) → order_status (JOIN orders) →
+ *        LEFT JOIN user_group_scan (copy_job=0, created_at interval) → SUM(IF(..., 1, 0)).
  */
 final class GetPickInventoryTask extends ParentTask
 {
@@ -23,32 +23,54 @@ final class GetPickInventoryTask extends ParentTask
         $extraUnions = $this->buildExtraPrinterUnions($factory);
 
         $sql = "
+            WITH
+            target_folders AS (
+                SELECT
+                    fm.folder,
+                    fm.estimate_date,
+                    d.file_name_order_code,
+                    d.file_name_index_number
+                FROM folder_manage fm
+                JOIN order_check_file_dropbox d
+                    ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
+                    AND d.status <> 2
+                WHERE fm.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                    AND fm.status_folder <> 2
+                    AND COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) IN (
+                        SELECT REPLACE(name, 'Machine ', 'May')
+                        FROM printer_manage
+                        WHERE factory = ?
+                        {$extraUnions}
+                    )
+                GROUP BY fm.estimate_date, fm.folder, d.file_name_order_code, d.file_name_index_number
+            ),
+            order_status AS (
+                SELECT tf.*
+                FROM target_folders tf
+                JOIN orders o ON o.order_code = tf.file_name_order_code COLLATE utf8mb4_unicode_ci
+                    AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
+                                       AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
+                    AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+            )
             SELECT
                 ? AS estimate_date,
                 SUM(IF(
                     s.created_at IS NULL
                     OR s.created_at >= CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00'),
-                    f.total_product, 0
+                    1, 0
                 )) AS tong_viec
-            FROM folder_manage f
-            LEFT JOIN user_group_scan s
-                ON f.folder_code = s.folder_code
+            FROM order_status o
+            LEFT JOIN user_group_scan s ON s.folder = o.folder
+                AND s.created_at > CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 12 DAY
+                AND s.copy_job = 0
                 AND s.work_type = 100
                 AND s.work_status = 0
-                AND s.copy_job = 0
-            WHERE f.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
-                AND f.status_folder <> 2
-                AND COALESCE(f.printer_share, f.printer_run, f.printer_default) IN (
-                    SELECT REPLACE(NAME, 'Machine ', 'May')
-                    FROM printer_manage
-                    WHERE factory = ?
-                    {$extraUnions}
-                )
         ";
 
         $bindings = array_merge(
-            [$date, $date, $date, $date],
+            [$date, $date],
             $this->printerBindings($factory),
+            [$date, $date, $date, $date, $date],
         );
 
         return $this->formatResult($this->queryFplatform($sql, $bindings));

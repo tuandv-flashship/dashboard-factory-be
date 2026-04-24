@@ -6,12 +6,12 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get daily inventory (chua_lam / da_lam) for ORDER count — DTG (PD only).
+ * Get daily inventory (tổng đơn / da_lam) for ORDER count — DTG (PD only).
  *
- * Source: FplatformData/sql/06_tong_don_theo_don.sql — DTG section (v1.1.0)
+ * Source: FplatformData/sql/06_tong_don_theo_don.sql — DTG section (v2.0.0)
  *
- * Logic: target_items → item_status CTE via scan_label_history.
- *        Output: { estimate_date, chua_lam, da_lam }
+ * Logic: target_items → order_status (JOIN orders) → item_status CTE via scan_label_history.
+ *        Output: { estimate_date, tong_viec, da_lam }
  */
 final class GetDtgOrderInventoryTask extends ParentTask
 {
@@ -25,22 +25,39 @@ final class GetDtgOrderInventoryTask extends ParentTask
                 SELECT
                     estimate_folder_date AS estimate_date,
                     folder_key AS folder,
+                    IF(folder_key LIKE 'REPRINT%', 'REPRINT', NULL) AS printer_default,
                     order_code AS file_name_order_code,
                     index_num AS file_name_index_number
                 FROM dtg_item_detail
                 WHERE estimate_folder_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                    AND active = 1
                 GROUP BY estimate_folder_date, folder_key, order_code, index_num
+            ),
+            order_status AS (
+                SELECT t.*
+                FROM target_items t
+                JOIN orders o ON o.order_code = t.file_name_order_code COLLATE utf8mb4_unicode_ci
+                    AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
+                                       AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
+                    AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
             ),
             item_status AS (
                 SELECT
                     ti.file_name_order_code,
-                    DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central'))) AS ngay_lam
-                FROM target_items ti
+                    CASE
+                        WHEN ti.printer_default = 'REPRINT' THEN
+                            MIN(CASE
+                                WHEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) >= ti.estimate_date
+                                THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central'))
+                            END)
+                        ELSE DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')))
+                    END AS ngay_lam
+                FROM order_status ti
                 LEFT JOIN scan_label_history s
                     ON s.barcode = ti.file_name_order_code
                     AND s.index_num = ti.file_name_index_number
                     AND s.created_at >= ? - INTERVAL 15 DAY
-                GROUP BY ti.estimate_date, ti.folder, ti.file_name_order_code, ti.file_name_index_number
+                GROUP BY ti.estimate_date, ti.folder, ti.printer_default, ti.file_name_order_code, ti.file_name_index_number
             )
             SELECT
                 ? AS estimate_date,
@@ -49,6 +66,6 @@ final class GetDtgOrderInventoryTask extends ParentTask
             FROM item_status
         ";
 
-        return $this->formatOrderResult($this->queryFplatform($sql, [$date, $date, $date, $date, $date, $date]));
+        return $this->formatOrderResult($this->queryFplatform($sql, [$date, $date, $date, $date, $date, $date, $date, $date]));
     }
 }

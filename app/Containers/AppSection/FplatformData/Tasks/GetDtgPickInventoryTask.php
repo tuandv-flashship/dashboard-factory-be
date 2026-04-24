@@ -8,8 +8,10 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 /**
  * Get daily inventory (tổng việc) for team Pick - DTG.
  *
- * Source: docs/rpt_factory_ops_metrics_v5.sql
- * Uses: dtg_folder_detail + dtg_item_detail (no factory param)
+ * Source: FplatformData/sql/02_tong_viec_team_pick.sql — DTG section (v2.0.0)
+ *
+ * Logic: item_detail (JOIN orders ON o.id = d.order_id) →
+ *        JOIN dtg_folder_detail → SUM(IF(f.done_at IS NULL OR ...))
  */
 final class GetDtgPickInventoryTask extends ParentTask
 {
@@ -18,30 +20,30 @@ final class GetDtgPickInventoryTask extends ParentTask
     public function run(string $date): ?array
     {
         $sql = "
-            WITH daily_summary AS (
+            WITH item_detail AS (
                 SELECT
-                    f.estimate_folder_date,
-                    COUNT(d.folder_key) AS total_shirt,
-                    SUM(IF(f.done_at IS NULL, 1, 0)) AS chua_pick
-                FROM dtg_folder_detail f
-                INNER JOIN dtg_item_detail d ON d.folder_key = f.folder_key
-                WHERE f.estimate_folder_date BETWEEN ? - INTERVAL 10 DAY AND ?
-                GROUP BY f.estimate_folder_date
+                    d.estimate_folder_date,
+                    d.folder_key,
+                    d.order_code,
+                    d.distribute_id,
+                    d.index_num
+                FROM dtg_item_detail d
+                JOIN orders o ON o.id = d.order_id
+                    AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
+                                       AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
+                    AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+                WHERE d.estimate_folder_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                    AND d.active = 1
+                GROUP BY d.estimate_folder_date, d.folder_key, d.order_code, d.distribute_id, d.index_num
             )
-            SELECT estimate_folder_date AS estimate_date,
-                tong_viec
-            FROM (
-                SELECT
-                    estimate_folder_date,
-                    total_shirt + COALESCE(SUM(chua_pick) OVER (
-                        ORDER BY estimate_folder_date
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS tong_viec
-                FROM daily_summary
-            ) result
-            WHERE estimate_folder_date = ?
+            SELECT
+                ? AS estimate_date,
+                SUM(IF(f.done_at IS NULL OR f.done_at >= CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00'), 1, 0)) AS tong_viec
+            FROM item_detail i
+            JOIN dtg_folder_detail f
+                ON i.folder_key = f.folder_key
         ";
 
-        return $this->formatResult($this->queryFplatform($sql, [$date, $date, $date]));
+        return $this->formatResult($this->queryFplatform($sql, [$date, $date, $date, $date, $date, $date]));
     }
 }

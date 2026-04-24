@@ -7,13 +7,13 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get daily inventory (tổng đơn / chua_lam / da_lam) for ORDER count (DTF).
+ * Get daily inventory (tổng đơn / da_lam) for ORDER count (DTF).
  *
- * Source: FplatformData/sql/06_tong_don_theo_don.sql (v1.1.0)
+ * Source: FplatformData/sql/06_tong_don_theo_don.sql (v2.0.0)
  *
- * Logic: target_items → item_status CTE.
+ * Logic: target_items → order_status (JOIN orders) → item_status CTE.
  *        HOTSHOT/REPRINT printers use strict date >= estimate_date cutoff (ngay_lam).
- *        Output: { estimate_date, chua_lam, da_lam }
+ *        Output: { estimate_date, tong_viec, da_lam }
  */
 final class GetOrderInventoryTask extends ParentTask
 {
@@ -47,8 +47,17 @@ final class GetOrderInventoryTask extends ParentTask
                     )
                 GROUP BY f.estimate_date, f.folder, f.printer_default, d.file_name_order_code, d.file_name_index_number
             ),
+            order_status AS (
+                SELECT t.*
+                FROM target_items t
+                JOIN orders o ON o.order_code = t.file_name_order_code COLLATE utf8mb4_unicode_ci
+                    AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
+                                       AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
+                    AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+            ),
             item_status AS (
                 SELECT
+                    ti.estimate_date,
                     ti.file_name_order_code,
                     CASE
                         WHEN ti.printer_default IN ({$hotshotPrinters}) THEN
@@ -58,7 +67,7 @@ final class GetOrderInventoryTask extends ParentTask
                             END)
                         ELSE DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')))
                     END AS ngay_lam
-                FROM target_items ti
+                FROM order_status ti
                 LEFT JOIN scan_label_history s
                     ON s.barcode = ti.file_name_order_code COLLATE utf8mb4_0900_ai_ci
                     AND s.index_num = ti.file_name_index_number
@@ -75,20 +84,9 @@ final class GetOrderInventoryTask extends ParentTask
         $bindings = array_merge(
             [$date, $date],
             $this->printerBindings($factory),
-            [$date, $date, $date, $date],
+            [$date, $date, $date, $date, $date, $date],
         );
 
         return $this->formatOrderResult($this->queryFplatform($sql, $bindings));
-    }
-
-    /**
-     * Comma-separated quoted hotshot printer names for IN clause.
-     */
-    private function hotshotPrinterList(FactoryLine $factory): string
-    {
-        return match ($factory) {
-            FactoryLine::FLS => "'MayHOTSHOT', 'MayREPRINT'",
-            FactoryLine::PD  => "'MayHOTSHOTPD', 'MayREPRINTPD'",
-        };
     }
 }

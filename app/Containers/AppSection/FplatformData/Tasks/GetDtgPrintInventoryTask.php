@@ -8,8 +8,10 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 /**
  * Get daily inventory (tổng việc) for team IN - DTG.
  *
- * Source: docs/rpt_factory_ops_metrics_v5.sql
- * Uses: dtg_item_detail + dtg_printed_product (no factory param)
+ * Source: FplatformData/sql/01_tong_viec_team_in.sql — DTG section (v2.0.0)
+ *
+ * Logic: item_detail (JOIN orders ON o.id = d.order_id) →
+ *        LEFT JOIN dtg_printed_product → SUM(IF(...))
  */
 final class GetDtgPrintInventoryTask extends ParentTask
 {
@@ -18,34 +20,32 @@ final class GetDtgPrintInventoryTask extends ParentTask
     public function run(string $date): ?array
     {
         $sql = "
-            WITH daily_aggregated AS (
+            WITH item_detail AS (
                 SELECT
                     d.estimate_folder_date,
-                    COUNT(*) AS total_file,
-                    SUM(IF(p.print_status = 0 OR p.print_status IS NULL, 1, 0)) AS unprint_file
+                    d.folder_key,
+                    d.order_code,
+                    d.distribute_id,
+                    d.index_num
                 FROM dtg_item_detail d
-                LEFT JOIN dtg_printed_product p
-                    ON d.order_code = p.order_code
-                    AND d.index_num = p.index_num
-                    AND d.distribute_id = p.distribute_id
+                JOIN orders o ON o.id = d.order_id
+                    AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
+                                       AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
+                    AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
                 WHERE d.estimate_folder_date BETWEEN ? - INTERVAL 10 DAY AND ?
                     AND d.active = 1
-                GROUP BY d.estimate_folder_date
+                GROUP BY d.estimate_folder_date, d.folder_key, d.order_code, d.distribute_id, d.index_num
             )
-            SELECT estimate_folder_date AS estimate_date,
-                tong_viec
-            FROM (
-                SELECT
-                    estimate_folder_date,
-                    total_file + COALESCE(SUM(unprint_file) OVER (
-                        ORDER BY estimate_folder_date
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                    ), 0) AS tong_viec
-                FROM daily_aggregated
-            ) c
-            WHERE estimate_folder_date = ?
+            SELECT
+                ? AS estimate_date,
+                SUM(IF(p.printed_at IS NULL OR p.printed_at >= CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00'), 1, 0)) AS tong_viec
+            FROM item_detail i
+            LEFT JOIN dtg_printed_product p
+                ON i.order_code = p.order_code
+                AND i.index_num = p.index_num
+                AND i.distribute_id = p.distribute_id
         ";
 
-        return $this->formatResult($this->queryFplatform($sql, [$date, $date, $date]));
+        return $this->formatResult($this->queryFplatform($sql, [$date, $date, $date, $date, $date, $date]));
     }
 }

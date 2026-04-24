@@ -9,9 +9,9 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 /**
  * Get hotshot order inventory (tổng đơn & đã làm — hotshot).
  *
- * Source: FplatformData/sql/16_so_don_hotshot.sql (v1.1.0)
+ * Source: FplatformData/sql/16_so_don_hotshot.sql (v2.0.0)
  *
- * Logic: target_items → item_status CTE via scan_label_history.
+ * Logic: target_items → order_status (JOIN orders) → item_status CTE via scan_label_history.
  *        HOTSHOT printer uses strict date >= estimate_date cutoff (ngay_lam).
  *        Output: { estimate_date, tong_viec (= số đơn chưa/còn cần làm), da_lam }
  */
@@ -43,6 +43,14 @@ final class GetHotshotOrderInventoryTask extends ParentTask
                     AND f.status_folder <> 2
                 GROUP BY f.estimate_date, f.folder, d.file_name_order_code, d.file_name_index_number
             ),
+            order_status AS (
+                SELECT t.*
+                FROM target_items t
+                JOIN orders o ON o.order_code = t.file_name_order_code COLLATE utf8mb4_unicode_ci
+                    AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
+                                       AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
+                    AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
+            ),
             item_status AS (
                 SELECT
                     ti.file_name_order_code,
@@ -52,7 +60,7 @@ final class GetHotshotOrderInventoryTask extends ParentTask
                             THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central'))
                         END
                     ) AS ngay_lam
-                FROM target_items ti
+                FROM order_status ti
                 LEFT JOIN scan_label_history s
                     ON s.barcode = ti.file_name_order_code COLLATE utf8mb4_0900_ai_ci
                     AND s.index_num = ti.file_name_index_number
@@ -66,7 +74,7 @@ final class GetHotshotOrderInventoryTask extends ParentTask
             FROM item_status
         ";
 
-        $bindings = [$date, $date, $hotshotPrinter, $date, $date, $date, $date];
+        $bindings = [$date, $date, $hotshotPrinter, $date, $date, $date, $date, $date, $date];
 
         return $this->formatOrderResult($this->queryFplatform($sql, $bindings));
     }

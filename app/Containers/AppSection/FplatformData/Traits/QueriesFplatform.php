@@ -108,6 +108,36 @@ trait QueriesFplatform
     }
 
     /**
+     * Format a hotshot result (estimate_date, tong_viec, da_lam).
+     */
+    protected function formatHotshotResult(?object $result): ?array
+    {
+        if (!$result) {
+            return null;
+        }
+
+        return [
+            'estimate_date' => $result->estimate_date,
+            'tong_viec'     => (int) $result->tong_viec,
+            'da_lam'        => (int) $result->da_lam,
+        ];
+    }
+
+    /**
+     * Comma-separated quoted hotshot/reprint printer names for SQL IN clause.
+     *
+     * Used by Mockup, PackShip, Order, and Hotshot tasks to detect
+     * HOTSHOT/REPRINT printers for date-cutoff logic.
+     */
+    protected function hotshotPrinterList(FactoryLine $factory): string
+    {
+        return match ($factory) {
+            FactoryLine::FLS => "'MayHOTSHOT', 'MayREPRINT'",
+            FactoryLine::PD  => "'MayHOTSHOTPD', 'MayREPRINTPD'",
+        };
+    }
+
+    /**
      * Format hourly results into a standardized array.
      *
      * Converts stdClass rows into clean arrays with proper types.
