@@ -2,12 +2,10 @@
 
 namespace App\Containers\AppSection\Shift\Tasks;
 
-use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
-use App\Containers\AppSection\Shift\Traits\ComputesHourlyTarget;
 use App\Containers\AppSection\Shift\Traits\ComputesKpiHours;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Carbon;
@@ -27,7 +25,6 @@ use Illuminate\Support\Carbon;
  */
 final class SyncHourlyRecordsTask extends ParentTask
 {
-    use ComputesHourlyTarget;
     use ComputesKpiHours;
 
     public function run(Shift $shift): void
@@ -38,11 +35,8 @@ final class SyncHourlyRecordsTask extends ParentTask
             ->get()
             ->keyBy(fn ($r) => "{$r->department_id}_{$r->hour_index}");
 
-        // ── 2. Load shift_details + departments ──
+        // ── 2. Load shift_details ──
         $shiftDetails = ShiftDetail::where('shift_id', $shift->id)->get();
-        $departments  = Department::whereIn('id', $shiftDetails->pluck('department_id')->unique())
-            ->get()
-            ->keyBy('id');
 
         // ── 3. Compute new record set (aligned slots) ──
         $newKeys = [];
@@ -51,8 +45,6 @@ final class SyncHourlyRecordsTask extends ParentTask
 
         foreach ($shiftDetails as $detail) {
             $deptId         = $detail->department_id;
-            $dept           = $departments->get($deptId);
-            $fullHourTarget = $this->computeTarget($dept, $detail, $detail->headcount);
 
             $start  = Carbon::createFromFormat('H:i:s', $detail->start_time);
             $end    = $start->copy()->addMinutes((int) ($detail->work_hours * 60) + ($detail->meal_break_minutes ?? 0));
@@ -73,8 +65,8 @@ final class SyncHourlyRecordsTask extends ParentTask
                     'department_id'        => $deptId,
                     'hour_slot'            => $slot['label'],
                     'hour_index'           => $hourIndex,
-                    'staff'                => $detail->headcount,
-                    'target'               => (int) round($fullHourTarget * $kpiData['percent'] / 100),
+                    'staff'                => $prev?->staff,
+                    'target'               => $prev?->target,
                     'kpi_hours'            => $kpiData['hours'],
                     'kpi_minutes'          => $kpiData['minutes'],
                     'kpi_percent'          => $kpiData['percent'],
@@ -112,7 +104,7 @@ final class SyncHourlyRecordsTask extends ParentTask
                 array_values($records),
                 ['shift_id', 'department_id', 'hour_index'],
                 [
-                    'hour_slot', 'staff', 'target', 'actual',
+                    'hour_slot',
                     'kpi_hours', 'kpi_minutes', 'kpi_percent',
                     'hour_start_inventory', 'efficiency', 'error_rate',
                     'status', 'productivity_json', 'deleted_at', 'updated_at',

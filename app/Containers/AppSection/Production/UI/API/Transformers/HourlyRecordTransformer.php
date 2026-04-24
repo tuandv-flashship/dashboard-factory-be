@@ -27,6 +27,7 @@ final class HourlyRecordTransformer extends ParentTransformer
             'efficiency' => $record->efficiency,
             'error_rate' => $record->error_rate,
             'status'     => $record->status,
+            'note'              => $record->note,
             'productivity_json' => $record->productivity_json,
         ];
     }

@@ -3,22 +3,22 @@
 namespace App\Containers\AppSection\Shift\Tasks;
 
 use App\Containers\AppSection\Department\Enums\ProductivityType;
-use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
-use App\Containers\AppSection\Shift\Traits\ComputesHourlyTarget;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Batch update staff for hourly records.
+ * Batch update hourly records with manual overrides.
  *
- * Target calculation via ComputesHourlyTarget trait.
- * Optimized: single batch update via CASE WHEN instead of N individual updates.
+ * Supports partial update of: kpi_minutes, target, staff_required, note.
+ * When kpi_minutes changes → auto-recalculates kpi_hours and kpi_percent.
+ * When target changes  → cascades hour_start_inventory for subsequent slots.
+ *
+ * hour_start_inventory[i] = day_start_inventory − Σ effectiveTarget[0..i-1]
+ * effectiveTarget = target ?? (kpi_per_hour × kpi_percent / 100)
  */
 final class UpdateHourlyStaffTask extends ParentTask
 {
-    use ComputesHourlyTarget;
-
     public function run(array $records): void
     {
         if (empty($records)) {
@@ -33,51 +33,104 @@ final class UpdateHourlyStaffTask extends ParentTask
             return;
         }
 
-        // Load departments in one query
-        $deptIds = $hourlyRecords->pluck('department_id')->unique();
-        $departments = Department::whereIn('id', $deptIds)->get()->keyBy('id');
+        // Index input records by id for O(1) lookup
+        $inputMap = collect($records)->keyBy('id');
 
-        // Pre-load shift_details for per_machine departments
-        $perMachineDeptIds = $departments->filter(
-            fn ($d) => $d->productivity_type === ProductivityType::PerMachine
-        )->keys()->toArray();
+        // Track which (shift_id, department_id) pairs need cascade recalculation
+        $needsCascade = [];
 
-        $shiftDetails = collect();
-        if (!empty($perMachineDeptIds)) {
-            $shiftIds = $hourlyRecords->pluck('shift_id')->unique()->toArray();
-            $shiftDetails = ShiftDetail::whereIn('shift_id', $shiftIds)
-                ->whereIn('department_id', $perMachineDeptIds)
-                ->get()
-                ->keyBy(fn ($sd) => "{$sd->shift_id}_{$sd->department_id}");
-        }
-
-        // Build batch update: group by (target, staff) to minimize queries
-        $updates = [];
-        foreach ($records as $record) {
-            $hourlyRecord = $hourlyRecords->get($record['id']);
-            if (!$hourlyRecord) {
+        foreach ($hourlyRecords as $id => $hourlyRecord) {
+            $input = $inputMap->get($id);
+            if (!$input) {
                 continue;
             }
 
-            $dept   = $departments->get($hourlyRecord->department_id);
-            $staff  = $record['staff'];
+            $updates = [];
 
-            // For per_machine, pass a dummy ShiftDetail-like object to computeTarget
-            if ($dept?->productivity_type === ProductivityType::PerMachine) {
-                $sdKey = "{$hourlyRecord->shift_id}_{$hourlyRecord->department_id}";
-                $sd = $shiftDetails->get($sdKey);
-                $target = $sd ? $this->computeTarget($dept, $sd, $staff) : 0;
-            } else {
-                // Per-person needs a shift detail for the trait, but the trait only uses
-                // dept KPI × multiplier for per_person, so we can pass any detail
-                $target = (int) round(($dept?->kpi_per_hour ?? 0) * $staff);
+            // ── kpi_minutes → auto-compute kpi_hours, kpi_percent ──
+            if (array_key_exists('kpi_minutes', $input) && $input['kpi_minutes'] !== null) {
+                $kpiMinutes = (int) $input['kpi_minutes'];
+                $updates['kpi_minutes'] = $kpiMinutes;
+                $updates['kpi_hours']   = round($kpiMinutes / 60, 2);
+                $updates['kpi_percent'] = round($kpiMinutes / 60 * 100, 2);
             }
 
-            // Directly update the already-loaded model (1 query each, N is typically 1–3)
-            $hourlyRecord->update([
-                'staff'  => $staff,
-                'target' => $target,
-            ]);
+            // ── target → direct update, mark for cascade ──
+            if (array_key_exists('target', $input)) {
+                $updates['target'] = $input['target'];
+                $key = "{$hourlyRecord->shift_id}_{$hourlyRecord->department_id}";
+                $needsCascade[$key] = [
+                    'shift_id'      => $hourlyRecord->shift_id,
+                    'department_id' => $hourlyRecord->department_id,
+                ];
+            }
+
+            // ── staff_required, note → direct update ──
+            if (array_key_exists('staff_required', $input)) {
+                $updates['staff_required'] = $input['staff_required'];
+            }
+
+            if (array_key_exists('note', $input)) {
+                $updates['note'] = $input['note'];
+            }
+
+            if (!empty($updates)) {
+                $hourlyRecord->update($updates);
+            }
+        }
+
+        // ── Cascade: recalculate hour_start_inventory for affected departments ──
+        foreach ($needsCascade as $pair) {
+            $this->cascadeInventory($pair['shift_id'], $pair['department_id']);
+        }
+    }
+
+    /**
+     * Recalculate hour_start_inventory for all hourly records of a department.
+     *
+     * hour_start_inventory[i] = day_start_inventory − Σ effectiveTarget[0..i-1]
+     * effectiveTarget = target > 0 ? target : (kpi_per_hour × kpi_percent / 100)
+     */
+    private function cascadeInventory(int $shiftId, int $departmentId): void
+    {
+        $detail = ShiftDetail::where('shift_id', $shiftId)
+            ->where('department_id', $departmentId)
+            ->first();
+
+        if (!$detail) {
+            return;
+        }
+
+        $dayStartInventory = $detail->day_start_inventory ?? 0;
+
+        // Determine kpi_per_hour based on productivity type
+        $dept = $detail->department;
+        $isPerMachine = $dept?->productivity_type === ProductivityType::PerMachine;
+        $kpiPerHour   = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept?->kpi_per_hour ?? 0);
+
+        $records = HourlyRecord::where('shift_id', $shiftId)
+            ->where('department_id', $departmentId)
+            ->orderBy('hour_index')
+            ->get();
+
+        $cumulativeTarget = 0;
+
+        foreach ($records as $record) {
+            $hourStartInventory = max(0, $dayStartInventory - $cumulativeTarget);
+
+            if ($record->hour_start_inventory !== $hourStartInventory) {
+                $record->update(['hour_start_inventory' => $hourStartInventory]);
+            }
+
+            // effectiveTarget: use actual target if set, otherwise fallback
+            $target = $record->target;
+            if ($target === null || $target <= 0) {
+                // Temp target = kpi_per_hour × kpi_percent / 100
+                $kpiPercent = $record->kpi_percent ?? 100;
+                $target = (int) round($kpiPerHour * $kpiPercent / 100);
+            }
+
+            $cumulativeTarget += $target;
         }
     }
 }

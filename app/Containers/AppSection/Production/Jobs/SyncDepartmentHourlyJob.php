@@ -12,7 +12,6 @@ use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
-use App\Containers\AppSection\Shift\Traits\ComputesKpiHours;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -32,7 +31,6 @@ use Illuminate\Support\Facades\Log;
 final class SyncDepartmentHourlyJob implements ShouldQueue
 {
     use Batchable;
-    use ComputesKpiHours;
     use Dispatchable;
     use InteractsWithQueue;
     use Queueable;
@@ -161,38 +159,11 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
         $dayStartInventory = $this->refreshDayStartInventory($detail, $team, $allInventory);
         $this->syncHotshotData($detail, $dept, $allInventory);
-        $breaks = $this->collectBreaks($detail, $detail->start_time);
-
-        // Build slot map — reuse $deptStart/$deptEnd (already computed above)
-        // buildAlignedSlots accepts Carbon objects directly, no need to re-instantiate.
-        $slotMap = $this->buildAlignedSlots($deptStart, $deptEnd);
-
-        // ── Pass 1: Recalculate kpi fields ──
-        foreach ($records as $record) {
-            $slot = $slotMap[$record->hour_index] ?? null;
-
-            $kpiData = $slot
-                ? $this->computeKpiHoursData($slot['start'], $slot['end'], $breaks)
-                : $this->computeKpiHoursDataFromLabel($record->hour_slot, $shiftDate, $breaks);
-
-            if ($record->kpi_minutes !== $kpiData['minutes']) {
-                $record->update([
-                    'kpi_hours'   => $kpiData['hours'],
-                    'kpi_minutes' => $kpiData['minutes'],
-                    'kpi_percent' => $kpiData['percent'],
-                ]);
-                $record->kpi_hours   = $kpiData['hours'];
-                $record->kpi_minutes = $kpiData['minutes'];
-                $record->kpi_percent = $kpiData['percent'];
-            }
-        }
 
         // ── Pre-compute shared values ──
-        $totalKpiMinutes  = $records->sum('kpi_minutes');  // integer, exact
         $isPerMachine     = $dept->productivity_type === ProductivityType::PerMachine;
         $kpiPerHour       = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
-        $machineCount     = $isPerMachine ? $detail->machines()->count() : null; // cached once
-        $machineStaff     = $isPerMachine ? $this->countMachinesFromInventory($team, $allInventory) : null; // constant for the whole shift
+        $machineStaff     = $isPerMachine ? $this->countMachinesFromInventory($team, $allInventory) : null;
 
         // ── Batch-fetch FPlatform data (3 API calls) ──
         $shiftStart = $deptStart->format('Y-m-d H:i:s');
@@ -206,200 +177,87 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             $shiftStart, $shiftEnd,
         );
 
-        // ── Pass 2: Sync data (no more API calls) ──
+        // ── Sync actual data from FPlatform ──
+        // target, staff_required, kpi_minutes/hours/percent are manual-only — NOT touched.
+        // Only update: staff, actual, efficiency, hour_start_inventory, status, productivity_json.
         $updated = 0;
-
-        // Running inventory: decremented slot-by-slot.
-        // Past/completed slots: subtract actual (real output).
-        // Future/active slots: subtract target (projected output).
-        $cumulativeKpiMinutes = [];
-        $runKpiMinutes = 0;
-        foreach ($records as $record) {
-            $cumulativeKpiMinutes[$record->hour_index] = $runKpiMinutes;
-            $runKpiMinutes += (int) $record->kpi_minutes;
-        }
-
-        $currentInv = $dayStartInventory; // ← single source of truth, updated each slot
-        $currentSlotStaffRequired = null; // staff_required of the currently active slot
+        $currentInv = $dayStartInventory;
 
         foreach ($records as $record) {
             [$queryStart, $queryEnd] = $this->parseHourSlot($record->hour_slot, $shiftDate);
 
             $activationTime = $deptStart->gt($queryStart) ? $deptStart->copy() : $queryStart->copy();
-            $actualSlot     = $slotMap[$record->hour_index] ?? null;
             $hourKey        = $queryStart->format('Y-m-d H');
 
             $isFutureSlot  = $now < $activationTime;
             $isCurrentSlot = !$isFutureSlot && $now < $queryEnd;
             $isPassedSlot  = $now >= $queryEnd;
 
-            $pastKpiMinutes      = $cumulativeKpiMinutes[$record->hour_index] ?? 0;
-            $hourStartInventory  = max(0, $currentInv);
-            $remainingKpiMinutes = $totalKpiMinutes - $pastKpiMinutes;
-            $staffRequired       = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail, $machineCount);
+            $hourStartInventory = max(0, $currentInv);
 
-            // Capture staff_required of the currently active slot for future slots to inherit
-            if ($isCurrentSlot) {
-                $currentSlotStaffRequired = $staffRequired;
-            }
-
-            // ── Future slot: compute target only, preserve actual=0/null ──
+            // ── Future slot: only update hour_start_inventory ──
             if ($isFutureSlot) {
-                // Use current slot's staff_required so future slots reflect the same
-                // headcount needed right now, rather than a per-slot recomputation.
-                // However, if inventory is already exhausted, no staff is needed.
-                $futureStaffRequired = $hourStartInventory <= 0
-                    ? 0
-                    : ($currentSlotStaffRequired ?? $staffRequired);
-
-                $target = $this->computeTarget(
-                    $futureStaffRequired, $kpiPerHour, $record->kpi_percent,
-                    $hourStartInventory, $record->target, $isPerMachine
-                );
-
-                if ($record->target !== $target || $record->hour_start_inventory !== $hourStartInventory || $record->staff_required !== $futureStaffRequired) {
-                    $record->update([
-                        'target'               => $target,
-                        'staff_required'       => $futureStaffRequired,
-                        'hour_start_inventory' => $hourStartInventory,
-                    ]);
+                if ($record->hour_start_inventory !== $hourStartInventory) {
+                    $record->update(['hour_start_inventory' => $hourStartInventory]);
                     $updated++;
                 }
 
-                // Future slot: assume target will be met
-                $currentInv = max(0, $currentInv - $target);
+                // Advance inventory by effective target (manual target or temp estimate)
+                $effectiveTarget = $this->effectiveTarget($record, $kpiPerHour);
+                $currentInv = max(0, $currentInv - $effectiveTarget);
                 continue;
             }
 
-            $actual           = (int) ($productivityMap[$hourKey] ?? 0);
-            $staff            = $isPerMachine
+            // ── Active / Passed / Completed slots: sync FPlatform data ──
+            $actual = (int) ($productivityMap[$hourKey] ?? 0);
+            $staff  = $isPerMachine
                 ? $machineStaff
                 : (int) ($staffCountMap[$hourKey] ?? 0);
             $productivityJson = $productivityDetailMap[$hourKey] ?? null;
 
-            // ── Already completed → re-sync actual + recalc metrics ──
-            if ($record->status === HourlyRecordStatus::Completed->value) {
-                // Completed (past) slots: target = staff × kpi_per_hour × kpi_percent, capped by inventory
-                // For per_machine: kpi_per_hour is already total capacity — do NOT multiply by machine count.
-                $target = $staff > 0
-                    ? min($hourStartInventory, (int) round(($isPerMachine ? 1 : $staff) * $kpiPerHour * $record->kpi_percent / 100))
-                    : $this->computeTarget(
-                        $staffRequired, $kpiPerHour, $record->kpi_percent,
-                        $hourStartInventory, $record->target, $isPerMachine
-                    );
+            $target = $record->target ?? 0;
+            $status = $isPassedSlot || $record->status === HourlyRecordStatus::Completed->value
+                ? HourlyRecordStatus::Completed
+                : ($isCurrentSlot ? HourlyRecordStatus::Active : HourlyRecordStatus::Pending);
 
-                $record->update([
-                    'actual'               => $actual,
-                    'staff'                => $staff,
-                    'staff_required'       => $staffRequired,
-                    'target'               => $target,
-                    'hour_start_inventory' => $hourStartInventory,
-                    'efficiency'           => $target > 0 && $actual > 0
-                        ? round(($actual / $target) * 100, 1)
-                        : 0,
-                    'productivity_json'    => $productivityJson,
-                ]);
+            $record->update([
+                'actual'               => $actual,
+                'staff'                => $staff,
+                'hour_start_inventory' => $hourStartInventory,
+                'efficiency'           => $target > 0 && $actual > 0
+                    ? round(($actual / $target) * 100, 1)
+                    : 0,
+                'status'               => $status->value,
+                'productivity_json'    => $productivityJson,
+            ]);
+            $updated++;
 
-                // Completed slot: subtract real actual output
-                $currentInv = max(0, $currentInv - $actual);
-                $updated++;
-                continue;
-            }
-
-            // ── Active / Passed slots ──
-            if ($isCurrentSlot || $isPassedSlot) {
-                $target = $this->updateRecord(
-                    $record, $dept, $detail,
-                    $hourStartInventory, $remainingKpiMinutes,
-                    $actual, $staff, $productivityJson,
-                    $kpiPerHour, $machineCount,
-                    $breaks, $actualSlot, $isPassedSlot,
-                );
-
-                // Passed slot: subtract actual; active (running) slot: subtract target
-                $currentInv = $isPassedSlot
-                    ? max(0, $currentInv - $actual)
-                    : max(0, $currentInv - $target);
-                $updated++;
-            }
-
+            // Advance inventory: passed/completed → subtract actual, active → subtract target
+            $currentInv = ($isPassedSlot || $status === HourlyRecordStatus::Completed)
+                ? max(0, $currentInv - $actual)
+                : max(0, $currentInv - $this->effectiveTarget($record, $kpiPerHour));
         }
 
         return $updated;
-
     }
 
     /**
-     * Update an active or passed hourly record.
+     * Effective target for inventory tracking.
      *
-     * @param int $hourStartInventory  Pre-computed for this slot (running sequential inv)
-     * @param int $remainingKpiMinutes Pre-computed total - past kpi minutes
-     * @return int                     Computed target (used by caller to advance $currentInv)
+     * Uses actual target if set, otherwise falls back to
+     * kpi_per_hour × kpi_percent / 100 as a temporary estimate.
      */
-    private function updateRecord(
-        HourlyRecord $record,
-        Department $dept,
-        ShiftDetail $detail,
-        int $hourStartInventory,
-        int $remainingKpiMinutes,
-        int $actual,
-        int $staff,
-        ?array $productivityJson,
-        float $kpiPerHour,
-        ?int $cachedMachineCount,   // pass-through from syncDepartment to avoid extra DB query
-        array $breaks,
-        ?array $actualSlot,
-        bool $isCompleted,
-    ): int {
-        $staffRequired = $this->computeStaffRequired($dept, $hourStartInventory, $remainingKpiMinutes, $detail, $cachedMachineCount);
+    private function effectiveTarget(HourlyRecord $record, float $kpiPerHour): int
+    {
+        $target = $record->target;
 
-        $slotStart = $actualSlot ? $actualSlot['start'] : null;
-        $slotEnd   = $actualSlot ? $actualSlot['end']   : null;
-
-        if ($slotStart && $slotEnd) {
-            $kpiData    = $this->computeKpiHoursData($slotStart, $slotEnd, $breaks);
-            $kpiMinutes = $kpiData['minutes'];
-            $kpiHours   = $kpiData['hours'];
-            $kpiPercent = $kpiData['percent'];
-        } else {
-            $kpiMinutes = $record->kpi_minutes;
-            $kpiHours   = $record->kpi_hours;
-            $kpiPercent = $record->kpi_percent;
+        if ($target !== null && $target > 0) {
+            return $target;
         }
 
-        $isPerMachine = $dept->productivity_type === ProductivityType::PerMachine;
-
-        // Passed (completed) slots: target = staff × kpi_per_hour × kpi_percent, capped by inventory
-        // For per_machine: kpi_per_hour is already total capacity — do NOT multiply by machine count.
-        // Active (current) slots: target = staff_required × kpi_per_hour × kpi_percent
-        $target = ($isCompleted && $staff > 0)
-            ? min($hourStartInventory, (int) round(($isPerMachine ? 1 : $staff) * $kpiPerHour * $kpiPercent / 100))
-            : $this->computeTarget(
-                $staffRequired, $kpiPerHour, $kpiPercent,
-                $hourStartInventory, $record->target, $isPerMachine
-            );
-
-        $status = $isCompleted
-            ? HourlyRecordStatus::Completed
-            : HourlyRecordStatus::Active;
-
-        $record->update([
-            'actual'               => $actual,
-            'staff'                => $staff,
-            'staff_required'       => $staffRequired,
-            'target'               => $target,
-            'hour_start_inventory' => $hourStartInventory,
-            'kpi_hours'            => $kpiHours,
-            'kpi_minutes'          => $kpiMinutes,
-            'kpi_percent'          => $kpiPercent,
-            'efficiency'           => $target > 0
-                ? round(($actual / $target) * 100, 1)
-                : 0,
-            'status'               => $status->value,
-            'productivity_json'    => $productivityJson,
-        ]);
-
-        return $target;
+        // Temp estimate = kpi_per_hour × kpi_percent / 100
+        $kpiPercent = $record->kpi_percent ?? 100;
+        return (int) round($kpiPerHour * $kpiPercent / 100);
     }
 
     // ── Helper methods ──────────────────────────────────
@@ -444,61 +302,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         return $map;
     }
 
-    /**
-     * Compute hourly target for a slot.
-     *
-     * Per-staff:   target = staffRequired × kpiPerHour × (kpiPercent / 100)
-     * Per-machine: target = kpiPerHour × (kpiPercent / 100)
-     *              (kpiPerHour is already the TOTAL capacity of all machines combined)
-     *
-     * @param float $kpiPercent  kpi_percent field (0-100), proportional slot weight
-     */
-    private function computeTarget(
-        ?int $staffRequired, float $kpiPerHour, float $kpiPercent,
-        int $hourStartInventory, int $fallbackTarget,
-        bool $perMachine = false,
-    ): int {
-        if ($perMachine) {
-            // kpi_per_hour is already the TOTAL capacity of all machines combined.
-            // Only produce target if machines are assigned (staffRequired > 0).
-            $target = ($staffRequired !== null && $staffRequired > 0)
-                ? (int) round($kpiPerHour * $kpiPercent / 100)
-                : $fallbackTarget;
-        } else {
-            $target = ($staffRequired !== null && $staffRequired > 0)
-                ? (int) round($staffRequired * $kpiPerHour * $kpiPercent / 100)
-                : $fallbackTarget;
-        }
 
-        // Cap target by available inventory — every slot, not just the last.
-        return min($target, $hourStartInventory);
-    }
-
-    private function computeStaffRequired(
-        Department $dept,
-        int $inventory,
-        int $remainingKpiMinutes,
-        ?ShiftDetail $detail = null,
-        ?int $cachedMachineCount = null,
-    ): ?int {
-        if ($dept->productivity_type === ProductivityType::PerMachine) {
-            if ($cachedMachineCount !== null) {
-                return $cachedMachineCount;
-            }
-            return $detail ? $detail->machines()->count() : 0;
-        }
-
-        $kpiPerHour = $dept->kpi_per_hour ?? 0;
-
-        if ($inventory <= 0 || $remainingKpiMinutes <= 0 || $kpiPerHour <= 0) {
-            return $inventory <= 0 ? 0 : null;
-        }
-
-        // Use minutes directly to avoid float precision loss:
-        // staffRequired = ceil(inventory / (remainingKpiMinutes / 60) / kpiPerHour)
-        //               = ceil(inventory * 60 / remainingKpiMinutes / kpiPerHour)
-        return (int) ceil($inventory * 60 / $remainingKpiMinutes / $kpiPerHour);
-    }
 
     private function refreshDayStartInventory(ShiftDetail $detail, Team $team, array $allInventory): int
     {
@@ -573,16 +377,5 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             Carbon::createFromFormat('Y-m-d H:i:s', "{$shiftDate} {$startHour}:00:00"),
             Carbon::createFromFormat('Y-m-d H:i:s', "{$shiftDate} {$endHour}:00:00"),
         ];
-    }
-
-    /**
-     * Compute full KPI data (minutes, percent, hours) from an hour_slot label.
-     *
-     * @return array{minutes: int, percent: float, hours: float}
-     */
-    private function computeKpiHoursDataFromLabel(string $hourSlot, string $shiftDate, array $breaks): array
-    {
-        [$start, $end] = $this->parseHourSlot($hourSlot, $shiftDate);
-        return $this->computeKpiHoursData($start, $end, $breaks);
     }
 }

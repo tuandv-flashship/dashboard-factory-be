@@ -17,7 +17,7 @@ final class HourlyRecord extends ParentModel
     protected $fillable = [
         'shift_id', 'department_id', 'hour_slot', 'hour_index',
         'target', 'kpi_hours', 'kpi_minutes', 'kpi_percent', 'actual', 'staff', 'staff_required',
-        'hour_start_inventory',
+        'note', 'hour_start_inventory',
         'efficiency', 'error_rate', 'status', 'productivity_json',
     ];
 
@@ -34,6 +34,7 @@ final class HourlyRecord extends ParentModel
         'efficiency'           => 'float',
         'error_rate'           => 'float',
         'status'               => 'string',
+        'note'                 => 'string',
         'productivity_json'    => 'array',
     ];
 

@@ -2,12 +2,10 @@
 
 namespace App\Containers\AppSection\Shift\Tasks;
 
-use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
-use App\Containers\AppSection\Shift\Traits\ComputesHourlyTarget;
 use App\Containers\AppSection\Shift\Traits\ComputesKpiHours;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Carbon;
@@ -30,13 +28,12 @@ use Illuminate\Support\Carbon;
  *   ...
  *   slot 8: "14h-15h" 14:00–14:30  target=½×KPI  kpi_hours=0.50
  *
- * Optimized: single bulk insert, departments loaded via whereIn.
- * Target calculation delegated to ComputesHourlyTarget trait.
+ * Optimized: single bulk insert.
+ * target and staff are initialized as NULL — populated later by manual input or sync job.
  * Slot building and KPI hours delegated to ComputesKpiHours trait.
  */
 final class GenerateHourlyRecordsTask extends ParentTask
 {
-    use ComputesHourlyTarget;
     use ComputesKpiHours;
 
     public function run(Shift $shift): void
@@ -47,17 +44,11 @@ final class GenerateHourlyRecordsTask extends ParentTask
             return;
         }
 
-        $departments = Department::whereIn('id', $shiftDetails->pluck('department_id')->unique())
-            ->get()
-            ->keyBy('id');
-
         $records = [];
         $now = now();
 
         foreach ($shiftDetails as $detail) {
             $deptId = $detail->department_id;
-            $dept   = $departments->get($deptId);
-            $fullHourTarget = $this->computeTarget($dept, $detail, $detail->headcount);
 
             $start = Carbon::createFromFormat('H:i:s', $detail->start_time);
             $end = $start->copy()->addMinutes((int) ($detail->work_hours * 60) + ($detail->meal_break_minutes ?? 0));
@@ -74,9 +65,9 @@ final class GenerateHourlyRecordsTask extends ParentTask
                     'department_id'        => $deptId,
                     'hour_slot'            => $slot['label'],
                     'hour_index'           => $hourIndex,
-                    'staff'                => $detail->headcount,
+                    'staff'                => null,
                     'hour_start_inventory' => 0,
-                    'target'               => (int) round($fullHourTarget * $kpiData['percent'] / 100),
+                    'target'               => null,
                     'kpi_hours'            => $kpiData['hours'],
                     'kpi_minutes'          => $kpiData['minutes'],
                     'kpi_percent'          => $kpiData['percent'],
