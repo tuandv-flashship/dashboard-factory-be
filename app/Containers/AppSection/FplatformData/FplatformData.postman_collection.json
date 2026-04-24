@@ -1,7 +1,7 @@
 {
     "info": {
-        "name": "FplatformData",
-        "description": "## FplatformData Container\n\nLấy dữ liệu **tổng việc ngày**, **hiệu suất theo giờ**, **số nhân viên**, **hiệu suất máy in** và **đơn hotshot** từ database `fplatform` (external, read-only).\n\n**Base:** `/v1/fplatform` (public), `/v1/admin/fplatform` (private)\n\n### Authentication\n\n- **Public endpoints**: Không cần Bearer Token — dành cho TV dashboard\n- **Private endpoints**: Yêu cầu `Authorization: Bearer {{access_token}}` + permission `shifts.index` hoặc role `admin`\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `print` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cut` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Tồn đơn | `order_inventory` | FLS/PD | Tồn theo đơn hàng |\n| Pick (DTG) | `pick_dtg` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n| Hotshot In | `hotshot_print` | FLS/PD | Hotshot team in |\n| Hotshot Pick | `hotshot_pick` | FLS/PD | Hotshot team pick |\n| Hotshot Cắt | `hotshot_cut` | FLS/PD | Hotshot team cắt |\n| Hotshot Mockup | `hotshot_mockup` | FLS/PD | Hotshot team mockup |\n| Hotshot Pack & Ship | `hotshot_pack_ship` | FLS/PD | Hotshot pack & ship |\n\n### Hourly Metric Types\n\n| Metric | Code | Mô tả |\n|---|---|---|\n| Hiệu suất SX | `productivity` | Sản lượng theo giờ |\n| Số nhân viên | `staff_count` | Đếm NV hoạt động theo giờ |\n| HS nhân viên | `staff_productivity` | Sản lượng từng NV theo giờ |\n| HS máy in | `machine_productivity` | Sản lượng từng máy theo giờ |\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ\n- Hourly metrics: cache 5 phút",
+        "name": "FplatformData (v2.0.0)",
+        "description": "## FplatformData Container (v2.0.0)\n\nLấy dữ liệu **tổng việc ngày**, **hiệu suất theo giờ**, **số nhân viên**, **hiệu suất máy in** và **đơn hotshot** từ database `fplatform` (external, read-only).\n\n**Base:** `/v1/fplatform` (public), `/v1/admin/fplatform` (private)\n\n### v2.0.0 Changes\n\n- **File-level granularity:** Tất cả team giờ JOIN `order_check_file_dropbox` để đếm file-level (thay vì `folder_manage.total_file` aggregate).\n- **Order status filter:** CTE `order_status` JOIN `orders` table, loại bỏ đơn HOLD/REQUEST_CANCEL/REJECTED/REJECT_REQUESTED/CANCELED.\n- **COLLATE:** `COLLATE utf8mb4_unicode_ci` trên `orders.order_code` JOINs (utf8mb3 ↔ utf8mb4).\n- **Data pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → team-specific table.\n\n### DB Permission Required\n\n```sql\nGRANT SELECT ON fplatform.orders TO 'dashboard_data'@'%';\n```\n\n### Authentication\n\n- **Public endpoints**: Không cần Bearer Token — dành cho TV dashboard\n- **Private endpoints**: Yêu cầu `Authorization: Bearer {{access_token}}` + permission `shifts.index` hoặc role `admin`\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `print` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cut` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Tồn đơn | `order_inventory` | FLS/PD | Tồn theo đơn hàng |\n| Pick (DTG) | `pick_dtg` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n| Hotshot In | `hotshot_print` | FLS/PD | Hotshot team in |\n| Hotshot Pick | `hotshot_pick` | FLS/PD | Hotshot team pick |\n| Hotshot Cắt | `hotshot_cut` | FLS/PD | Hotshot team cắt |\n| Hotshot Mockup | `hotshot_mockup` | FLS/PD | Hotshot team mockup |\n| Hotshot Pack & Ship | `hotshot_pack_ship` | FLS/PD | Hotshot pack & ship |\n\n### Hourly Metric Types\n\n| Metric | Code | Mô tả |\n|---|---|---|\n| Hiệu suất SX | `productivity` | Sản lượng theo giờ |\n| Số nhân viên | `staff_count` | Đếm NV hoạt động theo giờ |\n| HS nhân viên | `staff_productivity` | Sản lượng từng NV theo giờ |\n| HS máy in | `machine_productivity` | Sản lượng từng máy theo giờ |\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ\n- Hourly metrics: cache 5 phút",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -21,7 +21,7 @@
     "item": [
         {
             "name": "Inventory (Tổng việc)",
-            "description": "## Tổng việc ngày\n\nDữ liệu inventory từ FPlatform. Query theo ngày estimate_date, tính tích lũy 10 ngày.\n\n**Đơn vị tính theo team:**\n- In, Cắt, Mockup: `file`\n- Pick, Pack & Ship: `shirt` (product)\n- Order Inventory: `order` (đơn hàng unique)\n- DTG Print: `file`\n- DTG Pick: `shirt`",
+            "description": "## Tổng việc ngày (v2.0.0)\n\nDữ liệu inventory từ FPlatform. Query theo ngày estimate_date, tính tích lũy 10 ngày.\n\n**v2.0.0 Data Pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter HOLD/CANCELED) → team-specific table.\n\n**Đơn vị tính theo team:**\n- In, Cắt, Mockup: `file`\n- Pick, Pack & Ship: `shirt` (product)\n- Order Inventory: `order` (đơn hàng unique)\n- DTG Print: `file`\n- DTG Pick: `shirt`",
             "item": [
                 {
                     "name": "Get Daily Inventory — Team In",
@@ -50,7 +50,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tổng việc ngày cho team **In (DTF)**.\n\n`work_type=0, work_status=1` — đếm file đã in xong.\n\n| Param | Type | Required | Values |\n|---|---|---|---|\n| team | string | ✅ | `print`, `cut`, `pick`, `mockup`, `pack_ship`, `order_inventory`, `pick_dtg`, `dtg_print`, `dtg_print_split` |\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** `{ tong_viec, estimate_date, team, factory }`  \n(Order inventory: `{ tong_viec, da_lam, estimate_date, team, factory }`)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có dữ liệu cho ngày đó."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **In (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `user_group_scan` (work_type=0, work_status=1)\n\n| Param | Type | Required | Values |\n|---|---|---|---|\n| team | string | ✅ | `print`, `cut`, `pick`, `mockup`, `pack_ship`, `order_inventory`, `pick_dtg`, `dtg_print`, `dtg_print_split`, `hotshot_*` |\n| date | string | ❌ | `YYYY-MM-DD`, default = today |\n\n**Response:** `{ tong_viec, estimate_date, team, factory }`  \n(Order inventory / Hotshot: `{ tong_viec, da_lam, estimate_date, team, factory }`)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có dữ liệu cho ngày đó."
                     },
                     "response": [
                         {
@@ -104,7 +104,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tổng việc ngày cho team **Cắt (DTF)**.\n\n`work_type=2, work_status=0` — đếm file đã nhận vào cắt.\n\n⚠️ **Lưu ý:** CẮT dùng `work_status=0` (khác với In dùng `work_status=1`)."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **Cắt (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `user_group_scan` (work_type=2, work_status=0, copy_job=0)\n\n⚠️ **Lưu ý:** CẮT dùng `work_status=0` (khác với In dùng `work_status=1`), thêm `copy_job=0` trong v2."
                     },
                     "response": [
                         {
@@ -146,7 +146,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tổng việc ngày cho team **Pick (DTF)**.\n\n`work_type=100, copy_job=0` — đếm theo `total_product`."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **Pick (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `user_group_scan` (work_type=100, copy_job=0, created_at interval)\n\nĐếm theo `total_product`."
                     },
                     "response": [
                         {
@@ -188,7 +188,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tổng việc ngày cho team **Mockup (DTF)**.\n\nJoin `folder_manage` → `order_check_file_dropbox` → `log_check_mockup`."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **Mockup (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `log_check_mockup`."
                     },
                     "response": [
                         {
@@ -230,7 +230,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tổng việc ngày cho team **Pack & Ship (DTF)**.\n\nJoin `folder_manage` → `order_check_file_dropbox` → `scan_label_history`.\n\n⚠️ **PD factory:** Kết quả UNION với dữ liệu DTG từ `dtg_item_detail`."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **Pack & Ship (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `scan_label_history`.\n\n⚠️ **PD factory:** Kết quả UNION với dữ liệu DTG từ `dtg_item_detail` (JOIN `orders` bằng `o.id = d.order_id`)."
                     },
                     "response": [
                         {
@@ -272,7 +272,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tồn đầu/cuối **đơn hàng** (COUNT DISTINCT order_code).\n\n🆕 **Mới trong v5** — Đếm đơn hàng unique thay vì áo.\n\n**PD factory:** Tự động cộng thêm đơn DTG."
+                        "description": "✅ **Public** — Tồn đầu/cuối **đơn hàng** (COUNT DISTINCT order_code).\n\n**v2.0.0 Pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `scan_label_history`.\n\nĐếm đơn hàng unique thay vì áo.\n\n**PD factory:** Tự động cộng thêm đơn DTG."
                     },
                     "response": [
                         {
@@ -398,7 +398,7 @@
                                 }
                             ]
                         },
-                        "description": "\u2705 **Public** \u2014 T\u1ed3n vi\u1ec7c hotshot cho team **In (DTF)**.\n\nFilter: `printer_default = MayHOTSHOT/MayHOTSHOTPD`\n\n**Response:** `{ tong_viec, da_lam, estimate_date }`"
+                        "description": "\u2705 **Public** \u2014 T\u1ed3n vi\u1ec7c hotshot cho team **In (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` \u2192 `order_check_file_dropbox` \u2192 `orders` (filter) \u2192 `user_group_scan` (work_type=0)\nFilter: `printer_default = MayHOTSHOT/MayHOTSHOTPD`\n\n**Response:** `{ tong_viec, da_lam, estimate_date }`"
                     },
                     "response": [
                         {
@@ -440,7 +440,7 @@
                                 }
                             ]
                         },
-                        "description": "\u2705 **Public** \u2014 T\u1ed3n vi\u1ec7c hotshot cho team **Pick (DTF)**.\n\nFilter: `printer_default = MayHOTSHOT/MayHOTSHOTPD`, `copy_job=0`\n\n**Response:** `{ tong_viec, da_lam, estimate_date }`"
+                        "description": "\u2705 **Public** \u2014 T\u1ed3n vi\u1ec7c hotshot cho team **Pick (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` \u2192 `order_check_file_dropbox` \u2192 `orders` (filter) \u2192 `user_group_scan` (work_type=100, copy_job=0)\nFilter: `printer_default = MayHOTSHOT/MayHOTSHOTPD`\n\n**Response:** `{ tong_viec, da_lam, estimate_date }`"
                     },
                     "response": [
                         {
@@ -482,7 +482,7 @@
                                 }
                             ]
                         },
-                        "description": "\u2705 **Public** \u2014 T\u1ed3n vi\u1ec7c hotshot cho team **C\u1eaft (DTF)**.\n\nFilter: `printer_default = MayHOTSHOT/MayHOTSHOTPD`\n\n**Response:** `{ tong_viec, da_lam, estimate_date }`"
+                        "description": "\u2705 **Public** \u2014 T\u1ed3n vi\u1ec7c hotshot cho team **C\u1eaft (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` \u2192 `order_check_file_dropbox` \u2192 `orders` (filter) \u2192 `user_group_scan` (work_type=2)\nFilter: `printer_default = MayHOTSHOT/MayHOTSHOTPD`\n\n**Response:** `{ tong_viec, da_lam, estimate_date }`"
                     },
                     "response": [
                         {
@@ -524,7 +524,7 @@
                                 }
                             ]
                         },
-                        "description": "\u2705 **Public** \u2014 T\u1ed3n vi\u1ec7c hotshot cho team **Mockup (DTF)**.\n\nJoin `folder_manage` \u2192 `order_check_file_dropbox` \u2192 `log_check_mockup`.\nFilter: `printer_default = MayHOTSHOT/MayHOTSHOTPD`\n\n**Response:** `{ tong_viec, da_lam }`"
+                        "description": "\u2705 **Public** \u2014 T\u1ed3n vi\u1ec7c hotshot cho team **Mockup (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` \u2192 `order_check_file_dropbox` \u2192 `orders` (filter) \u2192 `log_check_mockup`.\nFilter: `printer_default = MayHOTSHOT/MayHOTSHOTPD`\n\n**Response:** `{ tong_viec, da_lam }`"
                     },
                     "response": [
                         {
@@ -566,7 +566,7 @@
                                 }
                             ]
                         },
-                        "description": "\u2705 **Public** \u2014 T\u1ed3n vi\u1ec7c hotshot cho team **Pack & Ship (DTF)**.\n\nJoin `folder_manage` \u2192 `order_check_file_dropbox` \u2192 `scan_label_history`.\nFilter: `printer_default = MayHOTSHOT/MayHOTSHOTPD`\n\n**Response:** `{ tong_viec, da_lam }`"
+                        "description": "\u2705 **Public** \u2014 T\u1ed3n vi\u1ec7c hotshot cho team **Pack & Ship (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` \u2192 `order_check_file_dropbox` \u2192 `orders` (filter) \u2192 `scan_label_history`.\nFilter: `printer_default = MayHOTSHOT/MayHOTSHOTPD`\n\n**Response:** `{ tong_viec, da_lam }`"
                     },
                     "response": [
                         {
@@ -1677,7 +1677,7 @@
                                 }
                             ]
                         },
-                        "description": "🔒 **Private** — Tồn đầu/cuối **đơn hotshot** (đơn gấp).\n\n🆕 **Mới trong v5**\n\n**Permission:** `shifts.index` hoặc role `admin`\n\nFilter: `printer_default = MayHOTSHOT` (FLS) hoặc `MayHOTSHOTPD` (PD)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có đơn hotshot cho ngày đó."
+                        "description": "🔒 **Private** — Tồn đầu/cuối **đơn hotshot** (đơn gấp).\n\n**v2.0.0:** JOIN `orders` table để lọc status HOLD/CANCELED.\n\n**Permission:** `shifts.index` hoặc role `admin`\n\nFilter: `printer_default = MayHOTSHOT` (FLS) hoặc `MayHOTSHOTPD` (PD)\n\n**Caching:** 5 phút (today) / 1 giờ (historical)\n\n**404** nếu không có đơn hotshot cho ngày đó."
                     },
                     "response": [
                         {
