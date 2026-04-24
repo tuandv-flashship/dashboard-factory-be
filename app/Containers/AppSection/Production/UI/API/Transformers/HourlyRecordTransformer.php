@@ -20,7 +20,7 @@ final class HourlyRecordTransformer extends ParentTransformer
             'kpi_minutes' => $record->kpi_minutes,
             'kpi_percent' => $record->kpi_percent,
             'actual' => $record->actual,
-            'missed' => $record->actual !== null && $record->actual < $record->target,
+            'missed' => $record->actual !== null && $record->target !== null && $record->actual < $record->target,
             'staff' => $record->staff,
             'staff_required' => $record->staff_required,
             'hour_start_inventory' => $record->hour_start_inventory,
