@@ -27,11 +27,11 @@ return [
     | Should run ~10 minutes before the earliest department start time.
     |
     | Format: HH:MM (uses APP_TIMEZONE, default America/Chicago).
-    | Default: 04:50 → Ca 1 Pick dept starts at 06:00.
+    | Default: 00:00 → Ca 1 Pick dept starts at 06:00.
     |
     */
 
-    'daily_shift_job_at' => env('DAILY_SHIFT_JOB_AT', '04:50'),
+    'daily_shift_job_at' => env('DAILY_SHIFT_JOB_AT', '00:00'),
 
     /*
     |--------------------------------------------------------------------------

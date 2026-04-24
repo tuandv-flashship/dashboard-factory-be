@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Log;
  *   2. Dedup cache : prevents duplicate runs within the same calendar day
  *
  * Configured time is read from the DB settings table (key: scheduler.daily_shift_job_at),
- * falling back to config('factory.daily_shift_job_at', '04:50'). Cache is busted
+ * falling back to config('factory.daily_shift_job_at', '00:00'). Cache is busted
  * immediately by UpdateProductionSchedulerSettingsAction — no scheduler restart needed.
  *
  * Idempotent: CreateDailyShiftAction handles already-created shifts gracefully.
@@ -47,7 +47,7 @@ final class CreateDailyShiftJob implements ShouldQueue
             fn () => Setting::query()
                 ->where('key', 'scheduler.daily_shift_job_at')
                 ->value('value')
-                ?? config('factory.daily_shift_job_at', '04:50'),
+                ?? config('factory.daily_shift_job_at', '00:00'),
         );
 
         if (now($tz)->format('H:i') !== $targetTime) {

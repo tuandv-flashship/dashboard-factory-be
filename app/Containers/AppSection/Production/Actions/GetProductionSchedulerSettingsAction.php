@@ -33,7 +33,7 @@ final class GetProductionSchedulerSettingsAction extends ParentAction
                 'off_shift_interval'       => config('factory.off_shift_sync_interval', 15),
                 'off_shift_before_minutes' => config('factory.off_shift_before_minutes', 120),
                 'off_shift_after_minutes'  => config('factory.off_shift_after_minutes', 180),
-                'daily_shift_job_at'       => config('factory.daily_shift_job_at', '04:50'),
+                'daily_shift_job_at'       => config('factory.daily_shift_job_at', '00:00'),
             ],
         ];
 
