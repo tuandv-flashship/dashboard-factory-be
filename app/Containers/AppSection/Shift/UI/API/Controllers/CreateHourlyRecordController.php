@@ -21,7 +21,8 @@ final class CreateHourlyRecordController extends ApiController
 
         $record = DB::transaction(function () use ($shiftId, $deptId, $request) {
             // 1. Find the last hourly record for this department
-            $lastRecord = HourlyRecord::where('shift_id', $shiftId)
+            $lastRecord = HourlyRecord::withTrashed()
+                ->where('shift_id', $shiftId)
                 ->where('department_id', $deptId)
                 ->orderByDesc('hour_index')
                 ->first();
