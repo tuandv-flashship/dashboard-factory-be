@@ -31,7 +31,7 @@ final class GetLineSummaryTask extends ParentTask
         $deptIds = $departments->pluck('id');
 
         // Single query for ALL hourly records of this line's departments
-        $allRecords = HourlyRecord::query()
+        $allRecords = HourlyRecord::with('shiftDetail')
             ->where('shift_id', $shift->id)
             ->whereIn('department_id', $deptIds)
             ->orderBy('hour_index')

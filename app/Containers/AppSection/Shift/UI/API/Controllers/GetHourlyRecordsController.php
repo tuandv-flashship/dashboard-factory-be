@@ -13,7 +13,7 @@ final class GetHourlyRecordsController extends ApiController
 {
     public function __invoke(GetHourlyRecordsRequest $request): JsonResponse
     {
-        $records = HourlyRecord::with('department')
+        $records = HourlyRecord::with(['department', 'shiftDetail'])
             ->where('shift_id', $request->id)
             ->orderBy('department_id')
             ->orderBy('hour_index')

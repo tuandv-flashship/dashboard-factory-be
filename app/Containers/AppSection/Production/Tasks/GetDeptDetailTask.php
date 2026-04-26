@@ -32,7 +32,7 @@ final class GetDeptDetailTask extends ParentTask
         $records = HourlyRecord::query()
             ->where('shift_id', $shift->id)
             ->where('department_id', $dept->id)
-            ->with('issues')
+            ->with(['issues', 'shiftDetail'])
             ->orderBy('hour_index')
             ->get();
 

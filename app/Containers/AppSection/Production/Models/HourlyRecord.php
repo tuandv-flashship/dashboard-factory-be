@@ -4,9 +4,11 @@ namespace App\Containers\AppSection\Production\Models;
 
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Shift\Models\Shift;
+use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Models\Model as ParentModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class HourlyRecord extends ParentModel
@@ -46,6 +48,12 @@ final class HourlyRecord extends ParentModel
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    public function shiftDetail(): HasOne
+    {
+        return $this->hasOne(ShiftDetail::class, 'shift_id', 'shift_id')
+            ->whereColumn('shift_details.department_id', 'hourly_records.department_id');
     }
 
     public function issues(): HasMany
