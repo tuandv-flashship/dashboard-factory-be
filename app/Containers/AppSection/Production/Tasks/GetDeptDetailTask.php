@@ -32,7 +32,7 @@ final class GetDeptDetailTask extends ParentTask
         $records = HourlyRecord::query()
             ->where('shift_id', $shift->id)
             ->where('department_id', $dept->id)
-            ->with(['issues', 'shiftDetail'])
+            ->with('issues')
             ->orderBy('hour_index')
             ->get();
 
@@ -41,6 +41,11 @@ final class GetDeptDetailTask extends ParentTask
             ->where('department_id', $dept->id)
             ->with(['department.productionLine'])
             ->first();
+
+        // Wire shiftDetail onto each record to avoid N+1 in transformer
+        if ($shiftDetail) {
+            $records->each(fn ($r) => $r->setRelation('shiftDetail', $shiftDetail));
+        }
 
         return [
             'shift' => $shift,

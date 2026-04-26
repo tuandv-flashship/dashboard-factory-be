@@ -37,8 +37,7 @@ final class GetAllLinesHourlyTask extends ParentTask
             ->get();
 
         // 1 query: ALL hourly records for this shift, grouped by department
-        $allRecords = HourlyRecord::with('shiftDetail')
-            ->where('shift_id', $shift->id)
+        $allRecords = HourlyRecord::where('shift_id', $shift->id)
             ->orderBy('hour_index')
             ->get()
             ->groupBy('department_id');
@@ -51,10 +50,18 @@ final class GetAllLinesHourlyTask extends ParentTask
 
         $lineData = $lines->map(function (ProductionLine $line) use ($allRecords, $allDetails) {
             $deptData = $line->departments->map(function ($dept) use ($allRecords, $allDetails) {
+                $detail  = $allDetails->get($dept->id);
+                $records = $allRecords->get($dept->id, collect());
+
+                // Wire shiftDetail onto each record to avoid N+1 in transformer
+                if ($detail) {
+                    $records->each(fn ($r) => $r->setRelation('shiftDetail', $detail));
+                }
+
                 return [
                     'department'   => $dept,
-                    'shift_detail' => $allDetails->get($dept->id),
-                    'hourly'       => $allRecords->get($dept->id, collect()),
+                    'shift_detail' => $detail,
+                    'hourly'       => $records,
                 ];
             })->values()->all();
 

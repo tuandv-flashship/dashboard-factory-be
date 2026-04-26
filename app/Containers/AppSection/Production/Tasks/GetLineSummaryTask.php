@@ -31,7 +31,7 @@ final class GetLineSummaryTask extends ParentTask
         $deptIds = $departments->pluck('id');
 
         // Single query for ALL hourly records of this line's departments
-        $allRecords = HourlyRecord::with('shiftDetail')
+        $allRecords = HourlyRecord::query()
             ->where('shift_id', $shift->id)
             ->whereIn('department_id', $deptIds)
             ->orderBy('hour_index')
@@ -46,8 +46,13 @@ final class GetLineSummaryTask extends ParentTask
             ->keyBy('department_id');
 
         $departmentData = $departments->map(function ($dept) use ($allRecords, $shiftDetails) {
-            $records = $allRecords->get($dept->id, collect());
+            $records     = $allRecords->get($dept->id, collect());
             $shiftDetail = $shiftDetails->get($dept->id);
+
+            // Wire shiftDetail onto each record to avoid N+1 in transformer
+            if ($shiftDetail) {
+                $records->each(fn ($r) => $r->setRelation('shiftDetail', $shiftDetail));
+            }
 
             return [
                 'department'   => $dept,
