@@ -55,11 +55,35 @@ final class GetDeptDetailController extends ApiController
         );
 
         $records           = $data['records'];
+        $shiftDetail       = $data['shift_detail'];
         $completedRecords  = $records->whereNotNull('actual');
-        $totalCompleted    = $completedRecords->sum('actual');
-        $totalTarget       = $records->sum('target');
-        $dayStartInventory = $data['shift_detail']?->day_start_inventory ?? 0;
-        $remaining         = max(0, $dayStartInventory - $totalCompleted);
+        $dayStartInventory = $shiftDetail?->day_start_inventory ?? 0;
+
+        // Compute effective target for each record (same logic as HourlyRecordTransformer)
+        $kpiPerHour = $shiftDetail?->kpi_per_hour
+            ?? $data['department']?->kpi_per_hour ?? 0;
+
+        $effectiveTargets = $records->map(function ($r) use ($kpiPerHour) {
+            return $r->target ?? (int) round($kpiPerHour * ($r->kpi_percent ?? 100) / 100);
+        });
+
+        $totalTarget    = $effectiveTargets->sum();
+        $totalCompleted = $completedRecords->sum('actual');
+        $remaining      = max(0, $dayStartInventory - $totalCompleted);
+
+        // Target còn lại = (target block hiện tại - actual block hiện tại) + Σ(target block pending)
+        $targetRemaining = 0;
+        foreach ($records as $i => $r) {
+            $effectiveTarget = $effectiveTargets[$i];
+            if ($r->status === 'active') {
+                $targetRemaining += max(0, $effectiveTarget - ($r->actual ?? 0));
+            } elseif ($r->status === 'pending') {
+                $targetRemaining += $effectiveTarget;
+            }
+        }
+
+        // Tồn cuối = Tổng việc - Đã làm - Target còn lại (min 0)
+        $endingInventory = max(0, $dayStartInventory - $totalCompleted - $targetRemaining);
 
         $response = [
             'data' => [
@@ -76,11 +100,14 @@ final class GetDeptDetailController extends ApiController
                 'hours'        => $recordsData->values(),
                 'summary'      => [
                     'total_target'        => $totalTarget,
+                    'total_completed'     => $totalCompleted,
                     'completed'           => $totalCompleted,
+                    'target_remaining'    => $targetRemaining,
+                    'ending_inventory'    => $endingInventory,
                     'remaining'           => $remaining,
                     'day_start_inventory' => $dayStartInventory,
-                    'hotshot_total'       => $data['shift_detail']?->hotshot_total ?? 0,
-                    'hotshot_completed'   => $data['shift_detail']?->hotshot_completed ?? 0,
+                    'hotshot_total'       => $shiftDetail?->hotshot_total ?? 0,
+                    'hotshot_completed'   => $shiftDetail?->hotshot_completed ?? 0,
                     'efficiency'          => $this->calculateEfficiency($completedRecords),
                     'error_rate'          => 0,
                 ],
