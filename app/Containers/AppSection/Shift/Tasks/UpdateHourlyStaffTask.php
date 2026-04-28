@@ -4,6 +4,7 @@ namespace App\Containers\AppSection\Shift\Tasks;
 
 use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
+use App\Containers\AppSection\Production\Support\TargetEstimator;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
@@ -123,15 +124,13 @@ final class UpdateHourlyStaffTask extends ParentTask
                 $record->update(['hour_start_inventory' => $hourStartInventory]);
             }
 
-            // effectiveTarget: use actual target if set, otherwise fallback
-            $target = $record->target;
-            if ($target === null || $target <= 0) {
-                $kpiPercent    = $record->kpi_percent ?? 100;
-                $staffRequired = $record->staff_required ?? $defaultHeadcount;
-                $target = (int) round($kpiPerHour * $kpiPercent / 100 * $staffRequired);
-            }
-
-            $cumulativeTarget += $target;
+            $cumulativeTarget += TargetEstimator::effective(
+                $record->target,
+                $kpiPerHour,
+                $record->kpi_percent ?? 100,
+                $isPerMachine,
+                $record->staff_required ?? $defaultHeadcount,
+            );
         }
     }
 }

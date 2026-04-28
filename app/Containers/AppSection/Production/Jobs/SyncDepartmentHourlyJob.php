@@ -10,6 +10,7 @@ use App\Containers\AppSection\FplatformData\Enums\Team;
 use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
+use App\Containers\AppSection\Production\Support\TargetEstimator;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use Illuminate\Bus\Batchable;
@@ -203,9 +204,11 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                     $updated++;
                 }
 
-                // Advance inventory by effective target (manual target or temp estimate)
-                $effectiveTarget = $this->effectiveTarget($record, $kpiPerHour, $defaultHeadcount);
-                $currentInv = max(0, $currentInv - $effectiveTarget);
+                // Advance inventory by effective target (manual target or estimate)
+                $currentInv = max(0, $currentInv - TargetEstimator::effective(
+                    $record->target, $kpiPerHour, $record->kpi_percent ?? 100,
+                    $isPerMachine, $record->staff_required ?? $defaultHeadcount,
+                ));
                 continue;
             }
 
@@ -216,7 +219,11 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 : (int) ($staffCountMap[$hourKey] ?? 0);
             $productivityJson = $productivityDetailMap[$hourKey] ?? null;
 
-            $target = $record->target ?? 0;
+            $effectiveTarget = TargetEstimator::effective(
+                $record->target, $kpiPerHour, $record->kpi_percent ?? 100,
+                $isPerMachine, $record->staff_required ?? $defaultHeadcount,
+            );
+
             $status = $isPassedSlot || $record->status === HourlyRecordStatus::Completed->value
                 ? HourlyRecordStatus::Completed
                 : ($isCurrentSlot ? HourlyRecordStatus::Active : HourlyRecordStatus::Pending);
@@ -225,8 +232,8 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 'actual'               => $actual,
                 'staff'                => $staff,
                 'hour_start_inventory' => $hourStartInventory,
-                'efficiency'           => $target > 0 && $actual > 0
-                    ? round(($actual / $target) * 100, 1)
+                'efficiency'           => $effectiveTarget > 0 && $actual > 0
+                    ? round(($actual / $effectiveTarget) * 100, 1)
                     : 0,
                 'status'               => $status->value,
                 'productivity_json'    => $productivityJson,
@@ -236,30 +243,10 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             // Advance inventory: passed/completed → subtract actual, active → subtract target
             $currentInv = ($isPassedSlot || $status === HourlyRecordStatus::Completed)
                 ? max(0, $currentInv - $actual)
-                : max(0, $currentInv - $this->effectiveTarget($record, $kpiPerHour, $defaultHeadcount));
+                : max(0, $currentInv - $effectiveTarget);
         }
 
         return $updated;
-    }
-
-    /**
-     * Effective target for inventory tracking.
-     *
-     * Uses actual target if set, otherwise falls back to
-     * kpi_per_hour × kpi_percent / 100 × staff_required.
-     */
-    private function effectiveTarget(HourlyRecord $record, float $kpiPerHour, int $defaultHeadcount): int
-    {
-        $target = $record->target;
-
-        if ($target !== null && $target > 0) {
-            return $target;
-        }
-
-        $kpiPercent    = $record->kpi_percent ?? 100;
-        $staffRequired = $record->staff_required ?? $defaultHeadcount;
-
-        return (int) round($kpiPerHour * $kpiPercent / 100 * $staffRequired);
     }
 
     // ── Helper methods ──────────────────────────────────

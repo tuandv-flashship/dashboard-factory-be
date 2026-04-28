@@ -2,7 +2,9 @@
 
 namespace App\Containers\AppSection\Production\UI\API\Transformers;
 
+use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
+use App\Containers\AppSection\Production\Support\TargetEstimator;
 use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
 
 final class HourlyRecordTransformer extends ParentTransformer
@@ -11,8 +13,19 @@ final class HourlyRecordTransformer extends ParentTransformer
 
     public function transform(HourlyRecord $record): array
     {
-        $target         = $record->target ?? $this->estimateTarget($record);
-        $staffRequired  = $record->staff_required ?? $record->shiftDetail?->headcount;
+        $isPerMachine  = $record->department?->productivity_type === ProductivityType::PerMachine;
+        $kpiPerHour    = $isPerMachine
+            ? ($record->shiftDetail?->kpi_per_hour ?? 0)
+            : ($record->department?->kpi_per_hour ?? 0);
+        $staffRequired = $record->staff_required ?? $record->shiftDetail?->headcount ?? 0;
+
+        $target = TargetEstimator::effective(
+            $record->target,
+            $kpiPerHour,
+            $record->kpi_percent ?? 100,
+            $isPerMachine,
+            $staffRequired,
+        );
 
         return [
             'id' => $record->getHashedKey(),
@@ -23,7 +36,7 @@ final class HourlyRecordTransformer extends ParentTransformer
             'kpi_minutes' => $record->kpi_minutes,
             'kpi_percent' => $record->kpi_percent,
             'actual' => $record->actual,
-            'missed' => $record->actual !== null && $target !== null && $record->actual < $target,
+            'missed' => $record->actual !== null && $target > 0 && $record->actual < $target,
             'staff' => $record->staff,
             'staff_required' => $staffRequired,
             'hour_start_inventory' => $record->hour_start_inventory,
@@ -33,23 +46,6 @@ final class HourlyRecordTransformer extends ParentTransformer
             'note'              => $record->note,
             'productivity_json' => $record->productivity_json,
         ];
-    }
-
-    /**
-     * Estimate target when not yet set:
-     * kpi_per_hour × kpi_percent / 100 × staff_required.
-     */
-    private function estimateTarget(HourlyRecord $record): int
-    {
-        $kpiPerHour    = $record->shiftDetail?->kpi_per_hour
-            ?? $record->department?->kpi_per_hour
-            ?? 0;
-        $kpiPercent    = $record->kpi_percent ?? 100;
-        $staffRequired = $record->staff_required
-            ?? $record->shiftDetail?->headcount
-            ?? 0;
-
-        return (int) round($kpiPerHour * $kpiPercent / 100 * $staffRequired);
     }
 
     public function includeIssues(HourlyRecord $record): \League\Fractal\Resource\Collection

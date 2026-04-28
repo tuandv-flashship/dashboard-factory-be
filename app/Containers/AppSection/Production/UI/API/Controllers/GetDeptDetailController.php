@@ -11,6 +11,7 @@ use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftDetailTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
 use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
+use App\Containers\AppSection\Production\Support\TargetEstimator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -59,19 +60,20 @@ final class GetDeptDetailController extends ApiController
         $completedRecords  = $records->whereNotNull('actual');
         $dayStartInventory = $shiftDetail?->day_start_inventory ?? 0;
 
-        // Compute effective target for each record (same logic as HourlyRecordTransformer)
-        $kpiPerHour = $shiftDetail?->kpi_per_hour
-            ?? $data['department']?->kpi_per_hour ?? 0;
+        // Compute effective target for each record (via centralized TargetEstimator)
+        $isPerMachine = $data['department']?->productivity_type === ProductivityType::PerMachine;
+        $kpiPerHour   = $isPerMachine
+            ? ($shiftDetail?->kpi_per_hour ?? 0)
+            : ($data['department']?->kpi_per_hour ?? 0);
         $defaultHeadcount = $shiftDetail?->headcount ?? 0;
 
-        $effectiveTargets = $records->map(function ($r) use ($kpiPerHour, $defaultHeadcount) {
-            if ($r->target !== null) {
-                return $r->target;
-            }
-            $staffRequired = $r->staff_required ?? $defaultHeadcount;
-
-            return (int) round($kpiPerHour * ($r->kpi_percent ?? 100) / 100 * $staffRequired);
-        });
+        $effectiveTargets = $records->map(fn ($r) => TargetEstimator::effective(
+            $r->target,
+            $kpiPerHour,
+            $r->kpi_percent ?? 100,
+            $isPerMachine,
+            $r->staff_required ?? $defaultHeadcount,
+        ));
 
         $totalTarget    = $effectiveTargets->sum();
         $totalCompleted = $completedRecords->sum('actual');
