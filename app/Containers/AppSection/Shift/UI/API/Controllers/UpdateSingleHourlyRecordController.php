@@ -23,7 +23,7 @@ final class UpdateSingleHourlyRecordController extends ApiController
         app(UpdateHourlyStaffAction::class)->run([$record]);
 
         // Return updated record with includes
-        $hourlyRecord = HourlyRecord::with('issues')->findOrFail($request->id);
+        $hourlyRecord = HourlyRecord::with(['issues', 'department', 'shiftDetail'])->findOrFail($request->id);
 
         return Response::create($hourlyRecord, HourlyRecordTransformer::class)->ok();
     }
