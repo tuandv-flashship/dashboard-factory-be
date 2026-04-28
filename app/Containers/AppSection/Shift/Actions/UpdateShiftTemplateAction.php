@@ -17,12 +17,17 @@ final class UpdateShiftTemplateAction extends ParentAction
         return DB::transaction(function () use ($request) {
             $template = app(FindShiftTemplateByIdTask::class)->run($request->id);
 
-            $data = $request->only([
-                'name', 'color', 'description', 'sort_order',
+            $fields = ['name', 'color', 'description', 'sort_order',
                 'status', 'applies_to_shift_1', 'applies_to_shift_2',
-            ]);
+            ];
 
-            app(UpdateShiftTemplateTask::class)->run($template, array_filter($data, fn ($v) => $v !== null));
+            // Only include fields that were actually sent in the request.
+            // Do NOT filter by value — nullable fields like "description"
+            // may be sent as "" (converted to null by middleware) and must
+            // still be persisted.
+            $data = $request->only(array_filter($fields, fn ($f) => $request->has($f)));
+
+            app(UpdateShiftTemplateTask::class)->run($template, $data);
 
             if ($request->has('details')) {
                 app(SyncShiftTemplateDetailsTask::class)->run(
