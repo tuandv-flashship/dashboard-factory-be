@@ -3,6 +3,7 @@
 namespace App\Containers\AppSection\Production\UI\API\Controllers;
 
 use App\Containers\AppSection\Department\UI\API\Transformers\DepartmentTransformer;
+use App\Containers\AppSection\Production\Support\DepartmentSummary;
 use App\Containers\AppSection\Production\Tasks\GetAllLinesHourlyTask;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyRecordTransformer;
 use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftDetailTransformer;
@@ -13,7 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * GET /v1/production/hourly — All lines → departments → hourly records.
+ * GET /v1/production/hourly — All lines → departments → hourly records + summary.
  *
  * Supports ?date=&shift= for historical queries.
  * Caching: today = 2 min, historical = 1 hour.
@@ -50,10 +51,15 @@ final class GetAllLinesHourlyController extends ApiController
                 $line = $lineData['line'];
 
                 $departments = collect($lineData['departments'])->map(function ($deptData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer) {
+                    $dept        = $deptData['department'];
+                    $shiftDetail = $deptData['shift_detail'];
+                    $hourly      = $deptData['hourly'];
+
                     return [
-                        'department'   => $deptTransformer->transform($deptData['department']),
-                        'shift_detail' => $deptData['shift_detail'] ? $shiftDetailTransformer->transform($deptData['shift_detail']) : null,
-                        'hourly'       => $deptData['hourly']->map(fn ($r) => $hourlyTransformer->transform($r))->values(),
+                        'department'   => $deptTransformer->transform($dept),
+                        'shift_detail' => $shiftDetail ? $shiftDetailTransformer->transform($shiftDetail) : null,
+                        'hourly'       => $hourly->map(fn ($r) => $hourlyTransformer->transform($r))->values(),
+                        'summary'      => DepartmentSummary::build($hourly, $dept, $shiftDetail),
                     ];
                 })->values();
 
