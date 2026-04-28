@@ -36,16 +36,20 @@ final class HourlyRecordTransformer extends ParentTransformer
     }
 
     /**
-     * Estimate target when not yet set: kpi_per_hour × kpi_percent / 100.
+     * Estimate target when not yet set:
+     * kpi_per_hour × kpi_percent / 100 × staff_required.
      */
     private function estimateTarget(HourlyRecord $record): int
     {
-        $kpiPerHour = $record->shiftDetail?->kpi_per_hour
+        $kpiPerHour    = $record->shiftDetail?->kpi_per_hour
             ?? $record->department?->kpi_per_hour
             ?? 0;
-        $kpiPercent = $record->kpi_percent ?? 100;
+        $kpiPercent    = $record->kpi_percent ?? 100;
+        $staffRequired = $record->staff_required
+            ?? $record->shiftDetail?->headcount
+            ?? 0;
 
-        return (int) round($kpiPerHour * $kpiPercent / 100);
+        return (int) round($kpiPerHour * $kpiPercent / 100 * $staffRequired);
     }
 
     public function includeIssues(HourlyRecord $record): \League\Fractal\Resource\Collection

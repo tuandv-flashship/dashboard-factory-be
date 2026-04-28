@@ -107,6 +107,7 @@ final class UpdateHourlyStaffTask extends ParentTask
         $dept = $detail->department;
         $isPerMachine = $dept?->productivity_type === ProductivityType::PerMachine;
         $kpiPerHour   = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept?->kpi_per_hour ?? 0);
+        $defaultHeadcount = $detail->headcount ?? 0;
 
         $records = HourlyRecord::where('shift_id', $shiftId)
             ->where('department_id', $departmentId)
@@ -125,9 +126,9 @@ final class UpdateHourlyStaffTask extends ParentTask
             // effectiveTarget: use actual target if set, otherwise fallback
             $target = $record->target;
             if ($target === null || $target <= 0) {
-                // Temp target = kpi_per_hour × kpi_percent / 100
-                $kpiPercent = $record->kpi_percent ?? 100;
-                $target = (int) round($kpiPerHour * $kpiPercent / 100);
+                $kpiPercent    = $record->kpi_percent ?? 100;
+                $staffRequired = $record->staff_required ?? $defaultHeadcount;
+                $target = (int) round($kpiPerHour * $kpiPercent / 100 * $staffRequired);
             }
 
             $cumulativeTarget += $target;

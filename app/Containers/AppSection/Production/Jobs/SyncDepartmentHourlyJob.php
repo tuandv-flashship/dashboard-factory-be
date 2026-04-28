@@ -163,6 +163,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         // ── Pre-compute shared values ──
         $isPerMachine     = $dept->productivity_type === ProductivityType::PerMachine;
         $kpiPerHour       = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
+        $defaultHeadcount = $detail->headcount ?? 0;
         $machineStaff     = $isPerMachine ? $this->countMachinesFromInventory($team, $allInventory) : null;
 
         // ── Batch-fetch FPlatform data (3 API calls) ──
@@ -203,7 +204,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 }
 
                 // Advance inventory by effective target (manual target or temp estimate)
-                $effectiveTarget = $this->effectiveTarget($record, $kpiPerHour);
+                $effectiveTarget = $this->effectiveTarget($record, $kpiPerHour, $defaultHeadcount);
                 $currentInv = max(0, $currentInv - $effectiveTarget);
                 continue;
             }
@@ -235,7 +236,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             // Advance inventory: passed/completed → subtract actual, active → subtract target
             $currentInv = ($isPassedSlot || $status === HourlyRecordStatus::Completed)
                 ? max(0, $currentInv - $actual)
-                : max(0, $currentInv - $this->effectiveTarget($record, $kpiPerHour));
+                : max(0, $currentInv - $this->effectiveTarget($record, $kpiPerHour, $defaultHeadcount));
         }
 
         return $updated;
@@ -245,9 +246,9 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
      * Effective target for inventory tracking.
      *
      * Uses actual target if set, otherwise falls back to
-     * kpi_per_hour × kpi_percent / 100 as a temporary estimate.
+     * kpi_per_hour × kpi_percent / 100 × staff_required.
      */
-    private function effectiveTarget(HourlyRecord $record, float $kpiPerHour): int
+    private function effectiveTarget(HourlyRecord $record, float $kpiPerHour, int $defaultHeadcount): int
     {
         $target = $record->target;
 
@@ -255,9 +256,10 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             return $target;
         }
 
-        // Temp estimate = kpi_per_hour × kpi_percent / 100
-        $kpiPercent = $record->kpi_percent ?? 100;
-        return (int) round($kpiPerHour * $kpiPercent / 100);
+        $kpiPercent    = $record->kpi_percent ?? 100;
+        $staffRequired = $record->staff_required ?? $defaultHeadcount;
+
+        return (int) round($kpiPerHour * $kpiPercent / 100 * $staffRequired);
     }
 
     // ── Helper methods ──────────────────────────────────

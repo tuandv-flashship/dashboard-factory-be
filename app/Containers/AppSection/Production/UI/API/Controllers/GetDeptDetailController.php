@@ -62,9 +62,15 @@ final class GetDeptDetailController extends ApiController
         // Compute effective target for each record (same logic as HourlyRecordTransformer)
         $kpiPerHour = $shiftDetail?->kpi_per_hour
             ?? $data['department']?->kpi_per_hour ?? 0;
+        $defaultHeadcount = $shiftDetail?->headcount ?? 0;
 
-        $effectiveTargets = $records->map(function ($r) use ($kpiPerHour) {
-            return $r->target ?? (int) round($kpiPerHour * ($r->kpi_percent ?? 100) / 100);
+        $effectiveTargets = $records->map(function ($r) use ($kpiPerHour, $defaultHeadcount) {
+            if ($r->target !== null) {
+                return $r->target;
+            }
+            $staffRequired = $r->staff_required ?? $defaultHeadcount;
+
+            return (int) round($kpiPerHour * ($r->kpi_percent ?? 100) / 100 * $staffRequired);
         });
 
         $totalTarget    = $effectiveTargets->sum();
