@@ -53,7 +53,7 @@ final class HourlyRecord extends ParentModel
     public function shiftDetail(): HasOne
     {
         return $this->hasOne(ShiftDetail::class, 'shift_id', 'shift_id')
-            ->whereColumn('shift_details.department_id', 'hourly_records.department_id');
+            ->where('shift_details.department_id', $this->department_id);
     }
 
     public function issues(): HasMany
