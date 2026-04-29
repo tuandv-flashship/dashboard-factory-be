@@ -20,7 +20,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -112,27 +111,11 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
      */
     private function invalidateCache(Shift $shift, Department $dept): void
     {
-        $date      = $shift->date->toDateString();
-        $shiftNum  = $shift->shift_number;
-
-        if (!ProductionCacheKeys::isHistorical($date)) {
-            return; // live data is never cached — nothing to flush
-        }
-
-        $line = $dept->productionLine?->code;
-
-        $keys = array_filter([
-            $line ? ProductionCacheKeys::deptDetail($line, $dept->code, $date, $shiftNum) : null,
-            $line ? ProductionCacheKeys::lineSummary($line, $date, $shiftNum)             : null,
-            ProductionCacheKeys::quality($date, $shiftNum),
-        ]);
-
-        foreach ($keys as $key) {
-            Cache::forget($key);
-        }
+        ProductionCacheKeys::flushForDepartment($shift, $dept);
 
         Log::debug('[SyncDepartmentHourly] Cache invalidated', [
-            'keys' => array_values($keys),
+            'shift_id'      => $shift->id,
+            'department_id' => $dept->id,
         ]);
     }
 

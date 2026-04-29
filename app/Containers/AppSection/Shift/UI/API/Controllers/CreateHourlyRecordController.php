@@ -7,6 +7,7 @@ use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyRecordTransformer;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
+use App\Containers\AppSection\Shift\Traits\InvalidatesProductionCache;
 use App\Containers\AppSection\Shift\UI\API\Requests\CreateHourlyRecordRequest;
 use App\Ship\Parents\Controllers\ApiController;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 
 final class CreateHourlyRecordController extends ApiController
 {
+    use InvalidatesProductionCache;
+
     public function __invoke(CreateHourlyRecordRequest $request): JsonResponse
     {
         $shiftId = $request->shift_id;
@@ -67,6 +70,9 @@ final class CreateHourlyRecordController extends ApiController
 
             return $record;
         });
+
+        // 5. Invalidate production dashboard cache for historical shifts
+        $this->invalidateProductionCache($shiftId, $deptId);
 
         $record->load('issues');
 

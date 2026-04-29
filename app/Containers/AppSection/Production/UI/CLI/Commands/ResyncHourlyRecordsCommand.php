@@ -5,7 +5,6 @@ namespace App\Containers\AppSection\Production\UI\CLI\Commands;
 use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Containers\AppSection\Production\Tasks\SyncHourlyRecordsTask;
 use App\Ship\Parents\Commands\Command as ParentCommand;
-use Illuminate\Support\Facades\Cache;
 
 /**
  * Artisan command to manually resync hourly records from FPlatform.
@@ -48,10 +47,8 @@ final class ResyncHourlyRecordsCommand extends ParentCommand
             return self::FAILURE;
         }
 
-        // Clear cached hourly response
-        $resolvedDate = $result['shift']->date->toDateString();
-        $resolvedShift = $result['shift']->shift_number;
-        Cache::forget(ProductionCacheKeys::allLinesHourly($resolvedDate, $resolvedShift));
+        // Clear all related production caches
+        ProductionCacheKeys::flushForShift($result['shift']);
 
         if ($result['synced'] > 0) {
             $this->info("✓ {$result['message']}");

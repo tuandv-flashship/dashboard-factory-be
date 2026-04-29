@@ -4,6 +4,7 @@ namespace App\Containers\AppSection\Shift\UI\API\Controllers;
 
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
+use App\Containers\AppSection\Shift\Traits\InvalidatesProductionCache;
 use App\Containers\AppSection\Shift\UI\API\Requests\DeleteLastHourlyRecordRequest;
 use App\Ship\Parents\Controllers\ApiController;
 use Illuminate\Http\JsonResponse;
@@ -12,6 +13,7 @@ use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 final class DeleteLastHourlyRecordController extends ApiController
 {
+    use InvalidatesProductionCache;
     public function __invoke(DeleteLastHourlyRecordRequest $request): JsonResponse
     {
         $shiftId = $request->shift_id;
@@ -47,6 +49,9 @@ final class DeleteLastHourlyRecordController extends ApiController
                 ]);
             }
         });
+
+        // Invalidate production dashboard cache for historical shifts
+        $this->invalidateProductionCache($shiftId, $deptId);
 
         return response()->json(null, 204);
     }

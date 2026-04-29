@@ -7,14 +7,13 @@ use App\Containers\AppSection\Production\Tasks\SyncHourlyRecordsTask;
 use App\Containers\AppSection\Production\UI\API\Requests\ResyncHourlyRecordsRequest;
 use App\Ship\Parents\Controllers\ApiController;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
 
 /**
  * POST /v1/admin/production/resync — manually trigger hourly records sync.
  *
  * Accepts optional ?date=YYYY-MM-DD&shift=N to target a specific shift.
  * Defaults to today's active shift if no params provided.
- * Clears the cached hourly response after sync.
+ * Clears all related production caches after sync.
  */
 final class ResyncHourlyRecordsController extends ApiController
 {
@@ -26,11 +25,8 @@ final class ResyncHourlyRecordsController extends ApiController
 
         $result = app(SyncHourlyRecordsTask::class)->run($date, $shift, $shiftDetailId);
 
-        // Clear cached hourly response so next GET reflects fresh data
         if ($result['shift']) {
-            $resolvedDate  = $result['shift']->date->toDateString();
-            $resolvedShift = $result['shift']->shift_number;
-            Cache::forget(ProductionCacheKeys::allLinesHourly($resolvedDate, $resolvedShift));
+            ProductionCacheKeys::flushForShift($result['shift']);
         }
 
         return response()->json([

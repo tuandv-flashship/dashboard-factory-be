@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\Actions;
 
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Containers\AppSection\Production\Tasks\SyncHourlyRecordsTask as ProductionSyncTask;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
@@ -59,6 +60,9 @@ final class UpdateShiftAction extends ParentAction
         if (!empty($changedDetailIds)) {
             $this->resyncChangedDepartments($shift, $changedDetailIds);
         }
+
+        // ── Invalidate production dashboard caches ──
+        ProductionCacheKeys::flushForShift($shift);
 
         return $shift;
     }
@@ -142,3 +146,4 @@ final class UpdateShiftAction extends ParentAction
         }
     }
 }
+
