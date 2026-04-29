@@ -173,9 +173,15 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
         $productivityMap       = $this->fetchAndIndexByHour($hourlyMetricsAction, $team, HourlyMetricType::Productivity, $shiftStart, $shiftEnd);
         $staffCountMap         = $this->fetchAndIndexByHour($hourlyMetricsAction, $team, HourlyMetricType::StaffCount, $shiftStart, $shiftEnd);
+        // Team::Print always uses MachineProductivity (DTF groups by machine, not staff).
+        // Other teams fall back to department productivity_type setting.
+        $detailMetric = $team->supportsMetric(HourlyMetricType::MachineProductivity)
+            ? HourlyMetricType::MachineProductivity
+            : ($isPerMachine ? HourlyMetricType::MachineProductivity : HourlyMetricType::StaffProductivity);
+
         $productivityDetailMap = $this->fetchAndGroupByHour(
             $hourlyMetricsAction, $team,
-            $isPerMachine ? HourlyMetricType::MachineProductivity : HourlyMetricType::StaffProductivity,
+            $detailMetric,
             $shiftStart, $shiftEnd,
         );
 

@@ -1,10 +1,11 @@
 -- ============================================================
 -- @file    : 17_hieu_suat_may_in_gio.sql
--- @version : v1.0.0
--- @updated : 2026-04-21
+-- @version : v1.1.0
+-- @updated : 2026-04-29
 -- @desc    : Lấy hiệu suất máy in theo từng giờ team in (DTF1-FLS, DTF2-PD, DTG)
 -- ------------------------------------------------------------
 -- Changelog:
+--   v1.1.0 (2026-04-29) - Remove unnecessary JOIN user (not used in MachineProductivity)
 --   v1.0.0 (2026-04-21) - Initial version (split from rpt_factory_ops_metrics_v8_1.sql)
 -- ============================================================
 
@@ -23,8 +24,6 @@ SELECT
 FROM fplatform.user_group_scan s
 JOIN fplatform.folder_manage f
     ON s.folder_code = f.folder_code
-JOIN fplatform.user u
-    ON s.user_id = u.id  
 WHERE s.work_type = 0  
     AND s.work_status = 1
     AND s.created_at >= CONVERT_TZ(':start_shift','US/Central','+7:00')
@@ -47,8 +46,6 @@ SELECT
 FROM fplatform.user_group_scan s
 JOIN fplatform.folder_manage f
     ON s.folder_code = f.folder_code
-JOIN fplatform.user u
-    ON s.user_id = u.id  
 WHERE s.work_type = 0  
     AND s.work_status = 1
     AND s.created_at >= CONVERT_TZ(':start_shift','US/Central','+7:00')
