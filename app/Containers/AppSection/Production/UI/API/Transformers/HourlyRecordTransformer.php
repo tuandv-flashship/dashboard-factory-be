@@ -13,17 +13,21 @@ final class HourlyRecordTransformer extends ParentTransformer
 
     public function transform(HourlyRecord $record): array
     {
-        $isPerMachine  = $record->department?->productivity_type === ProductivityType::PerMachine;
-        $kpiPerHour    = $isPerMachine
+        $isPerMachineDtg = $record->department?->productivity_type?->isPerMachineDtg() ?? false;
+        $isPerMachineDtf = $record->department?->productivity_type?->isPerMachineDtf() ?? false;
+        $kpiPerHour      = $isPerMachineDtg
             ? ($record->shiftDetail?->kpi_per_hour ?? 0)
             : ($record->department?->kpi_per_hour ?? 0);
-        $staffRequired = $record->staff_required ?? $record->shiftDetail?->headcount ?? 0;
+        $defaultMultiplier = $isPerMachineDtf
+            ? ($record->shiftDetail?->machine_count ?? 0)
+            : ($record->shiftDetail?->headcount ?? 0);
+        $staffRequired   = $record->staff_required ?? $defaultMultiplier;
 
         $target = TargetEstimator::effective(
             $record->target,
             $kpiPerHour,
             $record->kpi_percent ?? 100,
-            $isPerMachine,
+            $isPerMachineDtg,
             $staffRequired,
         );
 

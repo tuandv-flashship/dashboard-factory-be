@@ -86,8 +86,8 @@ final class GetDeptDetailController extends ApiController
 
     private function transformDepartment(mixed $dept, mixed $shiftDetail): array
     {
-        $isPerMachine = $dept->productivity_type === ProductivityType::PerMachine;
-        $kpiPerHour   = $isPerMachine
+        $isPerMachineDtg = $dept->productivity_type?->isPerMachineDtg() ?? false;
+        $kpiPerHour   = $isPerMachineDtg
             ? ($shiftDetail?->kpi_per_hour ?? 0)
             : $dept->kpi_per_hour;
 

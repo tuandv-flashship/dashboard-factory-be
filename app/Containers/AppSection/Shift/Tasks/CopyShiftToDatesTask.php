@@ -74,6 +74,7 @@ final class CopyShiftToDatesTask extends ParentTask
                 'department_id'      => $detail->department_id,
                 'shift_number'       => $detail->shift_number,
                 'headcount'          => $detail->headcount,
+                'machine_count'      => $detail->machine_count,
                 'kpi_per_hour'       => $detail->kpi_per_hour,
                 'day_start_inventory'=> $detail->day_start_inventory,
                 'start_time'         => $detail->start_time,

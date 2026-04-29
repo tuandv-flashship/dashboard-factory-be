@@ -81,7 +81,7 @@ final class CreateDailyShiftJobTest extends UnitTestCase
                 'label' => 'DTG Print', 'label_en' => 'DTG Print',
                 'icon' => 'Printer', 'unit' => 'print', 'sort_order' => 1, 'is_active' => true,
                 'kpi_per_hour' => 0,
-                'productivity_type' => ProductivityType::PerMachine->value,
+                'productivity_type' => ProductivityType::PerMachineDtg->value,
             ],
         );
 

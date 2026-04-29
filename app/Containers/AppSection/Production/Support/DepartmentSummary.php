@@ -25,11 +25,13 @@ final class DepartmentSummary
      */
     public static function build(Collection $records, Department $dept, ?ShiftDetail $shiftDetail): array
     {
-        $isPerMachine     = $dept->productivity_type === ProductivityType::PerMachine;
-        $kpiPerHour       = $isPerMachine
+        $isPerMachineDtg  = $dept->productivity_type?->isPerMachineDtg() ?? false;
+        $isPerMachineDtf  = $dept->productivity_type?->isPerMachineDtf() ?? false;
+        $kpiPerHour       = $isPerMachineDtg
             ? ($shiftDetail?->kpi_per_hour ?? 0)
             : ($dept->kpi_per_hour ?? 0);
         $defaultHeadcount = $shiftDetail?->headcount ?? 0;
+        $defaultMultiplier = $isPerMachineDtf ? ($shiftDetail?->machine_count ?? 0) : $defaultHeadcount;
         $dayStartInventory = $shiftDetail?->day_start_inventory ?? 0;
 
         $completedRecords = $records->whereNotNull('actual');
@@ -39,8 +41,8 @@ final class DepartmentSummary
             $r->target,
             $kpiPerHour,
             $r->kpi_percent ?? 100,
-            $isPerMachine,
-            $r->staff_required ?? $defaultHeadcount,
+            $isPerMachineDtg,
+            $r->staff_required ?? $defaultMultiplier,
         ));
 
         $totalTarget    = $effectiveTargets->sum();

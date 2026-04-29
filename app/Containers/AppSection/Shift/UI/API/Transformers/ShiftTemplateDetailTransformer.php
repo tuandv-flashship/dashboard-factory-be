@@ -2,7 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\UI\API\Transformers;
 
-use App\Containers\AppSection\Department\Enums\ProductivityType;
+
 use App\Containers\AppSection\Shift\Models\ShiftTemplateDetail;
 use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
 
@@ -38,8 +38,9 @@ final class ShiftTemplateDetailTransformer extends ParentTransformer
             'break3_minutes'      => $detail->break3_minutes,
         ];
 
-        // Per-machine departments: include available machines for selection
-        if ($dept?->productivity_type === ProductivityType::PerMachine
+        // Per-machine DTG departments: include available machines for selection
+        // DTF departments do NOT select individual machines
+        if ($dept?->productivity_type?->isPerMachineDtg()
             && $dept->relationLoaded('machines')
         ) {
             $data['available_machines'] = $dept->machines

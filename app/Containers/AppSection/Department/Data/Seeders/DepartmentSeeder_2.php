@@ -64,7 +64,7 @@ final class DepartmentSeeder_2 extends Seeder
             ['production_line_id' => $dtf->id, 'code' => 'mockup', 'label' => 'Ráp mẫu', 'label_en' => 'Mock Up', 'icon' => 'Layers',       'unit' => 'file',  'kpi_per_hour' => 75,  'sort_order' => 4, 'is_active' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
             // DTG — 2 departments
             ['production_line_id' => $dtg->id, 'code' => 'pick_dtg',  'label' => 'Pick DTG',  'label_en' => 'Pick DTG',  'icon' => 'ShoppingCart', 'unit' => 'shirt', 'kpi_per_hour' => 180, 'sort_order' => 1, 'is_active' => true, 'productivity_type' => 'per_person',  'created_at' => $now, 'updated_at' => $now],
-            ['production_line_id' => $dtg->id, 'code' => 'dtg_print', 'label' => 'DTG Print', 'label_en' => 'DTG Print', 'icon' => 'Printer',      'unit' => 'print', 'kpi_per_hour' => 0,   'sort_order' => 2, 'is_active' => true, 'productivity_type' => 'per_machine', 'created_at' => $now, 'updated_at' => $now],
+            ['production_line_id' => $dtg->id, 'code' => 'dtg_print', 'label' => 'DTG Print', 'label_en' => 'DTG Print', 'icon' => 'Printer',      'unit' => 'print', 'kpi_per_hour' => 0,   'sort_order' => 2, 'is_active' => true, 'productivity_type' => 'per_machine_dtg', 'created_at' => $now, 'updated_at' => $now],
             // Pack & Ship — 1 department
             ['production_line_id' => $packShip->id, 'code' => 'pack_ship', 'label' => 'Đóng gói & Giao', 'label_en' => 'Pack & Ship', 'icon' => 'Package', 'unit' => 'shirt', 'kpi_per_hour' => 105, 'sort_order' => 1, 'is_active' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
         ];

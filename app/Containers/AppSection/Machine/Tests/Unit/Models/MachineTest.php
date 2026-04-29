@@ -48,7 +48,7 @@ final class MachineTest extends UnitTestCase
             'label_en' => 'DTG Print',
             'icon' => 'Printer',
             'unit' => 'print',
-            'productivity_type' => 'per_machine',
+            'productivity_type' => 'per_machine_dtg',
         ]);
 
         $machine = Machine::create([

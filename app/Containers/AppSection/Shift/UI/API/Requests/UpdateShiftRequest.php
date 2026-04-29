@@ -17,6 +17,7 @@ final class UpdateShiftRequest extends ParentRequest
             'details.*.department_id'     => 'required|integer|exists:departments,id',
             'details.*.shift_number'      => 'required|integer|in:1,2',
             'details.*.headcount'         => 'sometimes|integer|min:0',
+            'details.*.machine_count'     => 'sometimes|nullable|integer|min:0',
             'details.*.start_time'        => 'required|date_format:H:i',
             'details.*.work_hours'        => 'required|numeric|min:0|max:24',
             'details.*.prep_minutes'      => 'sometimes|integer|min:0',

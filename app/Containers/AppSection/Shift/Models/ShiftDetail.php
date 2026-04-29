@@ -18,6 +18,7 @@ final class ShiftDetail extends ParentModel
         'department_id',
         'shift_number',
         'headcount',
+        'machine_count',
         'kpi_per_hour',
         'day_start_inventory',
         'hotshot_total',
@@ -38,6 +39,7 @@ final class ShiftDetail extends ParentModel
     protected $casts = [
         'shift_number'       => 'integer',
         'headcount'          => 'integer',
+        'machine_count'      => 'integer',
         'kpi_per_hour'       => 'integer',
         'day_start_inventory'=> 'integer',
         'hotshot_total'      => 'integer',

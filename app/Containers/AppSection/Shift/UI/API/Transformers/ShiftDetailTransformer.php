@@ -28,6 +28,7 @@ final class ShiftDetailTransformer extends ParentTransformer
             'productivity_type'  => $dept?->productivity_type?->value,
             'shift_number'       => $detail->shift_number,
             'headcount'          => $detail->headcount,
+            'machine_count'      => $detail->machine_count,
             'kpi_per_hour'       => $detail->kpi_per_hour ?: ($dept?->kpi_per_hour ?? 0),
             'day_start_inventory'=> $detail->day_start_inventory,
             'start_time'         => $detail->start_time ? substr($detail->start_time, 0, 5) : null,

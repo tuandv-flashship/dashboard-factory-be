@@ -25,7 +25,7 @@ final class SyncShiftDetailsTask extends ParentTask
 
         // Strip non-DB keys (machine_ids is handled separately in syncMachines)
         $dbColumns = [
-            'department_id', 'shift_number', 'headcount',
+            'department_id', 'shift_number', 'headcount', 'machine_count',
             'start_time', 'work_hours', 'prep_minutes',
             'break1_start', 'break1_minutes', 'meal_break_start', 'meal_break_minutes',
             'break2_start', 'break2_minutes', 'break3_start', 'break3_minutes',
@@ -46,7 +46,7 @@ final class SyncShiftDetailsTask extends ParentTask
             $rows,
             ['shift_id', 'department_id', 'shift_number'],
             [
-                'headcount',
+                'headcount', 'machine_count',
                 'start_time', 'work_hours', 'prep_minutes',
                 'break1_start', 'break1_minutes',
                 'meal_break_start', 'meal_break_minutes',
@@ -121,8 +121,8 @@ final class SyncShiftDetailsTask extends ParentTask
             ShiftDetailMachine::where('shift_detail_id', $shiftDetail->id)->delete();
 
             if (empty($machineIds)) {
-                // No machines → kpi = 0
-                $shiftDetail->update(['kpi_per_hour' => 0]);
+                // No machines → kpi = 0, machine_count = 0
+                $shiftDetail->update(['kpi_per_hour' => 0, 'machine_count' => 0]);
                 continue;
             }
 
@@ -149,7 +149,11 @@ final class SyncShiftDetailsTask extends ParentTask
                 ShiftDetailMachine::insert($pivotRows);
             }
 
-            $shiftDetail->update(['kpi_per_hour' => $totalKpi]);
+            // Update kpi_per_hour = Σ(machine KPI) and machine_count = valid machine count
+            $shiftDetail->update([
+                'kpi_per_hour'  => $totalKpi,
+                'machine_count' => count($pivotRows),
+            ]);
         }
     }
 }

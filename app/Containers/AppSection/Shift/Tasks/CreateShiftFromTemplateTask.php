@@ -2,7 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\Tasks;
 
-use App\Containers\AppSection\Department\Enums\ProductivityType;
+
 use App\Containers\AppSection\Machine\Models\Machine;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
@@ -50,17 +50,22 @@ final class CreateShiftFromTemplateTask extends ParentTask
             $key      = "{$td->department_id}|{$td->shift_number}";
             $override = $overrideMap->get($key, []);
 
-            // Per-machine: kpi_per_hour will be computed after insert (from machine_ids)
-            // Per-person: snapshot from department as before
-            $isPerMachine = $td->department?->productivity_type === ProductivityType::PerMachine;
-            $kpiPerHour   = $isPerMachine ? 0 : ($td->department?->kpi_per_hour ?? 0);
+            // Per-machine DTG: kpi_per_hour computed after insert (from machine_ids)
+            // Per-machine DTF + Per-person: snapshot from department
+            $isPerMachineDtg = $td->department?->productivity_type?->isPerMachineDtg();
+            $kpiPerHour      = $isPerMachineDtg ? 0 : ($td->department?->kpi_per_hour ?? 0);
+
+            // machine_count: DTF = from override (null by default), others = null
+            $isPerMachineDtf = $td->department?->productivity_type?->isPerMachineDtf();
+            $machineCount    = $isPerMachineDtf ? ($override['machine_count'] ?? null) : null;
 
             return [
                 'shift_id'           => $shift->id,
                 'department_id'      => $td->department_id,
                 'shift_number'       => $td->shift_number,
                 'headcount'          => $override['headcount'] ?? $td->headcount,
-                // Snapshot năng suất 1h — per_machine = 0 initially (updated below)
+                'machine_count'      => $machineCount,
+                // Snapshot năng suất 1h — DTG = 0 initially (updated below)
                 'kpi_per_hour'       => $kpiPerHour,
                 // Tồn đầu ngày — FE gửi kèm khi tạo ca, mặc định 0 (updated by FPlatform sync)
                 'day_start_inventory'=> $override['day_start_inventory'] ?? 0,
@@ -87,7 +92,8 @@ final class CreateShiftFromTemplateTask extends ParentTask
     }
 
     /**
-     * For per_machine departments: create shift_detail_machines pivot + update kpi_per_hour.
+     * For per_machine_dtg departments: create shift_detail_machines pivot + update kpi_per_hour.
+     * DTF departments do NOT use machine pivot — only manual machine_count.
      */
     private function attachMachines(
         Shift $shift,
@@ -95,18 +101,18 @@ final class CreateShiftFromTemplateTask extends ParentTask
         \Illuminate\Support\Collection $overrideMap,
         \DateTimeInterface $now,
     ): void {
-        // Collect per_machine departments
-        $perMachineDepts = $templateDetails->filter(
-            fn ($td) => $td->department?->productivity_type === ProductivityType::PerMachine
+        // Only DTG departments use individual machine selection
+        $perMachineDtgDepts = $templateDetails->filter(
+            fn ($td) => $td->department?->productivity_type?->isPerMachineDtg()
         );
 
-        if ($perMachineDepts->isEmpty()) {
+        if ($perMachineDtgDepts->isEmpty()) {
             return;
         }
 
         // Collect ALL machine_ids from all per_machine overrides for batch query
         $allMachineIds = [];
-        foreach ($perMachineDepts as $td) {
+        foreach ($perMachineDtgDepts as $td) {
             $key      = "{$td->department_id}|{$td->shift_number}";
             $override = $overrideMap->get($key, []);
             $machineIds = $override['machine_ids'] ?? [];
@@ -123,7 +129,7 @@ final class CreateShiftFromTemplateTask extends ParentTask
         $allMachines = Machine::whereIn('id', array_unique($allMachineIds))->get()->keyBy('id');
 
         // Re-fetch the newly created shift_details for these departments
-        $deptIds = $perMachineDepts->pluck('department_id')->unique()->toArray();
+        $deptIds = $perMachineDtgDepts->pluck('department_id')->unique()->toArray();
         $shiftDetails = ShiftDetail::where('shift_id', $shift->id)
             ->whereIn('department_id', $deptIds)
             ->get()
@@ -131,7 +137,7 @@ final class CreateShiftFromTemplateTask extends ParentTask
 
         $pivotRows = [];
 
-        foreach ($perMachineDepts as $td) {
+        foreach ($perMachineDtgDepts as $td) {
             $key      = "{$td->department_id}|{$td->shift_number}";
             $override = $overrideMap->get($key, []);
 
@@ -146,7 +152,8 @@ final class CreateShiftFromTemplateTask extends ParentTask
             }
 
             // Filter from pre-loaded collection (safety: only machines from this dept)
-            $totalKpi = 0;
+            $totalKpi        = 0;
+            $validMachineIds = [];
             foreach ($machineIds as $machineId) {
                 $machine = $allMachines->get($machineId);
                 if (!$machine || $machine->department_id !== $td->department_id) {
@@ -160,10 +167,14 @@ final class CreateShiftFromTemplateTask extends ParentTask
                     'updated_at'      => $now,
                 ];
                 $totalKpi += $machine->kpi_per_hour;
+                $validMachineIds[] = $machineId;
             }
 
-            // Update shift_detail.kpi_per_hour = Σ(machine KPI)
-            $shiftDetail->update(['kpi_per_hour' => $totalKpi]);
+            // Update shift_detail: kpi_per_hour = Σ(machine KPI), machine_count = count(valid machines)
+            $shiftDetail->update([
+                'kpi_per_hour'  => $totalKpi,
+                'machine_count' => count($validMachineIds),
+            ]);
         }
 
         if (!empty($pivotRows)) {

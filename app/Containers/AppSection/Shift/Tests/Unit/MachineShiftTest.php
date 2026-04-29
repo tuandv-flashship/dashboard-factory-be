@@ -59,7 +59,7 @@ final class MachineShiftTest extends UnitTestCase
             'code' => 'dtg_print', 'label' => 'DTG Print', 'label_en' => 'DTG Print',
             'icon' => 'Printer', 'unit' => 'print', 'sort_order' => 2, 'is_active' => true,
             'kpi_per_hour' => 0, // per_machine: KPI comes from machines, not dept
-            'productivity_type' => ProductivityType::PerMachine->value,
+            'productivity_type' => ProductivityType::PerMachineDtg->value,
         ]);
 
         $this->machine1 = Machine::create([

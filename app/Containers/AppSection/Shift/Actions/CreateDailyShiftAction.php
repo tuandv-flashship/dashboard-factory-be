@@ -2,7 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\Actions;
 
-use App\Containers\AppSection\Department\Enums\ProductivityType;
+
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Machine\Models\Machine;
 use App\Containers\AppSection\Shift\Enums\ShiftTemplateStatus;
@@ -96,9 +96,8 @@ final class CreateDailyShiftAction extends ParentAction
                 'day_start_inventory' => $inventoryMap[$td->department_id] ?? 0,
             ];
 
-            // Per-machine: auto-select all active machines in this department
-            $isPerMachine = $td->department?->productivity_type === ProductivityType::PerMachine;
-            if ($isPerMachine) {
+            // Per-machine DTG: auto-select all active machines in this department
+            if ($td->department?->productivity_type?->isPerMachineDtg()) {
                 $override['machine_ids'] = Machine::active()
                     ->where('department_id', $td->department_id)
                     ->pluck('id')

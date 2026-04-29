@@ -30,7 +30,7 @@ final class MachineTasksTest extends UnitTestCase
             'label_en' => 'Test Dept',
             'icon' => 'Printer',
             'unit' => 'print',
-            'productivity_type' => 'per_machine',
+            'productivity_type' => 'per_machine_dtg',
         ]);
     }
 

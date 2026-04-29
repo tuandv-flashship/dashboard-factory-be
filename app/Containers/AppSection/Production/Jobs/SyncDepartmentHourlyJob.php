@@ -145,10 +145,12 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         $this->syncHotshotData($detail, $dept, $allInventory);
 
         // ── Pre-compute shared values ──
-        $isPerMachine     = $dept->productivity_type === ProductivityType::PerMachine;
-        $kpiPerHour       = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
+        $isPerMachineDtg  = $dept->productivity_type?->isPerMachineDtg() ?? false;
+        $isPerMachineDtf  = $dept->productivity_type?->isPerMachineDtf() ?? false;
+        $kpiPerHour       = $isPerMachineDtg ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
         $defaultHeadcount = $detail->headcount ?? 0;
-        $machineStaff     = $isPerMachine ? $this->countMachinesFromInventory($team, $allInventory) : null;
+        $defaultMultiplier = $isPerMachineDtf ? ($detail->machine_count ?? 0) : $defaultHeadcount;
+        $machineStaff     = $isPerMachineDtg ? $this->countMachinesFromInventory($team, $allInventory) : null;
 
         // ── Batch-fetch FPlatform data (3 API calls) ──
         $shiftStart = $deptStart->format('Y-m-d H:i:s');
@@ -160,7 +162,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         // Other teams fall back to department productivity_type setting.
         $detailMetric = $team->supportsMetric(HourlyMetricType::MachineProductivity)
             ? HourlyMetricType::MachineProductivity
-            : ($isPerMachine ? HourlyMetricType::MachineProductivity : HourlyMetricType::StaffProductivity);
+            : ($isPerMachineDtg ? HourlyMetricType::MachineProductivity : HourlyMetricType::StaffProductivity);
 
         $productivityDetailMap = $this->fetchAndGroupByHour(
             $hourlyMetricsAction, $team,
@@ -196,21 +198,21 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 // Advance inventory by effective target (manual target or estimate)
                 $currentInv = max(0, $currentInv - TargetEstimator::effective(
                     $record->target, $kpiPerHour, $record->kpi_percent ?? 100,
-                    $isPerMachine, $record->staff_required ?? $defaultHeadcount,
+                    $isPerMachineDtg, $record->staff_required ?? $defaultMultiplier,
                 ));
                 continue;
             }
 
             // ── Active / Passed / Completed slots: sync FPlatform data ──
             $actual = (int) ($productivityMap[$hourKey] ?? 0);
-            $staff  = $isPerMachine
+            $staff  = $isPerMachineDtg
                 ? $machineStaff
                 : (int) ($staffCountMap[$hourKey] ?? 0);
             $productivityJson = HourlyRecord::stampItemIds($productivityDetailMap[$hourKey] ?? null);
 
             $effectiveTarget = TargetEstimator::effective(
                 $record->target, $kpiPerHour, $record->kpi_percent ?? 100,
-                $isPerMachine, $record->staff_required ?? $defaultHeadcount,
+                $isPerMachineDtg, $record->staff_required ?? $defaultMultiplier,
             );
 
             $status = $isPassedSlot || $record->status === HourlyRecordStatus::Completed->value

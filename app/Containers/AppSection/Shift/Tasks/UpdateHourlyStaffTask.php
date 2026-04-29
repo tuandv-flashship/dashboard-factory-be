@@ -2,7 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\Tasks;
 
-use App\Containers\AppSection\Department\Enums\ProductivityType;
+
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Support\TargetEstimator;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
@@ -106,9 +106,11 @@ final class UpdateHourlyStaffTask extends ParentTask
 
         // Determine kpi_per_hour based on productivity type
         $dept = $detail->department;
-        $isPerMachine = $dept?->productivity_type === ProductivityType::PerMachine;
-        $kpiPerHour   = $isPerMachine ? ($detail->kpi_per_hour ?? 0) : ($dept?->kpi_per_hour ?? 0);
+        $isPerMachineDtg  = $dept?->productivity_type?->isPerMachineDtg() ?? false;
+        $isPerMachineDtf  = $dept?->productivity_type?->isPerMachineDtf() ?? false;
+        $kpiPerHour       = $isPerMachineDtg ? ($detail->kpi_per_hour ?? 0) : ($dept?->kpi_per_hour ?? 0);
         $defaultHeadcount = $detail->headcount ?? 0;
+        $defaultMultiplier = $isPerMachineDtf ? ($detail->machine_count ?? 0) : $defaultHeadcount;
 
         $records = HourlyRecord::where('shift_id', $shiftId)
             ->where('department_id', $departmentId)
@@ -128,8 +130,8 @@ final class UpdateHourlyStaffTask extends ParentTask
                 $record->target,
                 $kpiPerHour,
                 $record->kpi_percent ?? 100,
-                $isPerMachine,
-                $record->staff_required ?? $defaultHeadcount,
+                $isPerMachineDtg,
+                $record->staff_required ?? $defaultMultiplier,
             );
         }
     }
