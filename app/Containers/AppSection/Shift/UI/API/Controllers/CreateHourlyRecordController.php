@@ -20,17 +20,23 @@ final class CreateHourlyRecordController extends ApiController
         $deptId  = $request->department_id;
 
         $record = DB::transaction(function () use ($shiftId, $deptId, $request) {
-            // 1. Find the last hourly record for this department
-            $lastRecord = HourlyRecord::withTrashed()
+            // 1a. Find highest hour_index INCLUDING soft-deleted (unique constraint is DB-level)
+            $lastByIndex = HourlyRecord::withTrashed()
                 ->where('shift_id', $shiftId)
                 ->where('department_id', $deptId)
                 ->orderByDesc('hour_index')
                 ->first();
 
-            $newHourIndex = $lastRecord ? $lastRecord->hour_index + 1 : 0;
+            $newHourIndex = $lastByIndex ? $lastByIndex->hour_index + 1 : 0;
 
-            // 2. Compute hour_slot label from the last slot's end hour
-            $hourSlot = $this->computeNextHourSlot($lastRecord, $newHourIndex);
+            // 1b. Find last ACTIVE record for hour_slot continuity
+            $lastActive = HourlyRecord::where('shift_id', $shiftId)
+                ->where('department_id', $deptId)
+                ->orderByDesc('hour_index')
+                ->first();
+
+            // 2. Compute hour_slot label from the last active slot's end hour
+            $hourSlot = $this->computeNextHourSlot($lastActive, $newHourIndex);
 
             // 3. Create the new hourly record
             $kpiMinutes = (int) $request->input('kpi_minutes');
