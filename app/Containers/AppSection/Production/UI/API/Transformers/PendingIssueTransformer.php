@@ -16,18 +16,19 @@ final class PendingIssueTransformer extends ParentTransformer
         $record = $issue->hourlyRecord;
 
         return [
-            'id'          => $issue->getHashedKey(),
-            'category'    => $issue->category,
-            'sub_item'    => $issue->sub_item,
-            'error'       => $issue->error,
-            'note'        => $issue->note,
-            'resolved_at' => $issue->resolved_at?->toIso8601String(),
-            'resolution'  => $issue->resolution,
+            'id'                    => $issue->getHashedKey(),
+            'productivity_item_id'  => $issue->productivity_item_id,
+            'category'              => $issue->category,
+            'sub_item'              => $issue->sub_item,
+            'error'                 => $issue->error,
+            'note'                  => $issue->note,
+            'resolved_at'           => $issue->resolved_at?->toIso8601String(),
+            'resolution'            => $issue->resolution,
             // Hourly record context for the side panel
-            'hour_slot'      => $record?->hour_slot,
-            'hour_index'     => $record?->hour_index,
-            'department_id'  => $record?->department_id,
-            'department_code' => $record?->department?->code,
+            'hour_slot'             => $record?->hour_slot,
+            'hour_index'            => $record?->hour_index,
+            'department_id'         => $record?->department_id,
+            'department_code'       => $record?->department?->code,
         ];
     }
 }

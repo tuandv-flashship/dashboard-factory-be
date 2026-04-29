@@ -10,7 +10,8 @@ final class HourlyIssue extends ParentModel
     protected $table = 'hourly_issues';
 
     protected $fillable = [
-        'hourly_record_id', 'category', 'sub_item', 'error', 'note', 'resolved_at', 'resolution',
+        'hourly_record_id', 'productivity_item_id',
+        'category', 'sub_item', 'error', 'note', 'resolved_at', 'resolution',
     ];
 
     protected $casts = [

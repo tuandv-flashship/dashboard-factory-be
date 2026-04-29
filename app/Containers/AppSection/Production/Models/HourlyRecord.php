@@ -60,4 +60,40 @@ final class HourlyRecord extends ParentModel
     {
         return $this->hasMany(HourlyIssue::class, 'hourly_record_id');
     }
+
+    // ── Productivity item IDs ───────────────────────────
+
+    /**
+     * Volatile fields excluded from ID generation.
+     * These change between syncs while the identity stays the same.
+     */
+    private const VOLATILE_FIELDS = ['value', 'num_staff', '_id'];
+
+    /**
+     * Stamp a deterministic `_id` onto each item in productivity_json.
+     *
+     * The _id is an 8-char hex hash derived from the item's **identity
+     * fields** only (e.g. date_hour + username, or date_hour + machine).
+     * Volatile fields like `value` are excluded so the same worker/machine
+     * in the same hour always produces the same _id across syncs.
+     *
+     * @param  array|null $items  Raw productivity_json items from FPlatform.
+     * @return array|null         Same items with `_id` prepended in each entry.
+     */
+    public static function stampItemIds(?array $items): ?array
+    {
+        if (empty($items)) {
+            return null;
+        }
+
+        return array_map(function (array $item) {
+            // Build identity payload — only stable fields
+            $identity = array_diff_key($item, array_flip(self::VOLATILE_FIELDS));
+            ksort($identity);
+
+            $item['_id'] = substr(md5(json_encode($identity)), 0, 8);
+
+            return $item;
+        }, $items);
+    }
 }

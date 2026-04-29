@@ -217,7 +217,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
             $staff  = $isPerMachine
                 ? $machineStaff
                 : (int) ($staffCountMap[$hourKey] ?? 0);
-            $productivityJson = $productivityDetailMap[$hourKey] ?? null;
+            $productivityJson = HourlyRecord::stampItemIds($productivityDetailMap[$hourKey] ?? null);
 
             $effectiveTarget = TargetEstimator::effective(
                 $record->target, $kpiPerHour, $record->kpi_percent ?? 100,

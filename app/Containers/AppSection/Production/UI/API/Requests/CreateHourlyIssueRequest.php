@@ -18,12 +18,13 @@ final class CreateHourlyIssueRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'category'   => ['required', 'string', Rule::exists('reason_categories', 'code')->where('is_active', true)],
-            'sub_item'   => ['required', 'string', 'max:200'],
-            'error'      => ['required', 'string', 'max:500'],
-            'note'       => ['nullable', 'string', 'max:2000'],
-            'resolved'   => ['sometimes', 'boolean'],
-            'resolution' => ['nullable', 'string', 'max:1000'],
+            'category'              => ['required', 'string', Rule::exists('reason_categories', 'code')->where('is_active', true)],
+            'sub_item'              => ['required', 'string', 'max:200'],
+            'error'                 => ['required', 'string', 'max:500'],
+            'note'                  => ['nullable', 'string', 'max:2000'],
+            'resolved'              => ['sometimes', 'boolean'],
+            'resolution'            => ['nullable', 'string', 'max:1000'],
+            'productivity_item_id'  => ['nullable', 'string', 'size:8'],
 
         ];
     }
