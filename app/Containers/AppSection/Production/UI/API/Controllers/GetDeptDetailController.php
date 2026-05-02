@@ -41,7 +41,7 @@ final class GetDeptDetailController extends ApiController
             return response()->json(['message' => 'No active shift found'], 404);
         }
 
-        $hourlyTransformer      = new HourlyRecordTransformer();
+        $hourlyTransformer      = (new HourlyRecordTransformer())->setShiftDate($data['shift']->date);
         $issueTransformer       = new HourlyIssueTransformer();
         $shiftDetailTransformer = new ShiftDetailTransformer();
 
@@ -58,7 +58,7 @@ final class GetDeptDetailController extends ApiController
         $shiftDetail = $data['shift_detail'];
         $dept        = $data['department'];
 
-        $summary = DepartmentSummary::build($records, $dept, $shiftDetail);
+        $summary = DepartmentSummary::build($records, $dept, $shiftDetail, $data['shift']->date);
 
         $response = [
             'data' => [

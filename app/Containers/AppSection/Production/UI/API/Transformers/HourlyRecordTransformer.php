@@ -3,13 +3,28 @@
 namespace App\Containers\AppSection\Production\UI\API\Transformers;
 
 use App\Containers\AppSection\Department\Enums\ProductivityType;
+use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Support\TargetEstimator;
 use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
+use Carbon\CarbonImmutable;
 
 final class HourlyRecordTransformer extends ParentTransformer
 {
     protected array $defaultIncludes = ['issues'];
+
+    private ?CarbonImmutable $shiftDate = null;
+
+    /**
+     * Set the shift date for past-shift status override.
+     * When shift date < today, all slots become 'completed'.
+     */
+    public function setShiftDate(?CarbonImmutable $shiftDate): self
+    {
+        $this->shiftDate = $shiftDate;
+
+        return $this;
+    }
 
     public function transform(HourlyRecord $record): array
     {
@@ -46,7 +61,7 @@ final class HourlyRecordTransformer extends ParentTransformer
             'hour_start_inventory' => $record->hour_start_inventory,
             'efficiency' => $record->efficiency,
             'error_rate' => $record->error_rate,
-            'status'     => $record->status,
+            'status'     => $this->resolveStatus($record->status),
             'note'              => $record->note,
             'productivity_json' => $record->productivity_json,
         ];
@@ -59,5 +74,17 @@ final class HourlyRecordTransformer extends ParentTransformer
             new HourlyIssueTransformer(),
             'issues',
         );
+    }
+
+    /**
+     * Past shifts → force 'completed'; otherwise use DB value.
+     */
+    private function resolveStatus(string $dbStatus): string
+    {
+        if ($this->shiftDate && $this->shiftDate->lt(today())) {
+            return HourlyRecordStatus::Completed->value;
+        }
+
+        return $dbStatus;
     }
 }

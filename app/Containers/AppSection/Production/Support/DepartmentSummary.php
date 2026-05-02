@@ -5,6 +5,7 @@ namespace App\Containers\AppSection\Production\Support;
 use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -23,7 +24,7 @@ final class DepartmentSummary
      * @param Department   $dept        The department model
      * @param ShiftDetail|null $shiftDetail Shift detail (nullable for safety)
      */
-    public static function build(Collection $records, Department $dept, ?ShiftDetail $shiftDetail): array
+    public static function build(Collection $records, Department $dept, ?ShiftDetail $shiftDetail, ?CarbonImmutable $shiftDate = null): array
     {
         $isPerMachineDtg  = $dept->productivity_type?->isPerMachineDtg() ?? false;
         $isPerMachineDtf  = $dept->productivity_type?->isPerMachineDtf() ?? false;
@@ -50,12 +51,15 @@ final class DepartmentSummary
         $remaining      = max(0, $dayStartInventory - $totalCompleted);
 
         // Target remaining = (active block gap) + Σ(pending targets)
+        // Past shifts → all slots completed → target_remaining = 0
+        $isPastShift = $shiftDate && $shiftDate->lt(today());
         $targetRemaining = 0;
         foreach ($records as $i => $r) {
             $effectiveTarget = $effectiveTargets[$i];
-            if ($r->status === 'active') {
+            $status = $isPastShift ? 'completed' : $r->status;
+            if ($status === 'active') {
                 $targetRemaining += max(0, $effectiveTarget - ($r->actual ?? 0));
-            } elseif ($r->status === 'pending') {
+            } elseif ($status === 'pending') {
                 $targetRemaining += $effectiveTarget;
             }
         }

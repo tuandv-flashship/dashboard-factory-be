@@ -176,6 +176,28 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         $updated = 0;
         $currentInv = $dayStartInventory;
 
+        // ── End-of-shift finalization ──
+        // If we're past the last slot of this department's shift,
+        // bulk-finalize any remaining non-completed records.
+        $isShiftEnded = $now >= $deptEnd;
+        if ($isShiftEnded) {
+            $staleCount = $records
+                ->where('status', '!=', HourlyRecordStatus::Completed->value)
+                ->count();
+
+            if ($staleCount > 0) {
+                HourlyRecord::where('shift_id', $shift->id)
+                    ->where('department_id', $dept->id)
+                    ->where('status', '!=', HourlyRecordStatus::Completed->value)
+                    ->update(['status' => HourlyRecordStatus::Completed->value]);
+
+                // Refresh in-memory status so the loop below uses correct values
+                $records->each(fn ($r) => $r->status = HourlyRecordStatus::Completed->value);
+
+                Log::info("[SyncDepartmentHourly] Finalized {$staleCount} stale records for {$dept->code}.");
+            }
+        }
+
         foreach ($records as $record) {
             [$queryStart, $queryEnd] = $this->parseHourSlot($record->hour_slot, $shiftDate);
 

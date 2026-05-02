@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Production\Providers;
 
+use App\Containers\AppSection\Production\Jobs\FinalizeShiftRecordsJob;
 use App\Containers\AppSection\Production\Jobs\SyncHourlyRecordsJob;
 use App\Ship\Parents\Providers\ServiceProvider as ParentServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
@@ -18,6 +19,11 @@ final class ProductionServiceProvider extends ParentServiceProvider
         $this->app->afterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->job(new SyncHourlyRecordsJob())
                 ->everyMinute()
+                ->withoutOverlapping()
+                ->onOneServer();
+
+            $schedule->job(new FinalizeShiftRecordsJob())
+                ->dailyAt('01:00')
                 ->withoutOverlapping()
                 ->onOneServer();
         });
