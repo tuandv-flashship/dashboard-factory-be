@@ -2,6 +2,7 @@
 
 namespace App\Containers\AppSection\Shift\Actions;
 
+use App\Containers\AppSection\Shift\Jobs\CreateShiftForDateJob;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Models\ShiftTemplate;
@@ -9,10 +10,16 @@ use App\Containers\AppSection\Shift\Tasks\CreateShiftFromTemplateTask;
 use App\Containers\AppSection\Shift\Tasks\GenerateHourlyRecordsTask;
 use App\Ship\Parents\Actions\Action as ParentAction;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 final class CreateShiftAction extends ParentAction
 {
+    /**
+     * Create shift(s) for a single date (synchronous).
+     * Kept unchanged for backward compatibility.
+     */
     public function run(array $data): Shift
     {
         return DB::transaction(function () use ($data) {
@@ -92,4 +99,58 @@ final class CreateShiftAction extends ParentAction
             return $lastShift->load(['details.department.productionLine', 'details.machines.machine', 'template', 'hourlyRecords']);
         });
     }
+
+    /**
+     * Dispatch parallel jobs for multi-date creation/override.
+     *
+     * Each date gets its own CreateShiftForDateJob running in its own transaction.
+     * Jobs are dispatched via Bus::batch() for parallel execution by queue workers.
+     *
+     * @param  array  $dates     Array of date strings (Y-m-d)
+     * @param  array  $shiftData Shared payload: shift_template_id, shift_numbers, supervisor, details
+     * @return array{batch_id: string|null, total: int, past_ignored: string[]}
+     */
+    public function runMultiDate(array $dates, array $shiftData): array
+    {
+        $today = today()->toDateString();
+
+        // Filter: only keep today + future dates
+        $pastIgnored = array_values(array_filter($dates, fn ($d) => $d < $today));
+        $validDates  = array_values(array_filter($dates, fn ($d) => $d >= $today));
+
+        if (empty($validDates)) {
+            return [
+                'batch_id'     => null,
+                'total'        => 0,
+                'past_ignored' => $pastIgnored,
+            ];
+        }
+
+        // Dispatch 1 job per date via Bus::batch() → parallel execution
+        $jobs = array_map(
+            fn (string $date) => new CreateShiftForDateJob($date, $shiftData),
+            $validDates
+        );
+
+        $batchName = 'create-shifts:' . implode(',', $validDates);
+
+        $batch = Bus::batch($jobs)
+            ->name($batchName)
+            ->onQueue('sync')
+            ->allowFailures()
+            ->dispatch();
+
+        Log::info('[CreateShift] Multi-date batch dispatched.', [
+            'batch_id'     => $batch->id,
+            'dates'        => $validDates,
+            'past_ignored' => $pastIgnored,
+        ]);
+
+        return [
+            'batch_id'     => $batch->id,
+            'total'        => count($validDates),
+            'past_ignored' => $pastIgnored,
+        ];
+    }
 }
+

@@ -11,7 +11,8 @@ final class CreateShiftRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'date'              => 'required|date',
+            // Accepts: "2026-05-04" (string) or ["2026-05-04","2026-05-05"] (array)
+            'date'              => 'required',
             'shift_template_id' => 'required|integer|exists:shift_templates,id',
             'shift_numbers'     => 'required|array|min:1',
             'shift_numbers.*'   => 'required|integer|in:1,2',
@@ -40,6 +41,33 @@ final class CreateShiftRequest extends ParentRequest
             'details.*.machine_ids'        => 'sometimes|array',
             'details.*.machine_ids.*'      => 'integer|exists:machines,id',
         ];
+    }
+
+    /**
+     * Custom validation: `date` must be a valid date string or an array of valid date strings.
+     */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($v) {
+            $date = $this->input('date');
+
+            if (is_string($date)) {
+                if (!strtotime($date)) {
+                    $v->errors()->add('date', 'The date is not a valid date.');
+                }
+            } elseif (is_array($date)) {
+                if (empty($date)) {
+                    $v->errors()->add('date', 'At least 1 date is required.');
+                }
+                foreach ($date as $i => $d) {
+                    if (!is_string($d) || !strtotime($d)) {
+                        $v->errors()->add("date.{$i}", "The date.{$i} is not a valid date.");
+                    }
+                }
+            } else {
+                $v->errors()->add('date', 'The date must be a string or an array of strings.');
+            }
+        });
     }
 
     public function authorize(): bool

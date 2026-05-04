@@ -13,8 +13,39 @@ final class CreateShiftController extends ApiController
 {
     public function __invoke(CreateShiftRequest $request): JsonResponse
     {
-        $shift = app(CreateShiftAction::class)->run($request->validated());
+        $data = $request->validated();
+        $date = $data['date'];
+        $action = app(CreateShiftAction::class);
 
-        return Response::create($shift, ShiftTransformer::class)->created();
+        // ── Single date (string) → synchronous create (backward compat) ──
+        if (is_string($date)) {
+            if ($date < today()->toDateString()) {
+                return response()->json([
+                    'message' => 'Cannot create shift for a past date.',
+                ], 422);
+            }
+
+            $shift = $action->run($data);
+
+            return Response::create($shift, ShiftTransformer::class)->created();
+        }
+
+        // ── Multi-date (array) → parallel batch jobs ──
+        $shiftData = collect($data)->except('date')->toArray();
+        $result    = $action->runMultiDate($date, $shiftData);
+
+        if ($result['total'] === 0) {
+            return response()->json([
+                'message'      => 'All dates are in the past. No shifts created.',
+                'past_ignored' => $result['past_ignored'],
+            ], 422);
+        }
+
+        return response()->json([
+            'message'      => "Dispatched {$result['total']} shift creation job(s).",
+            'batch_id'     => $result['batch_id'],
+            'total'        => $result['total'],
+            'past_ignored' => $result['past_ignored'],
+        ], 202);
     }
 }
