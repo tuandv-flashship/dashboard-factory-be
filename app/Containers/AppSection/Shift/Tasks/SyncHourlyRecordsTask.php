@@ -27,16 +27,23 @@ final class SyncHourlyRecordsTask extends ParentTask
 {
     use ComputesKpiHours;
 
-    public function run(Shift $shift): void
+    public function run(Shift $shift, ?int $departmentId = null): void
     {
         // ── 1. Snapshot existing records (including soft-deleted) ──
-        $existing = HourlyRecord::withTrashed()
-            ->where('shift_id', $shift->id)
-            ->get()
+        $existingQuery = HourlyRecord::withTrashed()->where('shift_id', $shift->id);
+        if ($departmentId) {
+            $existingQuery->where('department_id', $departmentId);
+        }
+        
+        $existing = $existingQuery->get()
             ->keyBy(fn ($r) => "{$r->department_id}_{$r->hour_index}");
 
         // ── 2. Load shift_details ──
-        $shiftDetails = ShiftDetail::where('shift_id', $shift->id)->get();
+        $detailsQuery = ShiftDetail::where('shift_id', $shift->id);
+        if ($departmentId) {
+            $detailsQuery->where('department_id', $departmentId);
+        }
+        $shiftDetails = $detailsQuery->get();
 
         // ── 3. Compute new record set (aligned slots) ──
         $newKeys = [];
