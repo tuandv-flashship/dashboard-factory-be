@@ -101,6 +101,7 @@ Job chạy định kỳ (mặc định **5 phút**, configurable) lấy dữ li�
 | Method | Endpoint | Mô tả |
 |---|---|---|
 | GET | `/v1/admin/production/issues` | List tất cả issues (filter: date, shift, department_id, category, resolved, date_from, date_to) |
+| GET | `/v1/admin/production/issues/summary` | Thống kê tổng hợp: total, pending, resolved, resolved_percent |
 | GET | `/v1/admin/production/pending-issues` | Issues chưa khắc phục cho 1 ca (filter: date, shift, department_id) |
 | POST | `/v1/admin/hourly-records/:id/issues` | Tạo issue mới cho 1 khung giờ |
 | PATCH | `/v1/admin/hourly-issues/:id` | Sửa issue |
