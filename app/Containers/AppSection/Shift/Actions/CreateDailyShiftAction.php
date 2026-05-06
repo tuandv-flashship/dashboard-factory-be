@@ -152,7 +152,7 @@ final class CreateDailyShiftAction extends ParentAction
                     'shift_number'      => 1,
                     'start_time'        => $startFormatted,
                     'end_time'          => $maxEnd,
-                    'supervisor'        => null,
+                    'supervisor'        => config('appSection-shift.supervisors.' . config('factory.current'))[0] ?? null,
                     'is_active'         => true,
                     'shift_template_id' => $template->id,
                 ]);
