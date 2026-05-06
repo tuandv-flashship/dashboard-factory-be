@@ -11,12 +11,15 @@ final class UpdateHourlyStaffRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'records'                  => 'required|array|min:1',
-            'records.*.id'             => 'required|integer|exists:hourly_records,id',
-            'records.*.kpi_minutes'    => 'sometimes|integer|min:1|max:60',
-            'records.*.target'         => 'sometimes|nullable|integer|min:0',
-            'records.*.staff_required' => 'sometimes|nullable|integer|min:0',
-            'records.*.note'           => 'sometimes|nullable|string|max:500',
+            'records'                          => 'required|array|min:1',
+            'records.*.id'                     => 'required|integer|exists:hourly_records,id',
+            'records.*.kpi_minutes'            => 'sometimes|integer|min:1|max:60',
+            'records.*.target'                 => 'sometimes|nullable|integer|min:0',
+            'records.*.staff_required'         => 'sometimes|nullable|integer|min:0',
+            'records.*.note'                   => 'sometimes|nullable|string|max:500',
+            'records.*.machine_count'          => 'sometimes|nullable|integer|min:0',
+            'records.*.active_machine_ids'     => 'sometimes|array',
+            'records.*.active_machine_ids.*'   => 'integer|exists:machines,id',
         ];
     }
 

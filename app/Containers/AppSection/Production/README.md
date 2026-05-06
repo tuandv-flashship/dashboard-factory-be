@@ -41,11 +41,33 @@ Container bao gồm 3 bảng: production lines (4 lines gồm Pick), hourly prod
 | target | int | KPI mục tiêu giờ này |
 | actual | int (nullable) | Thực đạt (null = giờ tương lai) |
 | staff | smallint | Số nhân viên |
+| staff_required | smallint (nullable) | Số nhân viên yêu cầu (override) |
+| **machine_count** | **smallint (nullable)** | **Số máy in hoạt động per slot (DTF: manual, DTG: auto-computed)** |
 | hour_start_inventory | int | Tồn đầu giờ (ton_cuoi từ FPlatform, set 1 lần) |
 | efficiency | float | % hiệu suất: 94.2 |
 | error_rate | float | % lỗi: 2.1 |
 | status | enum | pending, active, completed |
 | | | **Unique constraint:** shift_id + department_id + hour_index |
+
+> 💡 **`machine_count` fallback logic (tính target):**
+> - **DTF:** `hourly_record.machine_count` → `shift_detail.machine_count` (nếu null)
+> - **DTG:** Auto-computed = `count(hourly_record_machines)` khi gửi `active_machine_ids`
+> - **Per-person:** Không sử dụng `machine_count`
+
+### `hourly_record_machines` — Máy DTG override per khung giờ
+
+Bảng pivot lưu máy DTG nào hoạt động cho từng khung giờ cụ thể. Chỉ được tạo khi user chủ động gửi `active_machine_ids` — nếu không có thì fallback về `shift_detail_machines`.
+
+| Column | Type | Mô tả |
+|---|---|---|
+| id | bigint PK | Auto increment |
+| hourly_record_id | FK → hourly_records | Cascade on delete |
+| machine_id | FK → machines | Cascade on delete |
+| kpi_per_hour | unsignedInt | Snapshot KPI máy tại thời điểm gán |
+| created_at | timestamp | |
+| updated_at | timestamp | |
+
+**Unique constraint:** `(hourly_record_id, machine_id)`
 
 ### `hourly_issues`
 | Column | Type | Mô tả |
@@ -274,7 +296,7 @@ Production/
 │   ├── UnresolveHourlyIssueAction.php
 │   └── UpdateHourlyIssueAction.php
 ├── Data/
-│   ├── Migrations/ (5 files)
+│   ├── Migrations/ (7 files)
 │   ├── Repositories/ProductionLineRepository.php
 │   └── Seeders/ProductionSeeder_1.php
 ├── Enums/
@@ -283,7 +305,8 @@ Production/
 │   └── SyncHourlyRecordsJob.php           ← Scheduled sync (5 min)
 ├── Models/
 │   ├── ProductionLine.php
-│   ├── HourlyRecord.php
+│   ├── HourlyRecord.php                   ← +machine_count, +hourlyMachines()
+│   ├── HourlyRecordMachine.php            ← [NEW] Pivot: DTG per-slot machine override
 │   └── HourlyIssue.php
 ├── Providers/
 │   └── ProductionServiceProvider.php      ← Schedule registration
@@ -333,7 +356,8 @@ Production/
     │   └── ... (existing routes)
     └── Transformers/
         ├── ProductionLineTransformer.php
-        ├── HourlyRecordTransformer.php
+        ├── HourlyRecordTransformer.php        ← +machine_count, +productivity_type, +hourlyMachines
+        ├── HourlyRecordMachineTransformer.php  ← [NEW] Pivot transformer
         ├── HourlyIssueTransformer.php
         ├── PendingIssueTransformer.php
         └── ShiftTransformer.php

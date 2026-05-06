@@ -12,6 +12,7 @@ use Carbon\CarbonImmutable;
 final class HourlyRecordTransformer extends ParentTransformer
 {
     protected array $defaultIncludes = ['issues'];
+    protected array $availableIncludes = ['hourlyMachines'];
 
     private ?CarbonImmutable $shiftDate = null;
 
@@ -33,8 +34,10 @@ final class HourlyRecordTransformer extends ParentTransformer
         $kpiPerHour      = $isPerMachineDtg
             ? ($record->shiftDetail?->kpi_per_hour ?? 0)
             : ($record->department?->kpi_per_hour ?? 0);
+        // DTF: fallback chain → hourly.machine_count → shift_detail.machine_count
+        // DTG: multiplier is ignored by TargetEstimator (isPerMachine=true → returns $base)
         $defaultMultiplier = $isPerMachineDtf
-            ? ($record->shiftDetail?->machine_count ?? 0)
+            ? ($record->machine_count ?? $record->shiftDetail?->machine_count ?? 0)
             : ($record->shiftDetail?->headcount ?? 0);
         $staffRequired   = $record->staff_required ?? $defaultMultiplier;
 
@@ -64,6 +67,8 @@ final class HourlyRecordTransformer extends ParentTransformer
             'status'     => $this->resolveStatus($record->status),
             'note'              => $record->note,
             'productivity_json' => $record->productivity_json,
+            'machine_count'     => $record->machine_count,
+            'productivity_type' => $record->department?->productivity_type?->value,
         ];
     }
 
@@ -73,6 +78,15 @@ final class HourlyRecordTransformer extends ParentTransformer
             $record->issues,
             new HourlyIssueTransformer(),
             'issues',
+        );
+    }
+
+    public function includeHourlyMachines(HourlyRecord $record): \League\Fractal\Resource\Collection
+    {
+        return $this->collection(
+            $record->hourlyMachines,
+            new HourlyRecordMachineTransformer(),
+            'hourly_machines',
         );
     }
 

@@ -18,7 +18,7 @@ final class HourlyRecord extends ParentModel
 
     protected $fillable = [
         'shift_id', 'department_id', 'hour_slot', 'hour_index',
-        'target', 'kpi_hours', 'kpi_minutes', 'kpi_percent', 'actual', 'staff', 'staff_required',
+        'target', 'kpi_hours', 'kpi_minutes', 'kpi_percent', 'actual', 'staff', 'staff_required', 'machine_count',
         'note', 'hour_start_inventory',
         'efficiency', 'error_rate', 'status', 'productivity_json',
     ];
@@ -32,6 +32,7 @@ final class HourlyRecord extends ParentModel
         'actual'               => 'integer',
         'staff'                => 'integer',
         'staff_required'       => 'integer',
+        'machine_count'        => 'integer',
         'hour_start_inventory' => 'integer',
         'efficiency'           => 'float',
         'error_rate'           => 'float',
@@ -59,6 +60,11 @@ final class HourlyRecord extends ParentModel
     public function issues(): HasMany
     {
         return $this->hasMany(HourlyIssue::class, 'hourly_record_id');
+    }
+
+    public function hourlyMachines(): HasMany
+    {
+        return $this->hasMany(HourlyRecordMachine::class, 'hourly_record_id');
     }
 
     // ── Productivity item IDs ───────────────────────────
