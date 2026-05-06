@@ -6,7 +6,7 @@ use App\Containers\AppSection\Production\Models\HourlyIssue;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Ship\Parents\Tasks\Task as ParentTask;
-use Illuminate\Support\Collection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 final class ListHourlyIssuesTask extends ParentTask
 {
@@ -20,7 +20,7 @@ final class ListHourlyIssuesTask extends ParentTask
      *
      * Additional filters: department_id, category, resolved status.
      *
-     * @return Collection<HourlyIssue>
+     * @return LengthAwarePaginator<HourlyIssue>
      */
     public function run(
         ?string $date = null,
@@ -30,7 +30,8 @@ final class ListHourlyIssuesTask extends ParentTask
         ?bool $resolved = null,
         ?string $dateFrom = null,
         ?string $dateTo = null,
-    ): Collection {
+        int $perPage = 20,
+    ): LengthAwarePaginator {
         // ── 1. Build hourly_record subquery ─────────────────────────
         $recordQuery = HourlyRecord::query()->select('id');
 
@@ -39,7 +40,7 @@ final class ListHourlyIssuesTask extends ParentTask
             $shiftModel = Shift::resolve($date, $shift);
 
             if (!$shiftModel) {
-                return collect();
+                return HourlyIssue::query()->whereRaw('1 = 0')->paginate($perPage);
             }
 
             $recordQuery->where('shift_id', $shiftModel->id);
@@ -57,7 +58,7 @@ final class ListHourlyIssuesTask extends ParentTask
             $shiftModel = Shift::current();
 
             if (!$shiftModel) {
-                return collect();
+                return HourlyIssue::query()->whereRaw('1 = 0')->paginate($perPage);
             }
 
             $recordQuery->where('shift_id', $shiftModel->id);
@@ -87,6 +88,6 @@ final class ListHourlyIssuesTask extends ParentTask
             $query->whereNull('resolved_at');
         }
 
-        return $query->orderBy('hourly_record_id')->get();
+        return $query->orderBy('hourly_record_id')->paginate($perPage);
     }
 }

@@ -23,6 +23,7 @@ final class ListHourlyIssuesRequest extends ParentRequest
             'resolved'      => ['nullable', 'boolean'],
             'date_from'     => ['nullable', 'date_format:Y-m-d'],
             'date_to'       => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from'],
+            'per_page'      => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
     }
 
