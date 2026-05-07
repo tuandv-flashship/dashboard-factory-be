@@ -51,4 +51,33 @@ final class Department extends ParentModel
     {
         return $this->hasMany(Machine::class, 'department_id')->orderBy('sort_order');
     }
+
+    /**
+     * All department machines formatted for FE checkbox rendering.
+     *
+     * Returns machines only for per_machine departments (DTG/DTF)
+     * when the relation is already eager-loaded.
+     */
+    public function toAvailableMachines(): array
+    {
+        if (!$this->relationLoaded('machines')) {
+            return [];
+        }
+
+        $isPerMachine = $this->productivity_type?->isPerMachineDtg()
+            || $this->productivity_type?->isPerMachineDtf();
+
+        if (!$isPerMachine) {
+            return [];
+        }
+
+        return $this->machines->map(fn (Machine $m) => [
+            'id'           => $m->getHashedKey(),
+            'code'         => $m->code,
+            'name'         => $m->name,
+            'kpi_per_hour' => $m->kpi_per_hour,
+            'status'       => $m->status?->value,
+            'is_active'    => $m->is_active,
+        ])->values()->all();
+    }
 }

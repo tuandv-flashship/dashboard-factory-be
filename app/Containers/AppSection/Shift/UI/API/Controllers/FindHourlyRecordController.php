@@ -22,7 +22,7 @@ final class FindHourlyRecordController extends ApiController
 {
     public function __invoke(FindHourlyRecordRequest $request): JsonResponse
     {
-        $record = HourlyRecord::with(['issues', 'department', 'hourlyMachines.machine'])
+        $record = HourlyRecord::with(['issues', 'department.machines', 'hourlyMachines.machine'])
             ->findOrFail($request->id);
 
         // Manually load shiftDetail — compound key (shift_id + department_id)
@@ -51,6 +51,9 @@ final class FindHourlyRecordController extends ApiController
                 'kpi_per_hour' => $sdm->kpi_per_hour,
             ])->values()->toArray() ?? [],
         ];
+
+        // All department machines → FE renders checkboxes for per-slot machine selection
+        $responseData['data']['available_machines'] = $record->department?->toAvailableMachines() ?? [];
 
         return response()->json($responseData, 200);
     }

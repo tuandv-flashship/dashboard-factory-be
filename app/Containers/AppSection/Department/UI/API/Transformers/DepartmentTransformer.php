@@ -3,7 +3,6 @@
 namespace App\Containers\AppSection\Department\UI\API\Transformers;
 
 use App\Containers\AppSection\Department\Models\Department;
-use App\Containers\AppSection\Machine\Models\Machine;
 use App\Containers\AppSection\Machine\UI\API\Transformers\MachineTransformer;
 use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
 use League\Fractal\Resource\Collection;
@@ -32,19 +31,7 @@ final class DepartmentTransformer extends ParentTransformer
             'updated_at' => $dept->updated_at?->toIsoString(),
         ];
 
-        // DTG: include all department machines for FE checkbox rendering
-        if ($dept->relationLoaded('machines')) {
-            $data['available_machines'] = $dept->machines->map(fn (Machine $m) => [
-                'id'           => $m->getHashedKey(),
-                'code'         => $m->code,
-                'name'         => $m->name,
-                'kpi_per_hour' => $m->kpi_per_hour,
-                'status'       => $m->status?->value,
-                'is_active'    => $m->is_active,
-            ])->values()->all();
-        } else {
-            $data['available_machines'] = [];
-        }
+        $data['available_machines'] = $dept->toAvailableMachines();
 
         return $data;
     }
