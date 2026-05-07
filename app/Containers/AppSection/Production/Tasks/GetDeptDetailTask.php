@@ -29,11 +29,17 @@ final class GetDeptDetailTask extends ParentTask
             ->where('code', $deptCode)
             ->firstOrFail();
 
-        $isPerMachine = $dept->productivity_type?->isPerMachineDtg()
+        $isPerMachineDtg = $dept->productivity_type?->isPerMachineDtg() ?? false;
+        $isPerMachine = $isPerMachineDtg
             || $dept->productivity_type?->isPerMachineDtf();
 
+        // DTG: eager load all department machines for available_machines list
+        if ($isPerMachineDtg) {
+            $dept->load('machines');
+        }
+
         $recordEagerLoad = ['issues'];
-        if ($dept->productivity_type?->isPerMachineDtg()) {
+        if ($isPerMachineDtg) {
             $recordEagerLoad[] = 'hourlyMachines.machine';
         }
 

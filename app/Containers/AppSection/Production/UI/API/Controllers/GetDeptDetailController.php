@@ -60,6 +60,21 @@ final class GetDeptDetailController extends ApiController
 
         $summary = DepartmentSummary::build($records, $dept, $shiftDetail, $data['shift']->date);
 
+        $isPerMachineDtg = $dept->productivity_type?->isPerMachineDtg() ?? false;
+
+        // DTG: all machines in department → FE renders checkboxes for per-slot selection
+        $availableMachines = [];
+        if ($isPerMachineDtg && $dept->relationLoaded('machines')) {
+            $availableMachines = $dept->machines->map(fn ($m) => [
+                'id'           => $m->getHashedKey(),
+                'code'         => $m->code,
+                'name'         => $m->name,
+                'kpi_per_hour' => $m->kpi_per_hour,
+                'status'       => $m->status?->value,
+                'is_active'    => $m->is_active,
+            ])->values()->all();
+        }
+
         $response = [
             'data' => [
                 'shift'        => (new ShiftTransformer())->transform($data['shift']),
@@ -74,6 +89,7 @@ final class GetDeptDetailController extends ApiController
                 'shift_detail' => $shiftDetailTransformer->transform($shiftDetail),
                 'hours'        => $recordsData->values(),
                 'summary'      => $summary,
+                'available_machines' => $availableMachines,
             ],
         ];
 
