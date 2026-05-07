@@ -19,6 +19,7 @@ final class FindDepartmentsByLineIdTask extends ParentTask
     {
         return Department::query()
             ->where('production_line_id', $productionLineId)
+            ->with('machines')
             ->orderBy('sort_order')
             ->get();
     }
