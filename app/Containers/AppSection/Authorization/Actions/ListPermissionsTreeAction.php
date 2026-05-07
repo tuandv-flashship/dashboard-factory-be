@@ -66,6 +66,14 @@ final class ListPermissionsTreeAction extends ParentAction
         foreach ($nodes as $node) {
             unset($node['guards']);
             $node['id'] = $idByName[$node['flag']] ?? null;
+            $node['order'] = $node['order'] ?? PermissionRegistry::DEFAULT_ORDER;
+
+            if (!empty($node['is_department_scopeable'])) {
+                $node['is_department_scopeable'] = true;
+            } else {
+                unset($node['is_department_scopeable']);
+            }
+
             $node['children'] = $this->attachIds($node['children'] ?? [], $idByName, $pruneMissing);
 
             if ($pruneMissing && $node['id'] === null && $node['children'] === []) {

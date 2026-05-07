@@ -6,6 +6,7 @@ use App\Containers\AppSection\Production\Models\HourlyIssue;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Ship\Parents\Tasks\Task as ParentTask;
+use App\Ship\Supports\DepartmentScope;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 final class ListHourlyIssuesTask extends ParentTask
@@ -68,6 +69,9 @@ final class ListHourlyIssuesTask extends ParentTask
         if ($departmentId) {
             $recordQuery->where('department_id', $departmentId);
         }
+
+        // Apply department scope — limit to user's allowed departments
+        DepartmentScope::applyToQuery($recordQuery, auth()->user(), 'hourly-issues.index');
 
         // ── 2. Query issues (single DB round-trip via subquery) ─────
         $query = HourlyIssue::whereIn('hourly_record_id', $recordQuery)

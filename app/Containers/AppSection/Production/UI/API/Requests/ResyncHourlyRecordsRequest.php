@@ -22,6 +22,6 @@ final class ResyncHourlyRecordsRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('production.crud');
     }
 }

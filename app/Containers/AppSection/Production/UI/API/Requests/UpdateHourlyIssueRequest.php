@@ -29,6 +29,6 @@ final class UpdateHourlyIssueRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('hourly-issues.edit');
     }
 }

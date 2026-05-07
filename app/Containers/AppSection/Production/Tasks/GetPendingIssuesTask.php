@@ -6,6 +6,7 @@ use App\Containers\AppSection\Production\Models\HourlyIssue;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Ship\Parents\Tasks\Task as ParentTask;
+use App\Ship\Supports\DepartmentScope;
 use Illuminate\Support\Collection;
 
 final class GetPendingIssuesTask extends ParentTask
@@ -31,6 +32,9 @@ final class GetPendingIssuesTask extends ParentTask
         if ($departmentId) {
             $recordQuery->where('department_id', $departmentId);
         }
+
+        // Apply department scope
+        DepartmentScope::applyToQuery($recordQuery, auth()->user(), 'hourly-issues.index');
 
         $recordIds = $recordQuery->pluck('id');
 

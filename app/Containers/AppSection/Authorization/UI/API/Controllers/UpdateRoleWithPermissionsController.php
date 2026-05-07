@@ -18,7 +18,7 @@ final class UpdateRoleWithPermissionsController extends ApiController
         $payload = $request->validated();
         $data = Arr::only($payload, ['display_name', 'description']);
 
-        $role = $action->run($request->role_id, $data, $payload['permission_ids'] ?? null);
+        $role = $action->run($request->role_id, $data, $payload['permission_ids'] ?? null, $payload['permission_scopes'] ?? null);
 
         return Response::create($role, RoleAdminTransformer::class)->parseIncludes(['permissions'])->toArray();
     }

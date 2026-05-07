@@ -7,6 +7,7 @@ use App\Containers\AppSection\Production\Models\ProductionLine;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
+use App\Ship\Supports\DepartmentScope;
 
 /**
  * Get hourly records for ALL lines, grouped by line → department → hourly[].
@@ -30,9 +31,17 @@ final class GetAllLinesHourlyTask extends ParentTask
         // Eager-load template so ShiftTransformer can populate template_* fields
         $shift->load('template');
 
-        // 1 query: lines + departments (eager-loaded) + department.machines
+        // Resolve department scope for current user
+        $scopedDeptIds = DepartmentScope::resolve(auth()->user(), 'production.view');
+
+        // 1 query: lines + departments (eager-loaded, scoped) + department.machines
         $lines = ProductionLine::where('is_active', true)
-            ->with(['departments' => fn ($q) => $q->orderBy('sort_order'), 'departments.machines'])
+            ->with(['departments' => function ($q) use ($scopedDeptIds) {
+                $q->orderBy('sort_order');
+                if ($scopedDeptIds !== null) {
+                    $q->whereIn('id', $scopedDeptIds);
+                }
+            }, 'departments.machines'])
             ->orderBy('sort_order')
             ->get();
 

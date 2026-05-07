@@ -4,6 +4,7 @@ namespace App\Ship\Supports;
 
 final class PermissionRegistry
 {
+    public const DEFAULT_ORDER = 999;
     public static function all(): array
     {
         return self::normalizeList(config('permissions', []));
@@ -142,6 +143,8 @@ final class PermissionRegistry
             'description' => $description,
             'guards' => self::normalizeGuards($permission['guards'] ?? $permission['guard'] ?? null),
             'parent_flag' => $parentFlag,
+            'order' => (int) ($permission['order'] ?? self::DEFAULT_ORDER),
+            'is_department_scopeable' => (bool) ($permission['is_department_scopeable'] ?? false),
         ];
     }
 
@@ -199,6 +202,17 @@ final class PermissionRegistry
             $roots[] = &$permission;
         }
         unset($permission);
+
+        // Sort recursively by order
+        $sortFn = static function (array &$items) use (&$sortFn): void {
+            usort($items, static fn ($a, $b) => ($a['order'] ?? self::DEFAULT_ORDER) <=> ($b['order'] ?? self::DEFAULT_ORDER));
+            foreach ($items as &$item) {
+                if (!empty($item['children'])) {
+                    $sortFn($item['children']);
+                }
+            }
+        };
+        $sortFn($roots);
 
         return $roots;
     }

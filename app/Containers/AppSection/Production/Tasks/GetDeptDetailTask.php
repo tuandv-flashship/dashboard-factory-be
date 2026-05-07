@@ -8,6 +8,8 @@ use App\Containers\AppSection\Production\Models\ProductionLine;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
+use App\Ship\Supports\DepartmentScope;
+use Illuminate\Auth\Access\AuthorizationException;
 
 final class GetDeptDetailTask extends ParentTask
 {
@@ -28,6 +30,11 @@ final class GetDeptDetailTask extends ParentTask
             ->where('production_line_id', $line->id)
             ->where('code', $deptCode)
             ->firstOrFail();
+
+        // Verify department scope
+        if (!DepartmentScope::check(auth()->user(), 'production.view', $dept->id)) {
+            throw new AuthorizationException('You do not have access to this department.');
+        }
 
         $isPerMachineDtg = $dept->productivity_type?->isPerMachineDtg() ?? false;
         $isPerMachine = $isPerMachineDtg

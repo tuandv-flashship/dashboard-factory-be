@@ -5,6 +5,7 @@ namespace App\Containers\AppSection\Authorization\Models;
 use Apiato\Core\Models\InteractsWithApiato;
 use Apiato\Http\Resources\ResourceKeyAware;
 use App\Containers\AppSection\Authorization\Data\Collections\RoleCollection;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Spatie\Permission\Models\Role as SpatieRole;
 
 final class Role extends SpatieRole implements ResourceKeyAware
@@ -17,6 +18,11 @@ final class Role extends SpatieRole implements ResourceKeyAware
         'display_name',
         'description',
     ];
+
+    public function permissions(): BelongsToMany
+    {
+        return parent::permissions()->withPivot('department_ids');
+    }
 
     public function newCollection(array $models = []): RoleCollection
     {

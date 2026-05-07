@@ -22,8 +22,9 @@ final class UpdateRoleWithPermissionsAction extends ParentAction
     /**
      * @param array<string, mixed> $data
      * @param int[]|null $permissionIds
+     * @param array<int, array{permission_id: int, department_ids: int[]}>|null $permissionScopes
      */
-    public function run(int $roleId, array $data, ?array $permissionIds): Role
+    public function run(int $roleId, array $data, ?array $permissionIds, ?array $permissionScopes = null): Role
     {
         $shouldLog = $data !== [] || $permissionIds !== null;
 
@@ -32,7 +33,19 @@ final class UpdateRoleWithPermissionsAction extends ParentAction
             : $this->updateRoleTask->run($roleId, $data);
 
         if ($permissionIds !== null) {
-            $role->syncPermissions($permissionIds);
+            // Build sync data with department_ids pivot
+            $scopeMap = collect($permissionScopes ?? [])->keyBy('permission_id');
+
+            $syncData = [];
+            foreach ($permissionIds as $permId) {
+                $syncData[$permId] = [
+                    'department_ids' => $scopeMap->has($permId)
+                        ? json_encode($scopeMap[$permId]['department_ids'])
+                        : null,
+                ];
+            }
+
+            $role->permissions()->sync($syncData);
             $role->load('permissions');
 
             // Clear the repository cache so subsequent queries return fresh data

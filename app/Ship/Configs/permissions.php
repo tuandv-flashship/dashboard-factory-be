@@ -2,29 +2,19 @@
 
 return [
     [
-        'name' => 'System',
-        'flag' => 'core.system',
+        'name'                    => 'Department',
+        'flag'                    => 'department.scope',
+        'order'                   => 1,
+        'is_department_scopeable' => true,
     ],
-    // [
-    //     'name' => 'CMS',
-    //     'flag' => 'core.cms',
-    // ],
     [
-        'name' => 'Settings',
-        'flag' => 'settings.common',
+        'name'  => 'System',
+        'flag'  => 'core.system',
+        'order' => 2,
     ],
-    // [
-    //     'name' => 'Cronjob',
-    //     'flag' => 'systems.cronjob',
-    //     'parent_flag' => 'core.system',
-    // ],
-    // [
-    //     'name' => 'Tools',
-    //     'flag' => 'core.tools',
-    // ],
-    // [
-    //     'name' => 'Import/Export Data',
-    //     'flag' => 'tools.data-synchronize',
-    //     'parent_flag' => 'core.tools',
-    // ],
+    [
+        'name'  => 'Settings',
+        'flag'  => 'settings.common',
+        'order' => 3,
+    ],
 ];
