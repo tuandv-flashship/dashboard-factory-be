@@ -53,13 +53,7 @@ final class UpdateShiftDepartmentAction extends ParentAction
                     $shiftDetail->update($updateData);
                 }
             } else {
-                // Insert new shift detail if it doesn't exist
-                $insertData = array_merge($updateData, [
-                    'shift_id'      => $shift->id,
-                    'department_id' => $departmentId,
-                    'shift_number'  => $shiftNumber,
-                ]);
-                $shiftDetail = ShiftDetail::create($insertData);
+                abort(404, "ShiftDetail not found for shift #{$shift->id}, department #{$departmentId}, shift_number #{$shiftNumber}. Ensure the shift was created properly.");
             }
 
             // Sync per_machine pivot if machine_ids is present
