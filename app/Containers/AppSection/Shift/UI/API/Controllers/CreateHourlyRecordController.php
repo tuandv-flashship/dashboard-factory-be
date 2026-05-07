@@ -74,7 +74,7 @@ final class CreateHourlyRecordController extends ApiController
         // 5. Invalidate production dashboard cache for historical shifts
         $this->invalidateProductionCache($shiftId, $deptId);
 
-        $record->load('issues');
+        $record->load(['issues', 'department']);
 
         return Response::create($record, HourlyRecordTransformer::class)->ok();
     }

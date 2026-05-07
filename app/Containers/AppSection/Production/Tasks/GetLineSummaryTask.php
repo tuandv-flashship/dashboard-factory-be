@@ -34,12 +34,13 @@ final class GetLineSummaryTask extends ParentTask
         $allRecords = HourlyRecord::query()
             ->where('shift_id', $shift->id)
             ->whereIn('department_id', $deptIds)
+            ->with('hourlyMachines.machine')
             ->orderBy('hour_index')
             ->get()
             ->groupBy('department_id');
 
-        // Batch load shift_details for all departments (1 query)
-        $shiftDetails = ShiftDetail::with('machines')
+        // Batch load shift_details for all departments (1 query + machines)
+        $shiftDetails = ShiftDetail::with(['machines.machine'])
             ->where('shift_id', $shift->id)
             ->whereIn('department_id', $deptIds)
             ->get()
@@ -49,10 +50,11 @@ final class GetLineSummaryTask extends ParentTask
             $records     = $allRecords->get($dept->id, collect());
             $shiftDetail = $shiftDetails->get($dept->id);
 
-            // Wire shiftDetail onto each record to avoid N+1 in transformer
+            // Wire shiftDetail + department onto each record to avoid N+1 in transformer
             if ($shiftDetail) {
                 $records->each(fn ($r) => $r->setRelation('shiftDetail', $shiftDetail));
             }
+            $records->each(fn ($r) => $r->setRelation('department', $dept));
 
             return [
                 'department'   => $dept,

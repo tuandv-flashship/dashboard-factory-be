@@ -29,17 +29,30 @@ final class GetDeptDetailTask extends ParentTask
             ->where('code', $deptCode)
             ->firstOrFail();
 
+        $isPerMachine = $dept->productivity_type?->isPerMachineDtg()
+            || $dept->productivity_type?->isPerMachineDtf();
+
+        $recordEagerLoad = ['issues'];
+        if ($dept->productivity_type?->isPerMachineDtg()) {
+            $recordEagerLoad[] = 'hourlyMachines.machine';
+        }
+
         $records = HourlyRecord::query()
             ->where('shift_id', $shift->id)
             ->where('department_id', $dept->id)
-            ->with('issues')
+            ->with($recordEagerLoad)
             ->orderBy('hour_index')
             ->get();
+
+        $detailEagerLoad = ['department.productionLine'];
+        if ($isPerMachine) {
+            $detailEagerLoad[] = 'machines.machine';
+        }
 
         $shiftDetail = ShiftDetail::query()
             ->where('shift_id', $shift->id)
             ->where('department_id', $dept->id)
-            ->with(['department.productionLine'])
+            ->with($detailEagerLoad)
             ->first();
 
         // Wire shiftDetail + department onto each record to avoid N+1 in transformer

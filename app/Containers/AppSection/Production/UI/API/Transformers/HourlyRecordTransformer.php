@@ -49,6 +49,39 @@ final class HourlyRecordTransformer extends ParentTransformer
             $staffRequired,
         );
 
+        // ── Effective machine_count (with fallback for per_machine types) ──
+        $effectiveMachineCount = $record->machine_count;
+        if ($effectiveMachineCount === null && ($isPerMachineDtf || $isPerMachineDtg)) {
+            $effectiveMachineCount = $record->shiftDetail?->machine_count;
+        }
+
+        // ── Active machines list with fallback (DTG only) ──
+        $activeMachines = null;
+        if ($isPerMachineDtg) {
+            $hourlyMachines = $record->relationLoaded('hourlyMachines')
+                ? $record->hourlyMachines
+                : collect();
+
+            if ($hourlyMachines->isNotEmpty()) {
+                // Override: use hourly_record_machines
+                $activeMachines = $hourlyMachines->map(fn ($hm) => [
+                    'id'           => $hm->machine?->getHashedKey(),
+                    'code'         => $hm->machine?->code,
+                    'name'         => $hm->machine?->name,
+                    'kpi_per_hour' => $hm->kpi_per_hour,
+                ])->values()->all();
+            } else {
+                // Fallback: use shift_detail_machines
+                $sdMachines = $record->shiftDetail?->machines ?? collect();
+                $activeMachines = $sdMachines->map(fn ($sdm) => [
+                    'id'           => $sdm->machine?->getHashedKey(),
+                    'code'         => $sdm->machine?->code,
+                    'name'         => $sdm->machine?->name,
+                    'kpi_per_hour' => $sdm->kpi_per_hour,
+                ])->values()->all();
+            }
+        }
+
         return [
             'id' => $record->getHashedKey(),
             'hour_slot' => $record->hour_slot,
@@ -67,8 +100,10 @@ final class HourlyRecordTransformer extends ParentTransformer
             'status'     => $this->resolveStatus($record->status),
             'note'              => $record->note,
             'productivity_json' => $record->productivity_json,
-            'machine_count'     => $record->machine_count,
+            'machine_count'     => $effectiveMachineCount,
             'productivity_type' => $record->department?->productivity_type?->value,
+            'active_machines'   => $activeMachines,
+            'is_machine_overridden' => $isPerMachineDtg && isset($hourlyMachines) && $hourlyMachines->isNotEmpty(),
         ];
     }
 
