@@ -13,10 +13,13 @@ final class CreateHourlyRecordRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'kpi_minutes'    => 'required|integer|min:1|max:60',
-            'target'         => 'sometimes|nullable|integer|min:0',
-            'staff_required' => 'sometimes|nullable|integer|min:0',
-            'note'           => 'sometimes|nullable|string|max:500',
+            'kpi_minutes'          => 'required|integer|min:1|max:60',
+            'target'               => 'sometimes|nullable|integer|min:0',
+            'staff_required'       => 'sometimes|nullable|integer|min:0',
+            'note'                 => 'sometimes|nullable|string|max:500',
+            'machine_count'        => 'sometimes|nullable|integer|min:0',
+            'active_machine_ids'   => 'sometimes|array',
+            'active_machine_ids.*' => 'integer|exists:machines,id',
         ];
     }
 

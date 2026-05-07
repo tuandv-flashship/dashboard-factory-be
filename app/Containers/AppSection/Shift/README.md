@@ -877,6 +877,38 @@ Batch update hourly records. Hỗ trợ tất cả các fields: `kpi_minutes`, `
 
 ---
 
+#### POST /v1/admin/shifts/{shift_id}/departments/{department_id}/hourly — Thêm giờ làm việc
+
+Thêm 1 khung giờ mới vào cuối danh sách. Auto tăng `shift_details.work_hours` +1. Hỗ trợ `machine_count` (DTF) và `active_machine_ids` (DTG) để override máy in ngay lúc tạo.
+
+**Request body (per_person):**
+```json
+{ "kpi_minutes": 60, "staff_required": 5 }
+```
+
+**Request body (per_machine_dtf — kèm số máy):**
+```json
+{ "kpi_minutes": 60, "machine_count": 5 }
+```
+
+**Request body (per_machine_dtg — kèm danh sách máy):**
+```json
+{ "kpi_minutes": 60, "active_machine_ids": [1, 3, 7] }
+```
+
+> ⚠️ `active_machine_ids` chỉ xử lý cho bộ phận `per_machine_dtg`, `machine_count` chỉ xử lý cho `per_machine_dtf`/`per_machine_dtg`.
+
+| Field gửi lên | Side effects |
+|---|---|
+| `kpi_minutes` (required) | Auto-calc `kpi_hours`, `kpi_percent` |
+| `target` | Nếu không gửi + có `active_machine_ids` → auto-calc từ KPIs |
+| `machine_count` (DTF/DTG) | Lưu trực tiếp |
+| `active_machine_ids` (DTG) | Sync pivot `hourly_record_machines`, auto-set `machine_count` = count, auto-set `target` = Σ(KPIs) × kpi_percent |
+
+**Response:** `200 OK` — created hourly record with `active_machines`, `machine_count`, `productivity_type`.
+
+---
+
 #### GET /v1/admin/hourly-records/{id} — Chi tiết khung giờ (Modal sửa giờ)
 
 Response bao gồm: issues (default include), `machine_count`, `productivity_type`, và `shift_detail` context cho FE render form.
