@@ -95,6 +95,9 @@ final class ProductionCacheKeys
         $date     = $shift->date->toDateString();
         $shiftNum = $shift->shift_number;
 
+        // Always flush allLinesHourly — cached for both today (2 min) and historical (1 hr)
+        Cache::forget(self::allLinesHourly($date, $shiftNum));
+
         if (!self::isHistorical($date)) {
             return;
         }
