@@ -33,8 +33,8 @@ final class GetDeptDetailTask extends ParentTask
         $isPerMachine = $isPerMachineDtg
             || $dept->productivity_type?->isPerMachineDtf();
 
-        // DTG: eager load all department machines for available_machines list
-        if ($isPerMachineDtg) {
+        // Per-machine departments: eager load all department machines for available_machines list
+        if ($isPerMachine) {
             $dept->load('machines');
         }
 
