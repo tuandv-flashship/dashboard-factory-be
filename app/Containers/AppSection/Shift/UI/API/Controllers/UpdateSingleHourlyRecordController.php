@@ -30,7 +30,8 @@ final class UpdateSingleHourlyRecordController extends ApiController
         $hourlyRecord = HourlyRecord::with(['issues', 'department', 'hourlyMachines.machine'])->findOrFail($request->id);
 
         // Manually load shiftDetail — compound key doesn't support eager loading
-        $shiftDetail = ShiftDetail::where('shift_id', $hourlyRecord->shift_id)
+        $shiftDetail = ShiftDetail::with('machines.machine')
+            ->where('shift_id', $hourlyRecord->shift_id)
             ->where('department_id', $hourlyRecord->department_id)
             ->first();
 
