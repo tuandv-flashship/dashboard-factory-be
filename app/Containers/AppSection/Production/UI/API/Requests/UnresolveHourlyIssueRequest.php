@@ -20,6 +20,6 @@ final class UnresolveHourlyIssueRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('hourly-issues.resolve');
+        return $this->user()->can('hourly-issues.edit');
     }
 }

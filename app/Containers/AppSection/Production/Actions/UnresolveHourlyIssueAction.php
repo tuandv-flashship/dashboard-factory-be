@@ -20,7 +20,7 @@ final class UnresolveHourlyIssueAction extends ParentAction
     {
         // Verify department scope
         $issue = HourlyIssue::with('hourlyRecord')->findOrFail($request->id);
-        if (!DepartmentScope::check(auth()->user(), 'hourly-issues.resolve', $issue->hourlyRecord->department_id)) {
+        if (!DepartmentScope::check(auth()->user(), 'hourly-issues.edit', $issue->hourlyRecord->department_id)) {
             throw new AuthorizationException('You do not have access to this department.');
         }
 
