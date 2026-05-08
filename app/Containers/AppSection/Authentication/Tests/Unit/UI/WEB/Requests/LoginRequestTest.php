@@ -22,7 +22,7 @@ final class LoginRequestTest extends UnitTestCase
 
         $this->assertEquals(
             [
-                'email' => ['required', 'email'],
+                'username' => ['required', 'string', 'max:255'],
                 'password' => 'required',
                 'remember' => 'boolean',
             ],

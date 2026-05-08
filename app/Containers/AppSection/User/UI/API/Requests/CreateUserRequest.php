@@ -18,6 +18,7 @@ final class CreateUserRequest extends ParentRequest
     {
         return [
             'name' => 'required|min:2|max:50',
+            'username' => ['nullable', 'string', 'max:50', 'regex:/^[a-z0-9._-]+$/i', 'unique:users,username'],
             'email' => 'required|email|unique:users,email',
             'password' => [
                 'required',

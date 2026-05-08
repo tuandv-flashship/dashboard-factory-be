@@ -23,6 +23,7 @@ class UserTransformer extends ParentTransformer
             'type' => $user->getResourceKey(),
             'id' => $user->getHashedKey(),
             'name' => $user->name,
+            'username' => $user->username,
             'email' => $user->email,
             'email_verified_at' => $user->email_verified_at,
             'gender' => $user->gender,

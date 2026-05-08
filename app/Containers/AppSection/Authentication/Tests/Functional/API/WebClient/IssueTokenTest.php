@@ -15,13 +15,14 @@ final class IssueTokenTest extends ApiTestCase
     public function testProxyLogin(): void
     {
         ClientFactory::webClient();
-        $data = [
-            'email' => 'gandalf@the.grey',
-            'password' => 'youShallNotPass',
-        ];
-        User::factory()->createOne($data);
+        $email = 'gandalf@the.grey';
+        $password = 'youShallNotPass';
+        User::factory()->createOne(['email' => $email, 'password' => $password]);
 
-        $response = $this->postJson(action(IssueTokenController::class), $data);
+        $response = $this->postJson(action(IssueTokenController::class), [
+            'username' => $email,
+            'password' => $password,
+        ]);
 
         $response->assertOk();
         $response->assertJson(

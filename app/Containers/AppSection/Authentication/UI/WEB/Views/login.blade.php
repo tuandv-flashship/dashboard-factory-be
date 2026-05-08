@@ -94,25 +94,25 @@
                 @csrf
 
                 <!-- Session Error -->
-                @if(session('login'))
+                @if(session('username'))
                     <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 animate-shake">
-                        <p class="text-red-600 dark:text-red-400 text-sm font-medium">{{ session('login') }}</p>
+                        <p class="text-red-600 dark:text-red-400 text-sm font-medium">{{ session('username') }}</p>
                     </div>
                 @endif
 
-                <!-- Email Field -->
+                <!-- Username / Email Field -->
                 <div class="space-y-2">
-                    <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Address</label>
+                    <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email or Username</label>
                     <div class="relative">
                         <input
-                            type="email"
-                            id="email"
-                            name="email"
-                            value="{{ old('email') }}"
+                            type="text"
+                            id="username"
+                            name="username"
+                            value="{{ old('username') }}"
                             required
                             autofocus
                             class="w-full px-4 py-3 sm:px-5 sm:py-4 bg-gray-50 dark:bg-gray-800 border-2 border-transparent rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:bg-white dark:focus:bg-gray-700 focus:border-apiato-blue focus:ring-4 focus:ring-apiato-blue/10 dark:focus:ring-apiato-blue/20 transition-all duration-300 text-sm sm:text-base outline-none"
-                            placeholder="Enter your email"
+                            placeholder="Enter your email or username"
                         >
                         <div class="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,7 +120,7 @@
                             </svg>
                         </div>
                     </div>
-                    @error('email')
+                    @error('username')
                         <p class="text-red-600 dark:text-red-400 text-xs sm:text-sm font-medium animate-shake">{{ $message }}</p>
                     @enderror
                 </div>

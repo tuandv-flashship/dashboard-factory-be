@@ -13,7 +13,7 @@ final class LoginController extends WebController
     public function __invoke(LoginRequest $request, LoginAction $action): RedirectResponse
     {
         return $action->run(
-            $request->input('email'),
+            $request->input('username'),
             $request->input('password'),
             $request->boolean('remember'),
         );

@@ -16,7 +16,7 @@ final readonly class UserCredential extends ParentValue
     public static function createFrom(Request $request): self
     {
         return self::create(
-            $request->input('email'),
+            $request->input('username'),
             $request->input('password'),
         );
     }

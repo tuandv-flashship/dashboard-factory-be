@@ -20,7 +20,7 @@ final class IssueTokenRequestTest extends UnitTestCase
     {
         $this->assertEquals(
             [
-                'email' => ['required', 'email'],
+                'username' => ['required', 'string', 'max:255'],
                 'password' => 'required',
             ],
             $this->request->rules(),

@@ -27,9 +27,10 @@ final class IssueTokenAction extends ParentAction
             ),
         );
 
-        $user = User::query()
-            ->where('email', strtolower($credential->username()))
-            ->first();
+        $identifier = strtolower($credential->username());
+        $isEmail = filter_var($identifier, FILTER_VALIDATE_EMAIL) !== false;
+        $user = User::query()->where($isEmail ? 'email' : 'username', $identifier)->first()
+            ?? User::query()->where($isEmail ? 'username' : 'email', $identifier)->first();
 
         if ($user) {
             AuditLogRecorder::record(

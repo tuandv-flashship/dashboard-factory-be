@@ -13,7 +13,7 @@ final class LoginRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'email'],
+            'username' => ['required', 'string', 'max:255'],
             'password' => 'required',
             'remember' => 'boolean',
         ];

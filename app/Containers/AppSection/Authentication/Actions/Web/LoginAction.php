@@ -9,11 +9,14 @@ use Illuminate\Support\Facades\Auth;
 
 final class LoginAction extends ParentAction
 {
-    public function run(string $email, string $password, bool $remember): RedirectResponse
+    public function run(string $username, string $password, bool $remember): RedirectResponse
     {
+        $username = strtolower($username);
+        $field = filter_var($username, FILTER_VALIDATE_EMAIL) !== false ? 'email' : 'username';
+
         $credentials = [
-            'email' => static fn (Builder $query): Builder => $query
-                ->where('email', strtolower($email)),
+            $field => static fn (Builder $query): Builder => $query
+                ->where($field, $username),
             'password' => $password,
         ];
 
@@ -24,7 +27,7 @@ final class LoginAction extends ParentAction
         }
 
         return back()->withErrors([
-            'email' => __('auth.failed'),
-        ])->onlyInput('email');
+            'username' => __('auth.failed'),
+        ])->onlyInput('username');
     }
 }

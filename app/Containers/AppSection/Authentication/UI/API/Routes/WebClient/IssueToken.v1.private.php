@@ -7,7 +7,7 @@
  *
  * @api                {post} /v1/clients/web/login Login (Password Grant with proxy)
  *
- * @apiDescription     Login Users using their email and password
+ * @apiDescription     Login Users using their email or username and password
  *
  * @apiVersion         1.0.0
  *
@@ -15,7 +15,7 @@
  *
  * @apiHeader          {String} accept=application/json
  *
- * @apiBody            {String} email
+ * @apiBody            {String} username    Email address or username
  * @apiBody            {String} password
  *
  * @apiSuccessExample  {json}       Success-Response:

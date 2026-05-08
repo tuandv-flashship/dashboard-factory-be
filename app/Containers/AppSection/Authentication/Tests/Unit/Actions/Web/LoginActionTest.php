@@ -43,7 +43,7 @@ final class LoginActionTest extends UnitTestCase
 
         /** @var MessageBag $errors */
         $errors = $response->getSession()->get('errors');
-        $field = 'email';
+        $field = 'username';
         $this->assertTrue($errors->has($field));
         $this->assertCount(1, $errors->get($field));
         $this->assertSame(__('auth.failed'), $errors->get($field)[0]);

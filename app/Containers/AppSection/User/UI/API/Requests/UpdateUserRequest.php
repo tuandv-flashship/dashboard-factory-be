@@ -22,6 +22,7 @@ final class UpdateUserRequest extends ParentRequest
 
         return [
             'name' => 'min:2|max:50',
+            'username' => ['nullable', 'string', 'max:50', 'regex:/^[a-z0-9._-]+$/i', Rule::unique('users', 'username')->ignore($this->user_id)],
             'gender' => [Rule::enum(Gender::class), 'nullable'],
             'birth' => ['date', 'nullable'],
             'phone' => ['string', 'max:20', 'nullable'],

@@ -21,7 +21,7 @@ final class LoginTest extends WebTestCase
 
         $response = $this
             ->post(action(LoginController::class), [
-                'email' => $user->email,
+                'username' => $user->email,
                 'password' => 'youShallNotPass',
                 'remember' => true,
             ])
@@ -40,7 +40,7 @@ final class LoginTest extends WebTestCase
 
         $response = $this
             ->post(action(LoginController::class), [
-                'email' => $user->email,
+                'username' => $user->email,
                 'password' => 'youShallNotPass',
                 'remember' => true,
             ])

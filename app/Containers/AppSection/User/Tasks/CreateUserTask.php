@@ -15,14 +15,15 @@ final class CreateUserTask extends ParentTask
 
     public function run(array $data): User
     {
-        tap(validator(
-            [
-                'email' => strtolower($data['email']),
-            ],
-            [
-                'email' => ['unique:users,email'],
-            ],
-        ))->validate();
+        $validationData = ['email' => strtolower($data['email'])];
+        $validationRules = ['email' => ['unique:users,email']];
+
+        if (!empty($data['username'])) {
+            $validationData['username'] = strtolower($data['username']);
+            $validationRules['username'] = ['unique:users,username'];
+        }
+
+        tap(validator($validationData, $validationRules))->validate();
 
         return $this->repository->create($data);
     }
