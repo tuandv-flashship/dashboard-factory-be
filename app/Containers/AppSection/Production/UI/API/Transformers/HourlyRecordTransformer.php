@@ -8,6 +8,7 @@ use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Support\TargetEstimator;
 use App\Ship\Parents\Transformers\Transformer as ParentTransformer;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Carbon;
 
 final class HourlyRecordTransformer extends ParentTransformer
 {
@@ -15,6 +16,7 @@ final class HourlyRecordTransformer extends ParentTransformer
     protected array $availableIncludes = ['hourlyMachines'];
 
     private ?CarbonImmutable $shiftDate = null;
+    private ?Carbon $shiftEndAt = null;
 
     /**
      * Set the shift date for past-shift status override.
@@ -23,6 +25,17 @@ final class HourlyRecordTransformer extends ParentTransformer
     public function setShiftDate(?CarbonImmutable $shiftDate): self
     {
         $this->shiftDate = $shiftDate;
+
+        return $this;
+    }
+
+    /**
+     * Set the shift end datetime.
+     * When now() >= shiftEndAt (same-day shift already ended), force 'completed'.
+     */
+    public function setShiftEndAt(?Carbon $shiftEndAt): self
+    {
+        $this->shiftEndAt = $shiftEndAt;
 
         return $this;
     }
@@ -127,10 +140,18 @@ final class HourlyRecordTransformer extends ParentTransformer
 
     /**
      * Past shifts → force 'completed'; otherwise use DB value.
+     *
+     * Two checks:
+     *  1. Past date  — shiftDate < today()
+     *  2. Same day but shift ended — now() >= shiftEndAt
      */
     private function resolveStatus(string $dbStatus): string
     {
         if ($this->shiftDate && $this->shiftDate->lt(today())) {
+            return HourlyRecordStatus::Completed->value;
+        }
+
+        if ($this->shiftEndAt && now()->gte($this->shiftEndAt)) {
             return HourlyRecordStatus::Completed->value;
         }
 

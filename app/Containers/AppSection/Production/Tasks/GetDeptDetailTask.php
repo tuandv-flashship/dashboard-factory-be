@@ -24,6 +24,9 @@ final class GetDeptDetailTask extends ParentTask
             return ['shift' => null, 'records' => collect(), 'summary' => null];
         }
 
+        // Eager-load details so computeEndAt() can compare per-department end times
+        $shift->load('details');
+
         $line = ProductionLine::query()->where('code', $lineCode)->firstOrFail();
 
         $dept = Department::query()

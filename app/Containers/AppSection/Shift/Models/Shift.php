@@ -99,20 +99,61 @@ final class Shift extends ParentModel
      */
     public function isWithinTimeWindow(int $beforeMinutes = 5, int $afterMinutes = 30): bool
     {
-        $now = now();
         $date = $this->date->toDateString();
-
         $shiftStart = Carbon::createFromFormat('Y-m-d H:i:s', "{$date} {$this->start_time}");
-        $shiftEnd   = Carbon::createFromFormat('Y-m-d H:i:s', "{$date} {$this->end_time}");
-
-        // Handle overnight shifts (end_time < start_time, e.g. 22:00–06:00)
-        if ($shiftEnd->lte($shiftStart)) {
-            $shiftEnd->addDay();
-        }
 
         $windowStart = $shiftStart->copy()->subMinutes($beforeMinutes);
-        $windowEnd   = $shiftEnd->copy()->addMinutes($afterMinutes);
+        $windowEnd   = $this->computeEndAt()->addMinutes($afterMinutes);
 
-        return $now->between($windowStart, $windowEnd);
+        return now()->between($windowStart, $windowEnd);
+    }
+
+    /**
+     * Compute the shift's end datetime (date + end_time), handling overnight shifts.
+     *
+     * When end_time < start_time (e.g. 22:00–06:00), the end datetime
+     * is pushed to the next calendar day.
+     *
+     * Also considers per-department end times from ShiftDetails:
+     * if any department ends AFTER the shift's own end_time,
+     * returns the latest department end datetime instead.
+     *
+     * Used by: controllers (status override), isWithinTimeWindow(), ShiftSchedulerGuard.
+     */
+    public function computeEndAt(): Carbon
+    {
+        $date = $this->date->toDateString();
+
+        $startAt = Carbon::createFromFormat('Y-m-d H:i:s', "{$date} {$this->start_time}");
+        $endAt   = Carbon::createFromFormat('Y-m-d H:i:s', "{$date} {$this->end_time}");
+
+        if ($endAt->lt($startAt)) {
+            $endAt->addDay();
+        }
+
+        // Check if any department runs later than the shift's own end_time
+        $details = $this->relationLoaded('details')
+            ? $this->details
+            : $this->details()->get();
+
+        foreach ($details as $detail) {
+            $deptEndTime = $detail->end_time; // accessor: start_time + work_hours + meal_break
+            if ($deptEndTime === null) {
+                continue;
+            }
+
+            $deptEndAt = Carbon::createFromFormat('Y-m-d H:i', "{$date} {$deptEndTime}");
+
+            // Handle overnight department end times
+            if ($deptEndAt->lt($startAt)) {
+                $deptEndAt->addDay();
+            }
+
+            if ($deptEndAt->gt($endAt)) {
+                $endAt = $deptEndAt;
+            }
+        }
+
+        return $endAt;
     }
 }

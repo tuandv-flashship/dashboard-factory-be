@@ -25,7 +25,7 @@ final class GetShiftDepartmentController extends ApiController
             ->where('department_id', $department_id)
             ->firstOrFail();
 
-        $shift = Shift::findOrFail($id);
+        $shift = Shift::with('details')->findOrFail($id);
 
         // Load hourly records for this department within this shift
         $records = HourlyRecord::where('shift_id', $id)
@@ -33,10 +33,11 @@ final class GetShiftDepartmentController extends ApiController
             ->orderBy('hour_index')
             ->get();
 
-        $shiftDate = CarbonImmutable::parse($shift->date);
+        $shiftDate  = CarbonImmutable::parse($shift->date);
+        $shiftEndAt = $shift->computeEndAt();
 
         // Reuse DepartmentSummary from Production container
-        $summary = DepartmentSummary::build($records, $detail->department, $detail, $shiftDate);
+        $summary = DepartmentSummary::build($records, $detail->department, $detail, $shiftDate, $shiftEndAt);
 
         $detailData = (new ShiftDetailTransformer())->transform($detail);
 

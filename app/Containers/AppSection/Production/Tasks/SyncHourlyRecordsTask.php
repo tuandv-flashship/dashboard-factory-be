@@ -156,12 +156,18 @@ final class SyncHourlyRecordsTask extends ParentTask
      * Build serializable dept job data (shift_id + detail_id arrays).
      * Used in the then() callback to create SyncDepartmentHourlyJob instances.
      *
+     * During scheduled sync ($shiftDetailId is null), departments whose
+     * working hours have already ended are skipped to avoid unnecessary
+     * FPlatform API calls. Manual/targeted resync always processes.
+     *
      * @param int|null $shiftDetailId  When set, only that ShiftDetail is included.
      * @return array<int, array{shift_id: int, detail_id: int}>
      */
     private function buildDeptJobData(Shift $shift, $shiftDetails, ?int $shiftDetailId = null): array
     {
         $data = [];
+        $now  = now();
+        $shiftDate = $shift->date->toDateString();
 
         foreach ($shiftDetails as $detail) {
             // ── Targeted resync: skip all other departments ──
@@ -177,6 +183,29 @@ final class SyncHourlyRecordsTask extends ParentTask
             $team = self::DEPT_TEAM_MAP[$dept->code] ?? null;
             if (!$team) {
                 continue;
+            }
+
+            // ── Scheduled sync: skip departments whose shift has ended ──
+            // Manual/targeted resync ($shiftDetailId !== null) always processes.
+            if ($shiftDetailId === null && $detail->end_time !== null) {
+                $deptEndAt = \Illuminate\Support\Carbon::createFromFormat(
+                    'Y-m-d H:i',
+                    "{$shiftDate} {$detail->end_time}",
+                );
+
+                // Handle overnight departments (end_time wraps past midnight)
+                $deptStartAt = \Illuminate\Support\Carbon::createFromFormat(
+                    'Y-m-d H:i:s',
+                    "{$shiftDate} {$detail->start_time}",
+                );
+                if ($deptEndAt->lt($deptStartAt)) {
+                    $deptEndAt->addDay();
+                }
+
+                if ($now->gte($deptEndAt)) {
+                    Log::debug("[SyncHourlyRecords] Skipping {$dept->code} — ended at {$deptEndAt->format('H:i')}.");
+                    continue;
+                }
             }
 
             $data[] = [

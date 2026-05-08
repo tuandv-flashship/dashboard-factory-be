@@ -28,8 +28,8 @@ final class GetAllLinesHourlyTask extends ParentTask
             return ['shift' => null, 'lines' => []];
         }
 
-        // Eager-load template so ShiftTransformer can populate template_* fields
-        $shift->load('template');
+        // Eager-load template + details so ShiftTransformer and computeEndAt() work without extra queries
+        $shift->load('template', 'details');
 
         // Resolve department scope for current user
         $scopedDeptIds = DepartmentScope::resolve(auth()->user(), 'production.view');

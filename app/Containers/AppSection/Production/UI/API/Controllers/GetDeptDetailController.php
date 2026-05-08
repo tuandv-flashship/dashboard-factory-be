@@ -41,7 +41,14 @@ final class GetDeptDetailController extends ApiController
             return response()->json(['message' => 'No active shift found'], 404);
         }
 
-        $hourlyTransformer      = (new HourlyRecordTransformer())->setShiftDate($data['shift']->date);
+        // ── Shift context for same-day-ended status override ──
+        $shift      = $data['shift'];
+        $shiftDate  = $shift->date;
+        $shiftEndAt = $shift->computeEndAt();
+
+        $hourlyTransformer      = (new HourlyRecordTransformer())
+            ->setShiftDate($shiftDate)
+            ->setShiftEndAt($shiftEndAt);
         $issueTransformer       = new HourlyIssueTransformer();
         $shiftDetailTransformer = new ShiftDetailTransformer();
 
@@ -58,7 +65,7 @@ final class GetDeptDetailController extends ApiController
         $shiftDetail = $data['shift_detail'];
         $dept        = $data['department'];
 
-        $summary = DepartmentSummary::build($records, $dept, $shiftDetail, $data['shift']->date);
+        $summary = DepartmentSummary::build($records, $dept, $shiftDetail, $shiftDate, $shiftEndAt);
 
         $response = [
             'data' => [

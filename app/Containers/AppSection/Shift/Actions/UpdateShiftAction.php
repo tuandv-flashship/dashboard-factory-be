@@ -8,12 +8,14 @@ use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Tasks\SyncHourlyRecordsTask;
 use App\Containers\AppSection\Shift\Tasks\SyncShiftDetailsTask;
+use App\Containers\AppSection\Shift\Traits\RecalculatesShiftTimes;
 use App\Ship\Parents\Actions\Action as ParentAction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 final class UpdateShiftAction extends ParentAction
 {
+    use RecalculatesShiftTimes;
     public function __construct(
         private readonly SyncShiftDetailsTask $syncShiftDetailsTask,
         private readonly SyncHourlyRecordsTask $syncHourlyRecordsTask,
@@ -47,6 +49,9 @@ final class UpdateShiftAction extends ParentAction
 
                 // Smart sync hourly records: preserve actual data, soft-delete stale
                 $this->syncHourlyRecordsTask->run($shift);
+
+                // ── Recalculate Shift header end_time = max dept end_time ──
+                $this->recalculateShiftEndTime($shift);
 
                 // Detect which ShiftDetails had work_hours changed
                 $changedDetailIds = $this->detectChangedDetails($shift, $beforeSnapshot, $data['details']);

@@ -45,13 +45,20 @@ final class GetAllLinesHourlyController extends ApiController
         $response = Cache::remember($cacheKey, $ttl, function () use ($data) {
             $deptTransformer = new DepartmentTransformer();
             $shiftDetailTransformer = new ShiftDetailTransformer();
-            $hourlyTransformer = (new HourlyRecordTransformer())->setShiftDate($data['shift']->date);
-            $shiftDate = $data['shift']->date;
 
-            $lines = collect($data['lines'])->map(function ($lineData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer, $shiftDate) {
+            // ── Shift context for same-day-ended status override ──
+            $shift      = $data['shift'];
+            $shiftDate  = $shift->date;
+            $shiftEndAt = $shift->computeEndAt();
+
+            $hourlyTransformer = (new HourlyRecordTransformer())
+                ->setShiftDate($shiftDate)
+                ->setShiftEndAt($shiftEndAt);
+
+            $lines = collect($data['lines'])->map(function ($lineData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer, $shiftDate, $shiftEndAt) {
                 $line = $lineData['line'];
 
-                $departments = collect($lineData['departments'])->map(function ($deptData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer, $shiftDate) {
+                $departments = collect($lineData['departments'])->map(function ($deptData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer, $shiftDate, $shiftEndAt) {
                     $dept        = $deptData['department'];
                     $shiftDetail = $deptData['shift_detail'];
                     $hourly      = $deptData['hourly'];
@@ -60,7 +67,7 @@ final class GetAllLinesHourlyController extends ApiController
                         'department'   => $deptTransformer->transform($dept),
                         'shift_detail' => $shiftDetail ? $shiftDetailTransformer->transform($shiftDetail) : null,
                         'hourly'       => $hourly->map(fn ($r) => $hourlyTransformer->transform($r))->values(),
-                        'summary'      => DepartmentSummary::build($hourly, $dept, $shiftDetail, $shiftDate),
+                        'summary'      => DepartmentSummary::build($hourly, $dept, $shiftDetail, $shiftDate, $shiftEndAt),
                     ];
                 })->values();
 

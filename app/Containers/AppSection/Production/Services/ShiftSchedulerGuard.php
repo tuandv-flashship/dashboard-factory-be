@@ -88,17 +88,14 @@ final class ShiftSchedulerGuard
         $shifts = Cache::remember(
             "factory:shifts_today:{$date}",
             self::SHIFTS_TODAY_TTL,
-            fn () => Shift::forDate($date),
+            fn () => Shift::with('details')->where('date', $date)->orderBy('shift_number')->get(),
         );
 
         foreach ($shifts as $shift) {
             $shiftStart = Carbon::createFromFormat('Y-m-d H:i:s', "{$date} {$shift->start_time}");
-            $shiftEnd   = Carbon::createFromFormat('Y-m-d H:i:s', "{$date} {$shift->end_time}");
 
-            // Overnight shift: end_time < start_time
-            if ($shiftEnd->lte($shiftStart)) {
-                $shiftEnd->addDay();
-            }
+            // Use computeEndAt() → accounts for departments running past shift's own end_time
+            $shiftEnd = $shift->computeEndAt();
 
             $inPreWindow  = $now->between($shiftStart->copy()->subMinutes($beforeBuffer), $shiftStart);
             $inPostWindow = $now->between($shiftEnd, $shiftEnd->copy()->addMinutes($afterBuffer));
