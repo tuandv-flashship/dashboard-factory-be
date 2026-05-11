@@ -34,15 +34,33 @@ final class SyncShiftDetailsTask extends ParentTask
             'break2_start', 'break2_minutes', 'break3_start', 'break3_minutes',
         ];
 
-        // Prepare rows with shift_id attached, stripping non-DB keys
-        $rows = collect($detailsData)->map(fn ($d) => array_merge(
-            collect($d)->only($dbColumns)->toArray(),
-            [
+        // Fetch existing details to preserve data for missing fields
+        $existingDetails = ShiftDetail::where('shift_id', $shift->id)
+            ->get()
+            ->keyBy(fn ($sd) => "{$sd->department_id}_{$sd->shift_number}");
+
+        // Prepare rows with shift_id attached, padding missing keys with existing data or null
+        $rows = collect($detailsData)->map(function ($d) use ($shift, $now, $dbColumns, $existingDetails) {
+            $key = $d['department_id'] . '_' . $d['shift_number'];
+            $existing = $existingDetails->get($key);
+
+            $row = [
                 'shift_id'   => $shift->id,
                 'updated_at' => $now,
                 'created_at' => $now,
-            ]
-        ))->toArray();
+            ];
+
+            foreach ($dbColumns as $col) {
+                if (array_key_exists($col, $d)) {
+                    $row[$col] = $d[$col];
+                } else {
+                    // Fallback to existing value, or null if it's a new record
+                    $row[$col] = $existing ? $existing->{$col} : null;
+                }
+            }
+
+            return $row;
+        })->toArray();
 
         // Single upsert query on unique key (shift_id, department_id, shift_number)
         ShiftDetail::upsert(

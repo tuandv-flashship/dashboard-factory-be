@@ -49,6 +49,12 @@ final class UpdateShiftDepartmentAction extends ParentAction
 
             $updateData = collect($data)->only($dbColumns)->toArray();
 
+            // Per-machine DTG: machine_count will be auto-computed by SyncShiftDetailMachinesTask
+            // from the machine_ids pivot, so don't write it here to avoid write-then-overwrite.
+            if (isset($data['machine_ids'])) {
+                unset($updateData['machine_count']);
+            }
+
             if ($shiftDetail) {
                 // Partial update: only update provided fields
                 if (!empty($updateData)) {
