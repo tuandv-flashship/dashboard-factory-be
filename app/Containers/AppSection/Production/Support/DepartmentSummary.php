@@ -68,10 +68,16 @@ final class DepartmentSummary
 
         $endingInventory = max(0, $dayStartInventory - $totalCompleted - $targetRemaining);
 
-        // Efficiency: average of completed records with efficiency > 0
-        $withEfficiency = $completedRecords->where('efficiency', '>', 0);
-        $efficiency = $withEfficiency->isNotEmpty()
-            ? round($withEfficiency->avg('efficiency'), 2)
+        // Efficiency: compute dynamically from actual / effectiveTarget
+        $efficiencyValues = $records->map(function ($r, $i) use ($effectiveTargets) {
+            $et = $effectiveTargets[$i] ?? 0;
+            return ($r->actual !== null && $r->actual > 0 && $et > 0)
+                ? round(($r->actual / $et) * 100, 1)
+                : 0;
+        })->filter(fn ($e) => $e > 0);
+
+        $efficiency = $efficiencyValues->isNotEmpty()
+            ? round($efficiencyValues->avg(), 2)
             : 0;
 
         return [

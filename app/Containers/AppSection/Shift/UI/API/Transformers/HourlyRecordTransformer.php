@@ -28,7 +28,9 @@ final class HourlyRecordTransformer extends ParentTransformer
             'remaining'       => $record->actual !== null
                 ? $record->target - $record->actual
                 : null,
-            'efficiency'      => $record->efficiency,
+            'efficiency'      => $record->target > 0 && $record->actual > 0
+                ? round(($record->actual / $record->target) * 100, 1)
+                : 0,
             'error_rate'      => $record->error_rate,
             'status'          => $record->status,
             'productivity_json' => $record->productivity_json,
