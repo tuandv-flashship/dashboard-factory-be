@@ -2,19 +2,19 @@
 
 return [
     [
-        'name'                    => 'Department',
-        'flag'                    => 'department.scope',
+        'name'                    => 'Quyền dữ liệu bộ phận',
+        'flag'                    => 'group.department-data',
         'order'                   => 1,
         'is_department_scopeable' => true,
     ],
     [
-        'name'  => 'System',
-        'flag'  => 'core.system',
+        'name'  => 'Quản trị vận hành',
+        'flag'  => 'group.operation-admin',
         'order' => 2,
     ],
     [
-        'name'  => 'Settings',
-        'flag'  => 'settings.common',
+        'name'  => 'Quản trị hệ thống',
+        'flag'  => 'group.system-admin',
         'order' => 3,
     ],
 ];

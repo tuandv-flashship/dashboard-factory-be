@@ -24,7 +24,7 @@ final class FindDepartmentsByLineIdTask extends ParentTask
             ->orderBy('sort_order');
 
         // Apply department scope — only return departments user has access to
-        DepartmentScope::applyToQuery($query, auth()->user(), 'production.view', 'id');
+        DepartmentScope::applyToQuery($query, auth()->user(), 'dashboard.view', 'id');
 
         return $query->get();
     }

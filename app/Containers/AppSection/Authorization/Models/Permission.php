@@ -16,6 +16,11 @@ final class Permission extends SpatiePermission implements ResourceKeyAware
         'guard_name',
         'display_name',
         'description',
+        'hidden',
+    ];
+
+    protected $casts = [
+        'hidden' => 'boolean',
     ];
 
     public function newCollection(array $models = []): PermissionCollection

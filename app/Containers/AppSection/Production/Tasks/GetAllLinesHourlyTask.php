@@ -32,7 +32,7 @@ final class GetAllLinesHourlyTask extends ParentTask
         $shift->load('template', 'details');
 
         // Resolve department scope for current user
-        $scopedDeptIds = DepartmentScope::resolve(auth()->user(), 'production.view');
+        $scopedDeptIds = DepartmentScope::resolve(auth()->user(), 'dashboard.view');
 
         // 1 query: lines + departments (eager-loaded, scoped) + department.machines
         $lines = ProductionLine::where('is_active', true)

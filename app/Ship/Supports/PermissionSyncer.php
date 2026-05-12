@@ -25,6 +25,7 @@ final class PermissionSyncer
             $name = strtolower($permission['flag']);
             $displayName = $permission['display_name'] ?? $permission['name'] ?? null;
             $description = $permission['description'] ?? null;
+            $hidden = (bool) ($permission['hidden'] ?? false);
 
             $permissionGuards = $permission['guards'] ?? null;
             if (empty($permissionGuards)) {
@@ -42,6 +43,7 @@ final class PermissionSyncer
                     'guard_name' => $guard,
                     'display_name' => $displayName,
                     'description' => $description,
+                    'hidden' => $hidden,
                 ];
                 $expectedByGuard[$guard][$name] = true;
             }

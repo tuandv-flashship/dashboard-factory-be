@@ -21,7 +21,7 @@ final class MigrationTest extends UnitTestCase
 
     public function testPermissionsTableHasExpectedColumns(): void
     {
-        $expectedColumns = ['id', 'name', 'guard_name', 'display_name', 'description', 'created_at', 'updated_at'];
+        $expectedColumns = ['id', 'name', 'guard_name', 'display_name', 'description', 'hidden', 'created_at', 'updated_at'];
 
         $actualColumns = Schema::getColumnListing($this->tableNames['permissions']);
         sort($expectedColumns);

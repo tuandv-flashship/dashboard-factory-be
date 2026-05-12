@@ -145,6 +145,7 @@ final class PermissionRegistry
             'parent_flag' => $parentFlag,
             'order' => (int) ($permission['order'] ?? self::DEFAULT_ORDER),
             'is_department_scopeable' => (bool) ($permission['is_department_scopeable'] ?? false),
+            'hidden' => (bool) ($permission['hidden'] ?? false),
         ];
     }
 

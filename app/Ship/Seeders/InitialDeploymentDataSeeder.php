@@ -14,6 +14,8 @@ final class InitialDeploymentDataSeeder extends Seeder
     public function run(): void
     {
         $this->call(PermissionsSeeder::class);
+        $this->call(\App\Containers\AppSection\Authorization\Data\Seeders\AuthorizationSeeder_1::class);
+        $this->call(\App\Containers\AppSection\Authorization\Data\Seeders\RolePermissionSeeder_2::class);
         $this->call(\App\Containers\AppSection\Setting\Data\Seeders\SettingsSeeder_1::class);
     }
 }

@@ -16,6 +16,7 @@ final class ListPermissionsTreeAction extends ParentAction
 
         return Cache::rememberForever($cacheKey, function () use ($guard): array {
             $tree = PermissionRegistry::tree();
+            $tree = $this->filterHidden($tree);
 
             if ($guard === null) {
                 return $this->attachIds($tree, [], true);
@@ -25,6 +26,22 @@ final class ListPermissionsTreeAction extends ParentAction
 
             return $this->attachIds($tree, $this->loadIdsByName($guard), true);
         });
+    }
+
+    private function filterHidden(array $nodes): array
+    {
+        $filtered = [];
+
+        foreach ($nodes as $node) {
+            if (!empty($node['hidden'])) {
+                continue;
+            }
+
+            $node['children'] = $this->filterHidden($node['children'] ?? []);
+            $filtered[] = $node;
+        }
+
+        return $filtered;
     }
 
     private function filterByGuard(array $nodes, string $guard): array

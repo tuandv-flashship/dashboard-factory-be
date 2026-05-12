@@ -35,7 +35,7 @@ final class GetDeptDetailTask extends ParentTask
             ->firstOrFail();
 
         // Verify department scope
-        if (!DepartmentScope::check(auth()->user(), 'production.view', $dept->id)) {
+        if (!DepartmentScope::check(auth()->user(), 'dashboard.view', $dept->id)) {
             throw new AuthorizationException('You do not have access to this department.');
         }
 
