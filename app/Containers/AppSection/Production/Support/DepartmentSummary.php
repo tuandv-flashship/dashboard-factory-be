@@ -33,7 +33,8 @@ final class DepartmentSummary
             ? ($shiftDetail?->kpi_per_hour ?? 0)
             : ($dept->kpi_per_hour ?? 0);
         $defaultHeadcount = $shiftDetail?->headcount ?? 0;
-        $defaultMultiplier = $isPerMachineDtf ? ($shiftDetail?->machine_count ?? 0) : $defaultHeadcount;
+        // Target multiplier: DTF → machine_count, per_person → headcount
+        $defaultTargetMultiplier = $isPerMachineDtf ? ($shiftDetail?->machine_count ?? 0) : $defaultHeadcount;
         $dayStartInventory = $shiftDetail?->day_start_inventory ?? 0;
 
         $completedRecords = $records->whereNotNull('actual');
@@ -44,7 +45,9 @@ final class DepartmentSummary
             $kpiPerHour,
             $r->kpi_percent ?? 100,
             $isPerMachineDtg,
-            $r->staff_required ?? $defaultMultiplier,
+            $isPerMachineDtf
+                ? ($r->machine_count ?? $defaultTargetMultiplier)
+                : ($r->staff_required ?? $defaultHeadcount),
         ));
 
         $totalTarget    = $effectiveTargets->sum();

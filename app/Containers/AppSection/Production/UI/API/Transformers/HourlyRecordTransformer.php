@@ -47,19 +47,22 @@ final class HourlyRecordTransformer extends ParentTransformer
         $kpiPerHour      = $isPerMachineDtg
             ? ($record->shiftDetail?->kpi_per_hour ?? 0)
             : ($record->department?->kpi_per_hour ?? 0);
-        // DTF: fallback chain → hourly.machine_count → shift_detail.machine_count
+        // staff_required: always fallback to headcount (display purpose)
+        $defaultStaffRequired = $record->shiftDetail?->headcount ?? 0;
+        $staffRequired = $record->staff_required ?? $defaultStaffRequired;
+
+        // Target multiplier: DTF uses machine_count, per_person uses staff_required
         // DTG: multiplier is ignored by TargetEstimator (isPerMachine=true → returns $base)
-        $defaultMultiplier = $isPerMachineDtf
+        $targetMultiplier = $isPerMachineDtf
             ? ($record->machine_count ?? $record->shiftDetail?->machine_count ?? 0)
-            : ($record->shiftDetail?->headcount ?? 0);
-        $staffRequired   = $record->staff_required ?? $defaultMultiplier;
+            : $staffRequired;
 
         $target = TargetEstimator::effective(
             $record->target,
             $kpiPerHour,
             $record->kpi_percent ?? 100,
             $isPerMachineDtg,
-            $staffRequired,
+            $targetMultiplier,
         );
 
         // ── Effective machine_count (with fallback for per_machine types) ──

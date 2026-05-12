@@ -149,7 +149,8 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         $isPerMachineDtf  = $dept->productivity_type?->isPerMachineDtf() ?? false;
         $kpiPerHour       = $isPerMachineDtg ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
         $defaultHeadcount = $detail->headcount ?? 0;
-        $defaultMultiplier = $isPerMachineDtf ? ($detail->machine_count ?? 0) : $defaultHeadcount;
+        // Target multiplier: DTF → machine_count, per_person → headcount
+        $defaultTargetMultiplier = $isPerMachineDtf ? ($detail->machine_count ?? 0) : $defaultHeadcount;
         $machineStaff     = $isPerMachineDtg ? $this->countMachinesFromInventory($team, $allInventory) : null;
 
         // ── Batch-fetch FPlatform data (3 API calls) ──
@@ -220,7 +221,9 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 // Advance inventory by effective target (manual target or estimate)
                 $currentInv = max(0, $currentInv - TargetEstimator::effective(
                     $record->target, $kpiPerHour, $record->kpi_percent ?? 100,
-                    $isPerMachineDtg, $record->staff_required ?? $defaultMultiplier,
+                    $isPerMachineDtg, $isPerMachineDtf
+                        ? ($record->machine_count ?? $defaultTargetMultiplier)
+                        : ($record->staff_required ?? $defaultHeadcount),
                 ));
                 continue;
             }
@@ -234,7 +237,9 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
             $effectiveTarget = TargetEstimator::effective(
                 $record->target, $kpiPerHour, $record->kpi_percent ?? 100,
-                $isPerMachineDtg, $record->staff_required ?? $defaultMultiplier,
+                $isPerMachineDtg, $isPerMachineDtf
+                    ? ($record->machine_count ?? $defaultTargetMultiplier)
+                    : ($record->staff_required ?? $defaultHeadcount),
             );
 
             $status = $isPassedSlot || $record->status === HourlyRecordStatus::Completed->value

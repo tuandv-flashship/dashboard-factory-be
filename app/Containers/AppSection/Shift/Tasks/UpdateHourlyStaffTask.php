@@ -201,7 +201,7 @@ final class UpdateHourlyStaffTask extends ParentTask
         $defaultHeadcount = $detail->headcount ?? 0;
 
         // Only DTF uses machine_count as multiplier; DTG multiplier is ignored by TargetEstimator
-        $defaultMultiplier = $isPerMachineDtf ? ($detail->machine_count ?? 0) : $defaultHeadcount;
+        $defaultTargetMultiplier = $isPerMachineDtf ? ($detail->machine_count ?? 0) : $defaultHeadcount;
 
         $records = HourlyRecord::where('shift_id', $shiftId)
             ->where('department_id', $departmentId)
@@ -217,12 +217,12 @@ final class UpdateHourlyStaffTask extends ParentTask
                 $record->update(['hour_start_inventory' => $hourStartInventory]);
             }
 
-            // DTF: fallback chain → staff_required → hourly.machine_count → shift_detail.machine_count
-            // per_person: fallback chain → staff_required → headcount
+            // DTF: target multiplier uses machine_count (staff_required is separate, display-only)
+            // per_person: target multiplier = staff_required → headcount
             // DTG: multiplier is ignored by TargetEstimator (isPerMachine=true)
             $multiplier = $isPerMachineDtf
-                ? ($record->staff_required ?? $record->machine_count ?? $defaultMultiplier)
-                : ($record->staff_required ?? $defaultMultiplier);
+                ? ($record->machine_count ?? $defaultTargetMultiplier)
+                : ($record->staff_required ?? $defaultHeadcount);
 
             $cumulativeTarget += TargetEstimator::effective(
                 $record->target,
