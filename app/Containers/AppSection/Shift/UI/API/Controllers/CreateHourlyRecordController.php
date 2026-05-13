@@ -8,9 +8,12 @@ use App\Containers\AppSection\Machine\Models\Machine;
 use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Models\HourlyRecordMachine;
+use App\Containers\AppSection\Production\Tasks\SyncHourlyRecordsTask as ProductionSyncTask;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyRecordTransformer;
+use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Traits\InvalidatesProductionCache;
+use App\Containers\AppSection\Shift\Traits\RecalculatesShiftTimes;
 use App\Containers\AppSection\Shift\UI\API\Requests\CreateHourlyRecordRequest;
 use App\Ship\Parents\Controllers\ApiController;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 final class CreateHourlyRecordController extends ApiController
 {
     use InvalidatesProductionCache;
+    use RecalculatesShiftTimes;
 
     public function __invoke(CreateHourlyRecordRequest $request): JsonResponse
     {
@@ -127,6 +131,26 @@ final class CreateHourlyRecordController extends ApiController
 
         // 5. Invalidate production dashboard cache for historical shifts
         $this->invalidateProductionCache($shiftId, $deptId);
+
+        // 6. Recalculate Shift header end_time to reflect new work_hours
+        $shift = Shift::find($shiftId);
+        if ($shift) {
+            $this->recalculateShiftEndTime($shift);
+        }
+
+        // 7. Trigger FPlatform resync for the new slot immediately
+        //    (instead of waiting for next cron tick ~5 min)
+        $shiftDetail = ShiftDetail::where('shift_id', $shiftId)
+            ->where('department_id', $deptId)
+            ->first();
+
+        if ($shift && $shiftDetail) {
+            app(ProductionSyncTask::class)->run(
+                date:          $shift->date->toDateString(),
+                shiftNumber:   $shift->shift_number,
+                shiftDetailId: $shiftDetail->id,
+            );
+        }
 
         $record->load(['issues', 'department', 'hourlyMachines.machine']);
 
