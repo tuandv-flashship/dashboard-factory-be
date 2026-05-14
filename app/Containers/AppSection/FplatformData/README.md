@@ -240,6 +240,183 @@ SQL tham chiếu v2.0.0 nằm trong `sql/` directory (12 files) và `docs/sql_v2
 - **Cache::remember**: Atomic single-call caching (not has+get pattern)
 - **Horizon**: 15 workers, `auto` balance strategy, `sync` queue for parallel workloads
 
+## Hourly Sync Pipeline (Đồng bộ khung giờ)
+
+FplatformData container là nguồn dữ liệu chính cho pipeline đồng bộ tự động từ Fplatform DB → Dashboard DB.
+Pipeline được orchestrate bởi `Production` container (`SyncHourlyRecordsTask`), sử dụng Actions/Tasks/Jobs của container này.
+
+### Kiến trúc 2-Stage Parallel Pipeline
+
+```
+Cron (mỗi phút)
+  └→ SyncHourlyRecordsJob
+      └→ ShiftSchedulerGuard.shouldSync()
+          └→ SyncHourlyRecordsTask.run()
+              │
+              ├── Stage 1: Parallel Inventory Fetch ─────────────────────────
+              │   └→ GetAllTeamsInventoryTask.dispatchParallelFetch()
+              │       └→ Bus::batch([FetchTeamInventoryJob × 11-13])
+              │           └→ GetDailyInventoryAction.run($date, $team) per job
+              │               └→ Cache::put("fplatform:team-inventory:{team}:{date}")
+              │
+              └── Stage 2: (then callback sau Stage 1 hoàn thành) ───────────
+                  ├→ assembleFromCache() → allInventory
+                  ├→ Bus::batch([SyncDepartmentHourlyJob × N])
+                  │   └→ Mỗi job: 3 FPlatform API calls + update hourly_records
+                  └→ SyncOrderInventoryTask.run() (synchronous)
+                      └→ Upsert order_summaries
+```
+
+### Stage 1: Parallel Inventory Fetch
+
+Dispatch `FetchTeamInventoryJob` cho mỗi team qua `Bus::batch()` trên queue `sync`.
+Horizon workers thực thi song song (~2-3s thay vì ~15s sequential).
+
+**Team Resolution** (`GetAllTeamsInventoryTask.resolveTeams()`):
+
+| Factory | Teams | Số lượng |
+|---------|-------|----------|
+| FLS | 6 DTF + 5 Hotshot | 11 |
+| PD | 6 DTF + 2 DTG + 5 Hotshot | 13 |
+
+Kết quả mỗi team được cache riêng: `fplatform:team-inventory:{team}:{date}`
+(TTL: hôm nay = 5 phút, quá khứ = 1 giờ, sentinel `false` cho "no data" vì Redis drops `null`).
+
+### Stage 2: Department Sync
+
+Sau Stage 1, `assembleFromCache()` ghép tất cả per-team cache → `allInventory`.
+Sau đó dispatch `SyncDepartmentHourlyJob` cho mỗi department.
+
+**Mỗi department job thực hiện 5 bước:**
+
+#### 2.1. Refresh Day Start Inventory
+
+Lấy `tong_viec` từ `allInventory['teams'][team]`, cập nhật `shift_details.day_start_inventory`.
+
+> **Lưu ý:** `DtgPrint` hourly metrics dùng `Team::DtgPrint`, nhưng inventory được lưu dưới key `Team::DtgPrintSplit`.
+
+#### 2.2. Sync Hotshot Data
+
+Cập nhật `shift_details.hotshot_total` và `shift_details.hotshot_completed` từ `allInventory`.
+DTG departments không có hotshot → skip.
+
+| Dept code | Hotshot key |
+|-----------|-------------|
+| `print` | `hotshot_print` |
+| `cut` | `hotshot_cut` |
+| `pick` | `hotshot_pick` |
+| `mockup` | `hotshot_mockup` |
+| `pack_ship` | `hotshot_pack_ship` |
+
+#### 2.3. Batch-fetch FPlatform Hourly Metrics (3 API calls per dept)
+
+| # | Metric Type | Mục đích | Kết quả |
+|---|------------|----------|---------|
+| 1 | `Productivity` | Sản lượng thực tế mỗi giờ | `productivityMap[hourKey] = SUM(value)` |
+| 2 | `StaffCount` | Số nhân viên mỗi giờ | `staffCountMap[hourKey] = COUNT(DISTINCT user)` |
+| 3 | `MachineProductivity` hoặc `StaffProductivity` | Chi tiết per máy/NV | `productivityDetailMap[hourKey] = [items...]` |
+
+**Logic chọn metric #3:**
+- `Team::Print` → luôn `MachineProductivity` (DTF group theo máy)
+- `isPerMachineDtg` → `MachineProductivity`
+- Còn lại → `StaffProductivity`
+
+#### 2.4. Sync hourly_records
+
+Mỗi slot được phân loại theo thời gian hiện tại:
+
+| Loại slot | Điều kiện | Xử lý |
+|-----------|-----------|--------|
+| **Future** | `now < activationTime` | Chỉ update `hour_start_inventory` |
+| **Active** | slot đang chạy | Sync data + `status = Active` |
+| **Passed** | `now >= endTime` | Sync data + `status = Completed` |
+
+**Dữ liệu được sync từ FPlatform (auto):**
+
+| Field | Nguồn | Ghi chú |
+|-------|--------|---------|
+| `actual` | `productivityMap[hourKey]` | Sản lượng thực tế |
+| `staff` | `staffCountMap[hourKey]` hoặc machine count (DTG) | Số NV/máy |
+| `hour_start_inventory` | Cascading từ `day_start_inventory` | Tồn đầu giờ |
+| `efficiency` | `(actual / effectiveTarget) × 100` | Hiệu suất % |
+| `status` | Dựa trên thời gian | Pending → Active → Completed |
+| `productivity_json` | `productivityDetailMap[hourKey]` | Chi tiết per machine/staff |
+
+**Dữ liệu KHÔNG bị sync (manual-only):** `target`, `staff_required`, `kpi_minutes`, `kpi_hours`, `kpi_percent`.
+
+#### 2.5. Inventory Cascading
+
+Tồn cuối giờ = tồn đầu giờ trừ sản lượng, cascade sang slot tiếp theo:
+
+- Passed/Completed slots: `currentInv -= actual` (trừ sản lượng thực)
+- Active/Future slots: `currentInv -= effectiveTarget` (trừ target dự kiến)
+- Luôn đảm bảo `max(0, ...)`
+
+### Stage 2 (cont.): Order Inventory Sync
+
+Chạy synchronous sau khi dispatch dept jobs. Đọc `allInventory['teams']['order_inventory']`
+(đã được cache từ Stage 1), upsert vào bảng `order_summaries`.
+
+**Line mapping:**
+- FLS: `line='dtf'` (DTF1-FLS) only
+- PD: `line='dtf'` (DTF2-PD) + `line='dtg'` (DTG-PD)
+
+**Data written:**
+
+| Field | Source |
+|-------|--------|
+| `total` | `tong_viec` |
+| `completed` | `da_lam` |
+| `remaining` | `max(0, total - completed)` |
+| `rush_total` | Từ `GetHotshotOrderInventoryTask` |
+| `rush_completed` | Từ `GetHotshotOrderInventoryTask` |
+| `progress` | `(completed / total) × 100` |
+| `estimated_done` | MAX `end_time` từ `shift_details` |
+
+### Scheduled vs Manual Sync
+
+| Mode | Entry Point | Behavior |
+|------|------------|----------|
+| **Scheduled (cron)** | `SyncHourlyRecordsJob` | Chạy mỗi phút, `ShiftSchedulerGuard` quyết định. **Skip dept đã hết giờ** (end_time guard). |
+| **Manual resync (API)** | `ResyncHourlyRecordsController` | Bypass guard. Có thể sync 1 dept (`shift_detail_id`) hoặc tất cả (`forceAll`). |
+| **Manual resync (CLI)** | `ResyncHourlyRecordsCommand` | Tương tự API. |
+
+### Timezone Convention
+
+Tất cả datetime truyền vào FPlatform queries phải ở **US/Central (Chicago)**.
+FPlatform SQL sử dụng `CONVERT_TZ(?, 'US/Central', '+7:00')` để convert sang UTC+7 (timezone lưu trữ của Fplatform).
+
+- `shift_details.start_time` → US/Central
+- `$shiftStart`, `$shiftEnd` → format `Y-m-d H:i:s`, US/Central
+- `estimate_date` → date only (date ở US/Central)
+
+### Data Flow Summary
+
+```
+FPLATFORM DB (remote, read-only)         DASHBOARD DB (local)
+─────────────────────────────────        ─────────────────────────────
+                                         hourly_records
+  Stage 1: Inventory queries     ──→       ← hour_start_inventory
+  (per team × 11-13 parallel)             ← (day_start_inventory)
+                                  
+                                         shift_details
+                                           ← day_start_inventory
+                                           ← hotshot_total
+                                           ← hotshot_completed
+                                  
+  Stage 2: Hourly metrics        ──→     hourly_records
+  (3 calls × N depts parallel)            ← actual
+                                           ← staff
+                                           ← efficiency
+                                           ← status
+                                           ← productivity_json
+                                  
+  Order inventory (from cache)   ──→     order_summaries
+                                           ← total, completed, remaining
+                                           ← rush_total, rush_completed
+                                           ← progress, estimated_done
+```
+
 ## File Structure
 
 ```

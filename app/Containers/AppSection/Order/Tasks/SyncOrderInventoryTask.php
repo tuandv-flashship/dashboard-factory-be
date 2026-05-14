@@ -74,13 +74,13 @@ final class SyncOrderInventoryTask extends ParentTask
             $dtfLine = $dtfResult['lines']['dtf'] ?? null;
 
             if ($dtfLine) {
-                $rushTotal     = $hotshotResult ? $hotshotResult['tong_viec'] : 0;
+                $rushTotal     = $hotshotResult ? $hotshotResult['tong_don'] : 0;
                 $rushCompleted = $hotshotResult ? $hotshotResult['da_lam'] : 0;
 
                 $this->upsertLine(
                     $today, $shiftNumber,
                     'dtf', 'DTF',
-                    $dtfLine['tong_viec'], $dtfLine['da_lam'],
+                    $dtfLine['tong_don'], $dtfLine['da_lam'],
                     $rushTotal, $rushCompleted,
                     $estimatedDone,
                 );
@@ -92,11 +92,11 @@ final class SyncOrderInventoryTask extends ParentTask
         // (guaranteed by GetDailyInventoryAction::runOrderInventory)
         $dtgLine = $dtfResult['lines']['dtg'] ?? null;
 
-        if ($dtgLine && $dtgLine['tong_viec'] > 0) {
+        if ($dtgLine && $dtgLine['tong_don'] > 0) {
             $this->upsertLine(
                 $today, $shiftNumber,
                 'dtg', 'DTG',
-                $dtgLine['tong_viec'], $dtgLine['da_lam'],
+                $dtgLine['tong_don'], $dtgLine['da_lam'],
                 0, 0,
                 $estimatedDone,
             );

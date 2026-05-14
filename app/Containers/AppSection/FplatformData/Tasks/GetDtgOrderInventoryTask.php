@@ -11,7 +11,7 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
  * Source: FplatformData/sql/06_tong_don_theo_don.sql — DTG section (v2.0.0)
  *
  * Logic: target_items → order_status (JOIN orders) → item_status CTE via scan_label_history.
- *        Output: { estimate_date, tong_viec, da_lam }
+ *        Output: { estimate_date, tong_don, da_lam }
  */
 final class GetDtgOrderInventoryTask extends ParentTask
 {
@@ -43,6 +43,7 @@ final class GetDtgOrderInventoryTask extends ParentTask
             ),
             item_status AS (
                 SELECT
+                    ti.estimate_date,
                     ti.file_name_order_code,
                     CASE
                         WHEN ti.printer_default = 'REPRINT' THEN
@@ -61,9 +62,18 @@ final class GetDtgOrderInventoryTask extends ParentTask
             )
             SELECT
                 ? AS estimate_date,
-                COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ?, file_name_order_code, NULL)) AS tong_viec,
-                COUNT(DISTINCT IF(ngay_lam = ?, file_name_order_code, NULL)) AS da_lam
-            FROM item_status
+                (
+                    SELECT COALESCE(SUM(c), 0)
+                    FROM (
+                        SELECT COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ?, file_name_order_code, NULL)) AS c
+                        FROM item_status
+                        GROUP BY estimate_date
+                    ) sub
+                ) AS tong_don,
+                (
+                    SELECT COUNT(DISTINCT IF(ngay_lam = ?, file_name_order_code, NULL))
+                    FROM item_status
+                ) AS da_lam
         ";
 
         return $this->formatOrderResult($this->queryFplatform($sql, [$date, $date, $date, $date, $date, $date, $date, $date]));

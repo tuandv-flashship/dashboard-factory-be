@@ -157,7 +157,7 @@ final class SyncOrderInventoryTaskTest extends UnitTestCase
         config(['factory.current' => 'FLS']);
 
         $task = $this->buildSyncTask(
-            dtf: ['estimate_date' => $this->testDate, 'tong_viec' => 1200, 'da_lam' => 480],
+            dtf: ['estimate_date' => $this->testDate, 'tong_don' => 1200, 'da_lam' => 480],
             dtg: null,
             hotshot: null,
         );
@@ -182,8 +182,8 @@ final class SyncOrderInventoryTaskTest extends UnitTestCase
         config(['factory.current' => 'PD']);
 
         $task = $this->buildSyncTask(
-            dtf: ['estimate_date' => $this->testDate, 'tong_viec' => 1000, 'da_lam' => 300],
-            dtg: ['estimate_date' => $this->testDate, 'tong_viec' => 500, 'da_lam' => 200],
+            dtf: ['estimate_date' => $this->testDate, 'tong_don' => 1000, 'da_lam' => 300],
+            dtg: ['estimate_date' => $this->testDate, 'tong_don' => 500, 'da_lam' => 200],
             hotshot: null,
         );
 
@@ -214,9 +214,9 @@ final class SyncOrderInventoryTaskTest extends UnitTestCase
         config(['factory.current' => 'FLS']);
 
         $task = $this->buildSyncTask(
-            dtf: ['estimate_date' => $this->testDate, 'tong_viec' => 800, 'da_lam' => 300],
+            dtf: ['estimate_date' => $this->testDate, 'tong_don' => 800, 'da_lam' => 300],
             dtg: null,
-            hotshot: ['estimate_date' => $this->testDate, 'tong_viec' => 120, 'da_lam' => 45],
+            hotshot: ['estimate_date' => $this->testDate, 'tong_don' => 120, 'da_lam' => 45],
         );
 
         $task->run($this->testDate);
@@ -237,7 +237,7 @@ final class SyncOrderInventoryTaskTest extends UnitTestCase
 
         // First sync
         $task1 = $this->buildSyncTask(
-            dtf: ['estimate_date' => $this->testDate, 'tong_viec' => 500, 'da_lam' => 100],
+            dtf: ['estimate_date' => $this->testDate, 'tong_don' => 500, 'da_lam' => 100],
             dtg: null,
             hotshot: null,
         );
@@ -252,7 +252,7 @@ final class SyncOrderInventoryTaskTest extends UnitTestCase
 
         // Second sync with updated data
         $task2 = $this->buildSyncTask(
-            dtf: ['estimate_date' => $this->testDate, 'tong_viec' => 500, 'da_lam' => 250],
+            dtf: ['estimate_date' => $this->testDate, 'tong_don' => 500, 'da_lam' => 250],
             dtg: null,
             hotshot: null,
         );

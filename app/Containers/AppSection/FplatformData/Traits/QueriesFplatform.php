@@ -90,9 +90,10 @@ trait QueriesFplatform
     }
 
     /**
-     * Format an order inventory result (estimate_date, tong_viec, da_lam).
+     * Format an order inventory result (estimate_date, tong_don, da_lam).
      *
-     * Used by order count queries that track both total work and completed work.
+     * Used by order count queries that track both total orders and completed orders.
+     * Field name "tong_don" aligns with SQL reference: sql/06_tong_don_theo_don.sql.
      */
     protected function formatOrderResult(?object $result, string $dateField = 'estimate_date'): ?array
     {
@@ -102,7 +103,7 @@ trait QueriesFplatform
 
         return [
             'estimate_date' => $result->{$dateField},
-            'tong_viec'     => (int) $result->tong_viec,
+            'tong_don'      => (int) $result->tong_don,
             'da_lam'        => (int) $result->da_lam,
         ];
     }

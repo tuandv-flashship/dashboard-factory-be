@@ -13,7 +13,7 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
  *
  * Logic: target_items → order_status (JOIN orders) → item_status CTE via scan_label_history.
  *        HOTSHOT printer uses strict date >= estimate_date cutoff (ngay_lam).
- *        Output: { estimate_date, tong_viec (= số đơn chưa/còn cần làm), da_lam }
+ *        Output: { estimate_date, tong_don (= số đơn chưa/còn cần làm), da_lam }
  */
 final class GetHotshotOrderInventoryTask extends ParentTask
 {
@@ -69,7 +69,7 @@ final class GetHotshotOrderInventoryTask extends ParentTask
             )
             SELECT
                 ? AS estimate_date,
-                COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ?, file_name_order_code, NULL)) AS tong_viec,
+                COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ?, file_name_order_code, NULL)) AS tong_don,
                 COUNT(DISTINCT IF(ngay_lam = ?, file_name_order_code, NULL)) AS da_lam
             FROM item_status
         ";

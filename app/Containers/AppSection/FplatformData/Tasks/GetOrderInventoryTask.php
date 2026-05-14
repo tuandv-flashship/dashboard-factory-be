@@ -13,7 +13,7 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
  *
  * Logic: target_items → order_status (JOIN orders) → item_status CTE.
  *        HOTSHOT/REPRINT printers use strict date >= estimate_date cutoff (ngay_lam).
- *        Output: { estimate_date, tong_viec, da_lam }
+ *        Output: { estimate_date, tong_don, da_lam }
  */
 final class GetOrderInventoryTask extends ParentTask
 {
@@ -76,9 +76,18 @@ final class GetOrderInventoryTask extends ParentTask
             )
             SELECT
                 ? AS estimate_date,
-                COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ?, file_name_order_code, NULL)) AS tong_viec,
-                COUNT(DISTINCT IF(ngay_lam = ?, file_name_order_code, NULL)) AS da_lam
-            FROM item_status
+                (
+                    SELECT COALESCE(SUM(c), 0)
+                    FROM (
+                        SELECT COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ?, file_name_order_code, NULL)) AS c
+                        FROM item_status
+                        GROUP BY estimate_date
+                    ) sub
+                ) AS tong_don,
+                (
+                    SELECT COUNT(DISTINCT IF(ngay_lam = ?, file_name_order_code, NULL))
+                    FROM item_status
+                ) AS da_lam
         ";
 
         $bindings = array_merge(

@@ -75,7 +75,7 @@ final class GetDailyInventoryAction extends ParentAction
      * Response includes:
      *  - lines.dtf  → DTF line (both FLS & PD)
      *  - lines.dtg  → DTG line (PD only)
-     *  - tong_viec / da_lam → totals across all lines
+     *  - tong_don / da_lam → totals across all lines
      */
     private function runOrderInventory(string $date, FactoryLine $factoryLine): ?array
     {
@@ -89,9 +89,9 @@ final class GetDailyInventoryAction extends ParentAction
             return null;
         }
 
-        $zero = ['tong_viec' => 0, 'da_lam' => 0];
-        $dtfLine = $dtfResult ? ['tong_viec' => $dtfResult['tong_viec'], 'da_lam' => $dtfResult['da_lam']] : $zero;
-        $dtgLine = $dtgResult ? ['tong_viec' => $dtgResult['tong_viec'], 'da_lam' => $dtgResult['da_lam']] : $zero;
+        $zero = ['tong_don' => 0, 'da_lam' => 0];
+        $dtfLine = $dtfResult ? ['tong_don' => $dtfResult['tong_don'], 'da_lam' => $dtfResult['da_lam']] : $zero;
+        $dtgLine = $dtgResult ? ['tong_don' => $dtgResult['tong_don'], 'da_lam' => $dtgResult['da_lam']] : $zero;
 
         $lines = ['dtf' => $dtfLine];
         if ($factoryLine === FactoryLine::PD) {
@@ -101,7 +101,7 @@ final class GetDailyInventoryAction extends ParentAction
         return [
             'estimate_date' => $date,
             'lines'         => $lines,
-            'tong_viec'     => $dtfLine['tong_viec'] + $dtgLine['tong_viec'],
+            'tong_don'      => $dtfLine['tong_don'] + $dtgLine['tong_don'],
             'da_lam'        => $dtfLine['da_lam'] + $dtgLine['da_lam'],
         ];
     }
