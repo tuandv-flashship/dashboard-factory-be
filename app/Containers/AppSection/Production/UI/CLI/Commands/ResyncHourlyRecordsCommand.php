@@ -39,7 +39,10 @@ final class ResyncHourlyRecordsCommand extends ParentCommand
             . ($shiftDetailId ? " [shift_detail #{$shiftDetailId}]" : '');
         $this->info("Resyncing hourly records for {$label}...");
 
-        $result = app(SyncHourlyRecordsTask::class)->run($date, $shift, $shiftDetailId);
+        // Manual resync via CLI: force all departments when no specific dept is targeted
+        $forceAll = $shiftDetailId === null;
+
+        $result = app(SyncHourlyRecordsTask::class)->run($date, $shift, $shiftDetailId, $forceAll);
 
         if (!$result['shift']) {
             $this->error("✗ {$result['message']}");

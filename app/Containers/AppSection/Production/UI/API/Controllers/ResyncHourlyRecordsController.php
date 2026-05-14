@@ -23,7 +23,10 @@ final class ResyncHourlyRecordsController extends ApiController
         $shift         = $request->input('shift') ? (int) $request->input('shift') : null;
         $shiftDetailId = $request->input('shift_detail_id') ? (int) $request->input('shift_detail_id') : null;
 
-        $result = app(SyncHourlyRecordsTask::class)->run($date, $shift, $shiftDetailId);
+        // Manual resync via API: force all departments when no specific dept is targeted
+        $forceAll = $shiftDetailId === null;
+
+        $result = app(SyncHourlyRecordsTask::class)->run($date, $shift, $shiftDetailId, $forceAll);
 
         if ($result['shift']) {
             ProductionCacheKeys::flushForShift($result['shift']);

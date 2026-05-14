@@ -49,10 +49,13 @@ final class SyncHourlyRecordsTask extends ParentTask
      * @param int|null $shiftDetailId  When provided, only the matching ShiftDetail is synced.
      *                                   Useful for targeted resync after a single dept's
      *                                   work_hours / break schedule is updated.
+     * @param bool     $forceAll       When true AND $shiftDetailId is null, ALL departments
+     *                                   are synced regardless of end-time (manual resync).
+     *                                   Scheduled cron should leave this false.
      *
      * @return array{synced: int, shift: Shift|null, message: string}
      */
-    public function run(?string $date = null, ?int $shiftNumber = null, ?int $shiftDetailId = null): array
+    public function run(?string $date = null, ?int $shiftNumber = null, ?int $shiftDetailId = null, bool $forceAll = false): array
     {
         $shift = ($date || $shiftNumber)
             ? Shift::resolve($date, $shiftNumber)
@@ -77,7 +80,7 @@ final class SyncHourlyRecordsTask extends ParentTask
         }
 
         // Build dept job data for Stage 2 callback (serializable)
-        $deptJobData = $this->buildDeptJobData($shift, $shiftDetails, $shiftDetailId);
+        $deptJobData = $this->buildDeptJobData($shift, $shiftDetails, $shiftDetailId, $forceAll);
         $deptCount = count($deptJobData);
 
         if ($deptCount === 0) {
@@ -156,14 +159,15 @@ final class SyncHourlyRecordsTask extends ParentTask
      * Build serializable dept job data (shift_id + detail_id arrays).
      * Used in the then() callback to create SyncDepartmentHourlyJob instances.
      *
-     * During scheduled sync ($shiftDetailId is null), departments whose
-     * working hours have already ended are skipped to avoid unnecessary
-     * FPlatform API calls. Manual/targeted resync always processes.
+     * During scheduled sync ($shiftDetailId is null AND $forceAll is false),
+     * departments whose working hours have already ended are skipped to avoid
+     * unnecessary FPlatform API calls. Manual/targeted resync always processes.
      *
      * @param int|null $shiftDetailId  When set, only that ShiftDetail is included.
+     * @param bool     $forceAll       When true, skip the end-time guard.
      * @return array<int, array{shift_id: int, detail_id: int}>
      */
-    private function buildDeptJobData(Shift $shift, $shiftDetails, ?int $shiftDetailId = null): array
+    private function buildDeptJobData(Shift $shift, $shiftDetails, ?int $shiftDetailId = null, bool $forceAll = false): array
     {
         $data = [];
         $now  = now();
@@ -186,8 +190,8 @@ final class SyncHourlyRecordsTask extends ParentTask
             }
 
             // ── Scheduled sync: skip departments whose shift has ended ──
-            // Manual/targeted resync ($shiftDetailId !== null) always processes.
-            if ($shiftDetailId === null && $detail->end_time !== null) {
+            // Manual/targeted resync ($shiftDetailId !== null OR $forceAll) always processes.
+            if ($shiftDetailId === null && !$forceAll && $detail->end_time !== null) {
                 $deptEndAt = \Illuminate\Support\Carbon::createFromFormat(
                     'Y-m-d H:i',
                     "{$shiftDate} {$detail->end_time}",
