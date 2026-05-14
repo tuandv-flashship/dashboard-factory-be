@@ -60,6 +60,15 @@ final class ProductionCacheKeys
         return "all-lines-hourly:{$date}:{$shift}";
     }
 
+    /**
+     * order-summary:{date}:{shift}
+     * Used by: GetOrderSummaryController, SyncOrderInventoryTask (invalidation)
+     */
+    public static function orderSummary(string $date, int|string $shift): string
+    {
+        return "order-summary:{$date}:{$shift}";
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────
 
     /**
@@ -95,8 +104,9 @@ final class ProductionCacheKeys
         $date     = $shift->date->toDateString();
         $shiftNum = $shift->shift_number;
 
-        // Always flush allLinesHourly — cached for both today (2 min) and historical (1 hr)
+        // Always flush allLinesHourly and orderSummary — cached for both today and historical
         Cache::forget(self::allLinesHourly($date, $shiftNum));
+        Cache::forget(self::orderSummary($date, $shiftNum));
 
         if (!self::isHistorical($date)) {
             return;
@@ -125,7 +135,10 @@ final class ProductionCacheKeys
         $date     = $shift->date->toDateString();
         $shiftNum = $shift->shift_number;
 
-        $keys = [self::allLinesHourly($date, $shiftNum)];
+        $keys = [
+            self::allLinesHourly($date, $shiftNum),
+            self::orderSummary($date, $shiftNum),
+        ];
 
         if (!self::isHistorical($date)) {
             foreach (array_unique($keys) as $key) {

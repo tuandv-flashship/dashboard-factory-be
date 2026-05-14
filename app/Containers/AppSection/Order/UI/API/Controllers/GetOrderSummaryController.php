@@ -4,6 +4,7 @@ namespace App\Containers\AppSection\Order\UI\API\Controllers;
 
 use App\Containers\AppSection\Order\Actions\GetOrderSummaryAction;
 use App\Containers\AppSection\Order\UI\API\Transformers\OrderSummaryTransformer;
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Ship\Requests\ShiftFilterRequest;
 use Illuminate\Http\JsonResponse;
@@ -11,8 +12,7 @@ use Illuminate\Support\Facades\Cache;
 
 final class GetOrderSummaryController extends ApiController
 {
-    private const CACHE_TTL_HISTORICAL = 3600;  // 1 hour
-    private const CACHE_TTL_TODAY      = 300;    // 5 minutes
+    private const CACHE_TTL_TODAY = 300;    // 5 minutes
 
     public function __construct(
         private readonly GetOrderSummaryAction $action,
@@ -27,9 +27,9 @@ final class GetOrderSummaryController extends ApiController
 
         $data = $this->action->run($date, $shift);
 
-        // Cache key uses resolved date+shift (not input params)
-        $cacheKey = "order-summary:{$data['date']}:{$data['shift_number']}";
-        $ttl = $isToday ? self::CACHE_TTL_TODAY : self::CACHE_TTL_HISTORICAL;
+        // Cache key from centralized ProductionCacheKeys (single source of truth)
+        $cacheKey = ProductionCacheKeys::orderSummary($data['date'], $data['shift_number']);
+        $ttl = $isToday ? self::CACHE_TTL_TODAY : ProductionCacheKeys::TTL_HISTORICAL;
 
         $response = Cache::remember($cacheKey, $ttl, function () use ($data) {
             $transformer = new OrderSummaryTransformer();

@@ -133,6 +133,11 @@ final class SyncHourlyRecordsTask extends ParentTask
                 // Order sync (uses cached allInventory — fast)
                 try {
                     $this->syncOrderInventoryTask->run($shiftDate);
+
+                    // Invalidate order-summary API cache so next request gets fresh data
+                    \Illuminate\Support\Facades\Cache::forget(
+                        \App\Containers\AppSection\Production\Support\ProductionCacheKeys::orderSummary($shiftDate, $shiftNum)
+                    );
                 } catch (\Throwable $e) {
                     Log::warning('[SyncHourlyRecords] Order inventory sync failed', [
                         'date'  => $shiftDate,
