@@ -194,25 +194,31 @@ final class SyncHourlyRecordsTask extends ParentTask
                 continue;
             }
 
-            // ── Scheduled sync: skip departments whose shift has ended ──
+            // ── Scheduled sync: skip departments whose last slot has ended ──
             // Manual/targeted resync ($shiftDetailId !== null OR $forceAll) always processes.
-            if ($shiftDetailId === null && !$forceAll && $detail->end_time !== null) {
-                $deptEndAt = \Illuminate\Support\Carbon::createFromFormat(
-                    'Y-m-d H:i',
-                    "{$shiftDate} {$detail->end_time}",
-                );
-
-                // Handle overnight departments (end_time wraps past midnight)
+            // Compute from start_time + work_hours + meal_break, ceiled to the
+            // next hour boundary = end of the last hourly slot (e.g. 14:30 → 15:00).
+            // NOTE: $detail->end_time is reserved for Shift::computeEndAt() only.
+            if ($shiftDetailId === null && !$forceAll && $detail->start_time !== null && $detail->work_hours !== null) {
                 $deptStartAt = \Illuminate\Support\Carbon::createFromFormat(
                     'Y-m-d H:i:s',
                     "{$shiftDate} {$detail->start_time}",
                 );
+                $totalMinutes = (int) ($detail->work_hours * 60) + ($detail->meal_break_minutes ?? 0);
+                $deptEndAt = $deptStartAt->copy()->addMinutes($totalMinutes);
+
+                // Ceil to end of last hour slot (14:30 → 15:00, 14:00 stays 14:00)
+                if ($deptEndAt->minute > 0) {
+                    $deptEndAt->startOfHour()->addHour();
+                }
+
+                // Handle overnight departments (end wraps past midnight)
                 if ($deptEndAt->lt($deptStartAt)) {
                     $deptEndAt->addDay();
                 }
 
                 if ($now->gte($deptEndAt)) {
-                    Log::debug("[SyncHourlyRecords] Skipping {$dept->code} — ended at {$deptEndAt->format('H:i')}.");
+                    Log::debug("[SyncHourlyRecords] Skipping {$dept->code} — last slot ended at {$deptEndAt->format('H:i')}.");
                     continue;
                 }
             }
