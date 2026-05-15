@@ -122,6 +122,9 @@ final class HourlyRecordTransformer extends ParentTransformer
             'productivity_type' => $record->department?->productivity_type?->value,
             'active_machines'   => $activeMachines,
             'is_machine_overridden' => $isPerMachineDtg && isset($hourlyMachines) && $hourlyMachines->isNotEmpty(),
+
+            // ── Last manual change ──
+            'last_change' => $this->formatLastChange($record),
         ];
     }
 
@@ -161,5 +164,22 @@ final class HourlyRecordTransformer extends ParentTransformer
         }
 
         return $dbStatus;
+    }
+
+    private function formatLastChange(HourlyRecord $record): ?array
+    {
+        $change = $record->relationLoaded('latestChange')
+            ? $record->latestChange
+            : null;
+
+        if (!$change) {
+            return null;
+        }
+
+        return [
+            'user_name'  => $change->user_name,
+            'changes'    => $change->changes,
+            'created_at' => $change->created_at->toIso8601String(),
+        ];
     }
 }

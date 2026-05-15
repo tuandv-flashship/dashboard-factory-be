@@ -67,6 +67,18 @@ final class HourlyRecord extends ParentModel
         return $this->hasMany(HourlyRecordMachine::class, 'hourly_record_id');
     }
 
+    public function changes(): HasMany
+    {
+        return $this->hasMany(HourlyRecordChange::class, 'hourly_record_id');
+    }
+
+    /** Most recent manual change — used for transformer inline display. */
+    public function latestChange(): HasOne
+    {
+        return $this->hasOne(HourlyRecordChange::class, 'hourly_record_id')
+                    ->latestOfMany('created_at');
+    }
+
     // ── Productivity item IDs ───────────────────────────
 
     /**

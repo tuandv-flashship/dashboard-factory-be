@@ -14,6 +14,7 @@ final class FindShiftWithDetailsAction extends ParentAction
             'details.department.productionLine',
             'details.machines.machine',
             'hourlyRecords' => fn ($q) => $q->orderBy('department_id')->orderBy('hour_index'),
+            'hourlyRecords.latestChange',
         ])->findOrFail($id);
     }
 }

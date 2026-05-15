@@ -6,9 +6,11 @@ namespace App\Containers\AppSection\Shift\Tasks;
 use App\Containers\AppSection\Machine\Models\Machine;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Models\HourlyRecordMachine;
+use App\Containers\AppSection\Production\Support\HourlyRecordChangeRecorder;
 use App\Containers\AppSection\Production\Support\TargetEstimator;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Batch update hourly records with manual overrides.
@@ -50,11 +52,19 @@ final class UpdateHourlyStaffTask extends ParentTask
         // Track records that need DTG machine pivot sync (post-loop)
         $machineSyncs = [];
 
+        // ── Audit: cache auth info once (avoid repeated facade calls in loop) ──
+        $auditUserId   = Auth::id() ?? 0;
+        $auditUserName = Auth::user()?->name ?? 'System';
+        $auditIp       = request()?->ip();
+
         foreach ($hourlyRecords as $id => $hourlyRecord) {
             $input = $inputMap->get($id);
             if (!$input) {
                 continue;
             }
+
+            // ── Audit: snapshot BEFORE update ──
+            $oldSnap = HourlyRecordChangeRecorder::snapshot($hourlyRecord);
 
             $updates = [];
 
@@ -104,6 +114,15 @@ final class UpdateHourlyStaffTask extends ParentTask
 
             if (!empty($updates)) {
                 $hourlyRecord->update($updates);
+
+                // ── Audit: record scalar changes ──
+                HourlyRecordChangeRecorder::recordIfChanged(
+                    $hourlyRecord,
+                    $oldSnap,
+                    $auditUserId,
+                    $auditUserName,
+                    $auditIp,
+                );
             }
         }
 
@@ -114,11 +133,26 @@ final class UpdateHourlyStaffTask extends ParentTask
                 continue;
             }
 
+            // ── Audit: snapshot BEFORE pivot sync ──
+            $oldMachineNames = HourlyRecordChangeRecorder::snapshotMachineNames($record);
+            $oldPivotSnap = [
+                'machine_count' => $record->machine_count,
+                'target'        => $record->target,
+            ];
+
             // Delete old pivot rows
             HourlyRecordMachine::where('hourly_record_id', $recordId)->delete();
 
             if (empty($machineIds)) {
                 $record->update(['machine_count' => 0]);
+
+                // ── Audit: record machine changes (cleared all) ──
+                HourlyRecordChangeRecorder::recordMachineChanges(
+                    $record, $oldMachineNames, [], $oldPivotSnap,
+                    $auditUserId,
+                    $auditUserName,
+                    $auditIp,
+                );
                 continue;
             }
 
@@ -162,6 +196,15 @@ final class UpdateHourlyStaffTask extends ParentTask
             }
 
             $record->update($autoUpdates);
+
+            // ── Audit: record machine changes ──
+            $newMachineNames = $machines->pluck('name')->sort()->values()->toArray();
+            HourlyRecordChangeRecorder::recordMachineChanges(
+                $record, $oldMachineNames, $newMachineNames, $oldPivotSnap,
+                $auditUserId,
+                $auditUserName,
+                $auditIp,
+            );
         }
 
         // ── Cascade: recalculate hour_start_inventory for affected departments ──
