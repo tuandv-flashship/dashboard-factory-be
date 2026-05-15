@@ -57,7 +57,7 @@ final class UpdateShiftAction extends ParentAction
                 $changedDetailIds = $this->detectChangedDetails($shift, $beforeSnapshot, $data['details']);
             }
 
-            return $shift->load(['details.department.productionLine', 'details.machines.machine', 'template', 'hourlyRecords']);
+            return $shift->load(['details.department.productionLine', 'details.machines.machine', 'details.latestChange', 'template', 'hourlyRecords']);
         });
 
         // ── Dispatch FPlatform resync AFTER transaction commits ──

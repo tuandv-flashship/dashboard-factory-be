@@ -6,10 +6,13 @@ use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Containers\AppSection\Production\Tasks\SyncHourlyRecordsTask as ProductionSyncTask;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
+use App\Containers\AppSection\Shift\Support\ShiftDetailChangeRecorder;
+use App\Containers\AppSection\Shift\Tasks\OverrideHourlyFromShiftDetailTask;
 use App\Containers\AppSection\Shift\Tasks\SyncHourlyRecordsTask;
 use App\Containers\AppSection\Shift\Tasks\SyncShiftDetailMachinesTask;
 use App\Containers\AppSection\Shift\Traits\RecalculatesShiftTimes;
 use App\Ship\Parents\Actions\Action as ParentAction;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -20,6 +23,7 @@ final class UpdateShiftDepartmentAction extends ParentAction
         private readonly SyncShiftDetailMachinesTask $syncMachinesTask,
         private readonly SyncHourlyRecordsTask $syncHourlyRecordsTask,
         private readonly ProductionSyncTask $productionSyncTask,
+        private readonly OverrideHourlyFromShiftDetailTask $overrideHourlyTask,
     ) {
     }
 
@@ -27,7 +31,12 @@ final class UpdateShiftDepartmentAction extends ParentAction
     {
         $changedDetailId = null;
 
-        $shift = DB::transaction(function () use ($shiftId, $departmentId, $data, &$changedDetailId) {
+        // ── Audit: cache auth info once (before transaction) ──
+        $auditUserId   = Auth::id() ?? 0;
+        $auditUserName = Auth::user()?->name ?? 'System';
+        $auditIp       = request()?->ip();
+
+        $shift = DB::transaction(function () use ($shiftId, $departmentId, $data, &$changedDetailId, $auditUserId, $auditUserName, $auditIp) {
             $shift = Shift::findOrFail($shiftId);
 
             // The payload must contain shift_number to properly identify the ShiftDetail
@@ -56,9 +65,18 @@ final class UpdateShiftDepartmentAction extends ParentAction
             }
 
             if ($shiftDetail) {
+                // ── Audit: snapshot BEFORE update ──
+                $oldSnap = ShiftDetailChangeRecorder::snapshot($shiftDetail);
+
                 // Partial update: only update provided fields
                 if (!empty($updateData)) {
                     $shiftDetail->update($updateData);
+
+                    // ── Audit: record scalar changes ──
+                    ShiftDetailChangeRecorder::recordIfChanged(
+                        $shiftDetail, $oldSnap,
+                        $auditUserId, $auditUserName, $auditIp,
+                    );
                 }
             } else {
                 // Department not yet in this shift → create with sensible defaults
@@ -89,6 +107,11 @@ final class UpdateShiftDepartmentAction extends ParentAction
             // Smart sync hourly records specifically for this department
             $this->syncHourlyRecordsTask->run($shift, $departmentId);
 
+            // ── Override hourly records if requested ──
+            if (!empty($data['override_hourly']) && $shiftDetail) {
+                $this->overrideHourlyTask->run($shift, $departmentId, $shiftDetail, $data);
+            }
+
             // ── Recalculate Shift.end_time = max of all dept end times ──
             // Keeps header consistent with CreateShiftAction logic.
             if (isset($data['work_hours']) || isset($data['start_time']) || isset($data['meal_break_minutes'])) {
@@ -101,7 +124,7 @@ final class UpdateShiftDepartmentAction extends ParentAction
                 $changedDetailId = $shiftDetail->id;
             }
 
-            return $shift->load(['details.department.productionLine', 'details.machines.machine', 'template', 'hourlyRecords']);
+            return $shift->load(['details.department.productionLine', 'details.machines.machine', 'details.latestChange', 'template', 'hourlyRecords']);
         });
 
         // ── Dispatch FPlatform resync AFTER transaction commits ──

@@ -28,6 +28,8 @@ final class UpdateShiftDepartmentRequest extends ParentRequest
             // Per-machine departments: FE sends selected machines
             'machine_ids'       => 'sometimes|array',
             'machine_ids.*'     => 'integer|exists:machines,id',
+            // Override flag: cascade shift_detail values to all hourly records
+            'override_hourly'   => 'sometimes|boolean',
         ];
     }
 

@@ -7,6 +7,7 @@ use App\Ship\Parents\Models\Model as ParentModel;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 final class ShiftDetail extends ParentModel
@@ -67,6 +68,18 @@ final class ShiftDetail extends ParentModel
     public function machines(): HasMany
     {
         return $this->hasMany(ShiftDetailMachine::class, 'shift_detail_id');
+    }
+
+    public function changes(): HasMany
+    {
+        return $this->hasMany(ShiftDetailChange::class, 'shift_detail_id');
+    }
+
+    /** Most recent manual change — used for transformer inline display. */
+    public function latestChange(): HasOne
+    {
+        return $this->hasOne(ShiftDetailChange::class, 'shift_detail_id')
+                    ->latestOfMany('created_at');
     }
 
     // ── Accessors ────────────────────────────────────────

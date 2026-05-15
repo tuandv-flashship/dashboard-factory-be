@@ -62,6 +62,9 @@ final class ShiftDetailTransformer extends ParentTransformer
             $data['machines'] = [];
         }
 
+        // ── Last manual change ──
+        $data['last_change'] = $this->formatLastChange($detail);
+
         return $data;
     }
 
@@ -163,5 +166,22 @@ final class ShiftDetailTransformer extends ParentTransformer
         }
 
         return (int) $parts[0] * 60 + (int) $parts[1];
+    }
+
+    private function formatLastChange(ShiftDetail $detail): ?array
+    {
+        $change = $detail->relationLoaded('latestChange')
+            ? $detail->latestChange
+            : null;
+
+        if (!$change) {
+            return null;
+        }
+
+        return [
+            'user_name'  => $change->user_name,
+            'changes'    => $change->changes,
+            'created_at' => $change->created_at->toIso8601String(),
+        ];
     }
 }
