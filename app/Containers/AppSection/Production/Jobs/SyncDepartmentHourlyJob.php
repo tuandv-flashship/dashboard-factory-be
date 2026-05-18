@@ -136,6 +136,13 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         );
         $deptEnd = $deptStart->copy()->addMinutes((int) ($detail->work_hours * 60) + ($detail->meal_break_minutes ?? 0));
 
+        // Ceil to end of last hour slot so the FPlatform query range
+        // covers the full final slot (e.g. 14:30 → 15:00 captures all
+        // data in the 14h-15h slot, not just 14:00-14:30).
+        if ($deptEnd->minute > 0) {
+            $deptEnd->startOfHour()->addHour();
+        }
+
         $records = HourlyRecord::where('shift_id', $shift->id)
             ->where('department_id', $dept->id)
             ->orderBy('hour_index')
