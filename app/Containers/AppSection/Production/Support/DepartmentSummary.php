@@ -83,6 +83,20 @@ final class DepartmentSummary
             ? round($efficiencyValues->avg(), 2)
             : 0;
 
+        // Efficiency at current moment: Σactual / Σtarget for slots from start up to now (completed + active)
+        $currentActual = 0;
+        $currentTarget = 0;
+        foreach ($records as $i => $r) {
+            $status = $isPastShift ? 'completed' : $r->status;
+            if ($status === 'completed' || $status === 'active') {
+                $currentActual += $r->actual ?? 0;
+                $currentTarget += $effectiveTargets[$i] ?? 0;
+            }
+        }
+        $efficiencyCurrent = $currentTarget > 0
+            ? round(($currentActual / $currentTarget) * 100, 2)
+            : 0;
+
         return [
             'total_target'        => $totalTarget,
             'total_completed'     => $totalCompleted,
@@ -94,6 +108,9 @@ final class DepartmentSummary
             'hotshot_total'       => $shiftDetail?->hotshot_total ?? 0,
             'hotshot_completed'   => $shiftDetail?->hotshot_completed ?? 0,
             'efficiency'          => $efficiency,
+            'efficiency_current'  => $efficiencyCurrent,
+            'actual_current'      => $currentActual,
+            'target_current'      => $currentTarget,
             'error_rate'          => 0,
         ];
     }
