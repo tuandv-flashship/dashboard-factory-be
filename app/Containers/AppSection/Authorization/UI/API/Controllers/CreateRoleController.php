@@ -20,6 +20,7 @@ final class CreateRoleController extends ApiController
             $payload['description'] ?? null,
             $payload['display_name'] ?? null,
             $payload['permission_ids'] ?? null,
+            $payload['permission_scopes'] ?? null,
         );
 
         return Response::create($role, RoleAdminTransformer::class)->created();

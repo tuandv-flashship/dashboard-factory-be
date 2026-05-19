@@ -16,19 +16,32 @@ final class CreateRoleAction extends ParentAction
 
     /**
      * @param int[]|null $permissionIds
+     * @param array<int, array{permission_id: int, department_ids: int[]}>|null $permissionScopes
      */
     public function run(
         string $name,
         string|null $description = null,
         string|null $displayName = null,
-        ?array $permissionIds = null
+        ?array $permissionIds = null,
+        ?array $permissionScopes = null
     ): Role
     {
         $role = $this->createRoleTask->run($name, $description, $displayName);
 
         if ($permissionIds !== null) {
-            $role->syncPermissions($permissionIds);
-            $role = $role->refresh();
+            $scopeMap = collect($permissionScopes ?? [])->keyBy('permission_id');
+
+            $syncData = [];
+            foreach ($permissionIds as $permId) {
+                $syncData[$permId] = [
+                    'department_ids' => $scopeMap->has($permId)
+                        ? json_encode($scopeMap[$permId]['department_ids'])
+                        : null,
+                ];
+            }
+
+            $role->permissions()->sync($syncData);
+            $role->load('permissions');
         }
 
         AuditLogRecorder::recordModel('created', $role);

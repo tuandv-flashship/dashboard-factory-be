@@ -36,7 +36,7 @@ final class RoleAdminTransformer extends RoleTransformer
 
             $scopes[] = [
                 'permission_id'  => $perm->getHashedKey(),
-                'department_ids' => array_map(static fn ($id) => hashids()->encode($id), $ids),
+                'department_ids' => array_map(fn ($id) => $this->hashId($id), $ids),
             ];
         }
 

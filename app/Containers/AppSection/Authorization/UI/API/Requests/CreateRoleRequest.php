@@ -8,6 +8,8 @@ final class CreateRoleRequest extends ParentRequest
 {
     protected array $decode = [
         'permission_ids.*',
+        'permission_scopes.*.permission_id',
+        'permission_scopes.*.department_ids.*',
     ];
     
     
@@ -19,6 +21,10 @@ final class CreateRoleRequest extends ParentRequest
             'display_name' => 'max:100',
             'permission_ids' => 'sometimes|array',
             'permission_ids.*' => 'required|exists:permissions,id',
+            'permission_scopes'                    => 'sometimes|array',
+            'permission_scopes.*.permission_id'    => 'required|exists:permissions,id',
+            'permission_scopes.*.department_ids'    => 'required|array|min:1',
+            'permission_scopes.*.department_ids.*'  => 'required|exists:departments,id',
         ];
     }
 
