@@ -1,13 +1,3 @@
--- ============================================================
--- @file    : 11_hieu_suat_gio_pack_ship.sql
--- @version : v1.0.0
--- @updated : 2026-04-21
--- @desc    : Lấy hiệu suất theo từng giờ của team pack & ship áo (DTF1-FLS, PD)
--- ------------------------------------------------------------
--- Changelog:
---   v1.0.0 (2026-04-21) - Initial version (split from rpt_factory_ops_metrics_v8_1.sql)
--- ============================================================
-
 -- =========================================
 -- Description: Lấy hiệu suất theo từng giờ của team pack & ship áo
 -- =========================================
@@ -16,31 +6,63 @@
 -- :end_shift (datetime) - thời gian kết thúc ca làm
 
 -- PD   
-SELECT 
-    DATE_FORMAT(CONVERT_TZ(slh.created_at, '+7:00', 'US/Central'), '%Y-%m-%d %H') AS date_hour,
-    COUNT(DISTINCT slh.barcode, slh.index_num) AS sum_shirt
-FROM fplatform.scan_label_history slh
-LEFT JOIN fplatform.order_check_file_dropbox ocfd 
-    ON ocfd.file_name_order_code = slh.barcode COLLATE utf8mb4_0900_ai_ci 
-    AND ocfd.status <> 2
-    AND ocfd.folder_date BETWEEN DATE(':start_shift') - INTERVAL 20 DAY AND DATE(':start_shift')
-LEFT JOIN fplatform.folder_manage fm 
-    ON fm.folder = ocfd.folder COLLATE utf8mb4_unicode_ci 
-    AND fm.status_folder <> 2 
-    AND fm.estimate_date BETWEEN DATE(':start_shift') - INTERVAL 20 DAY AND DATE(':start_shift')
-WHERE 
-    slh.created_at >= CONVERT_TZ(':start_shift', 'US/Central', '+7:00')
-    AND slh.created_at <  CONVERT_TZ(':end_shift', 'US/Central', '+7:00')
-    AND (
-        COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) IS NULL
-        OR COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) NOT IN (
-            SELECT REPLACE(NAME, 'Machine ', 'May') COLLATE utf8mb4_unicode_ci 
-            FROM fplatform.printer_manage 
-            WHERE factory = 'FLS'
-            UNION ALL SELECT 'MayHOTSHOT' COLLATE utf8mb4_unicode_ci
-            UNION ALL SELECT 'MayREPRINT' COLLATE utf8mb4_unicode_ci
-        )
+WITH 
+target_printers AS (
+    SELECT REPLACE(name, 'Machine ', 'May') AS printer_id 
+    FROM fplatform.printer_manage 
+    WHERE factory = 'PD'
+    UNION ALL SELECT 'MayHOTSHOTPD'
+    UNION ALL SELECT 'MayREPRINTPD'
+),
+slh_filtered AS (
+    SELECT 
+        barcode COLLATE utf8mb4_0900_ai_ci AS barcode, 
+        index_num,
+        DATE_FORMAT(CONVERT_TZ(created_at, '+07:00', 'US/Central'), '%Y-%m-%d %H') AS date_hour
+    FROM fplatform.scan_label_history
+    WHERE created_at >= CONVERT_TZ(':start_shift', 'US/Central', '+07:00')
+      AND created_at <  CONVERT_TZ(':end_shift', 'US/Central', '+07:00')
+),
+dtf AS (
+    SELECT 
+        slh.date_hour,
+        COUNT(DISTINCT slh.barcode, slh.index_num) AS sum_shirt
+    FROM slh_filtered slh
+    JOIN fplatform.order_check_file_dropbox ocfd 
+        ON ocfd.file_name_order_code = slh.barcode 
+        AND ocfd.status <> 2
+        AND ocfd.folder_date >= DATE(':start_shift') - INTERVAL 20 DAY 
+        AND ocfd.folder_date <= DATE(':start_shift')
+    JOIN fplatform.folder_manage fm 
+        ON fm.folder = ocfd.folder COLLATE utf8mb4_unicode_ci 
+        AND fm.status_folder <> 2 
+        AND fm.estimate_date >= DATE(':start_shift') - INTERVAL 20 DAY 
+        AND fm.estimate_date <= DATE(':start_shift')
+    WHERE COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) IN (
+        SELECT printer_id FROM target_printers
     )
+    GROUP BY slh.date_hour
+), 
+dtg AS (
+    SELECT 
+        slh.date_hour,
+        COUNT(DISTINCT slh.barcode, slh.index_num) AS sum_shirt
+    FROM slh_filtered slh
+    JOIN fplatform.dtg_item_detail dtg_det
+        ON dtg_det.order_code = slh.barcode 
+        AND dtg_det.active = 1
+        AND dtg_det.folder_date >= DATE(':start_shift') - INTERVAL 20 DAY 
+        AND dtg_det.folder_date <= DATE(':start_shift')
+    GROUP BY slh.date_hour
+)
+SELECT 
+    date_hour, 
+    SUM(sum_shirt) AS sum_shirt
+FROM (
+    SELECT * FROM dtf
+    UNION ALL
+    SELECT * FROM dtg
+) f
 GROUP BY date_hour
 ORDER BY date_hour;
 

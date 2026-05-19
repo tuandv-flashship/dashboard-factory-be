@@ -9,11 +9,12 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 /**
  * Get hotshot order inventory (tổng đơn & đã làm — hotshot).
  *
- * Source: FplatformData/sql/16_so_don_hotshot.sql (v2.0.0)
+ * Source: FplatformData/sql/16_so_don_hotshot.sql (v3.0.0)
  *
- * Logic: target_items → order_status (JOIN orders) → item_status CTE via scan_label_history.
- *        HOTSHOT printer uses strict date >= estimate_date cutoff (ngay_lam).
- *        Output: { estimate_date, tong_don (= số đơn chưa/còn cần làm), da_lam }
+ * Logic: target_items (with folder_status) → order_status (JOIN orders, get o.id) →
+ *        item_status (JOIN report.report_orders for first_get/last_get).
+ *        DON GUI LAI has special handling in tong_don/da_lam counts.
+ *        Output: { estimate_date, tong_don, da_lam }
  */
 final class GetHotshotOrderInventoryTask extends ParentTask
 {
@@ -27,13 +28,15 @@ final class GetHotshotOrderInventoryTask extends ParentTask
         };
 
         $sql = "
-            WITH
-            target_items AS (
+            WITH target_items AS (
                 SELECT
                     f.estimate_date,
                     f.folder,
                     d.file_name_order_code,
-                    d.file_name_index_number
+                    d.file_name_index_number,
+                    CASE WHEN f.printer_default = '{$hotshotPrinter}' AND f.folder LIKE '%DON UU TIEN_DON GUI LAI%' THEN 'DON UU TIEN GUI LAI'
+                         WHEN f.printer_default = '{$hotshotPrinter}' AND f.folder LIKE '%DON GUI LAI%' THEN 'DON GUI LAI'
+                         ELSE 'IN' END AS folder_status
                 FROM folder_manage f
                 JOIN order_check_file_dropbox d
                     ON d.folder = f.folder COLLATE utf8mb4_unicode_ci
@@ -44,33 +47,31 @@ final class GetHotshotOrderInventoryTask extends ParentTask
                 GROUP BY f.estimate_date, f.folder, d.file_name_order_code, d.file_name_index_number
             ),
             order_status AS (
-                SELECT t.*
+                SELECT t.*, o.id
                 FROM target_items t
-                JOIN orders o ON o.order_code = t.file_name_order_code COLLATE utf8mb4_unicode_ci
+                JOIN orders o ON o.order_code = t.file_name_order_code
                     AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
                                        AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
                     AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
             ),
             item_status AS (
-                SELECT
-                    ti.file_name_order_code,
-                    MIN(
-                        CASE
-                            WHEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) >= ti.estimate_date
-                            THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central'))
-                        END
-                    ) AS ngay_lam
-                FROM order_status ti
-                LEFT JOIN scan_label_history s
-                    ON s.barcode = ti.file_name_order_code COLLATE utf8mb4_0900_ai_ci
-                    AND s.index_num = ti.file_name_index_number
-                    AND s.created_at >= ? - INTERVAL 15 DAY
-                GROUP BY ti.estimate_date, ti.folder, ti.file_name_order_code, ti.file_name_index_number
+                SELECT fg.folder, fg.estimate_date, fg.file_name_order_code, fg.file_name_index_number, fg.folder_status,
+                    DATE(CONVERT_TZ(r.first_get_label_at, '+7:00', 'US/Central')) AS first_get,
+                    DATE(CONVERT_TZ(r.last_get_label_at, '+7:00', 'US/Central')) AS last_get
+                FROM order_status fg
+                LEFT JOIN report.report_orders r ON r.id = fg.id
             )
             SELECT
                 ? AS estimate_date,
-                COUNT(DISTINCT IF(ngay_lam IS NULL OR ngay_lam >= ?, file_name_order_code, NULL)) AS tong_don,
-                COUNT(DISTINCT IF(ngay_lam = ?, file_name_order_code, NULL)) AS da_lam
+                COUNT(DISTINCT CASE
+                    WHEN folder_status <> 'DON GUI LAI'
+                         AND (last_get IS NULL OR last_get >= ?)
+                    THEN file_name_order_code
+                END) AS tong_don,
+                COUNT(DISTINCT CASE
+                    WHEN last_get = ? OR (estimate_date = ? AND folder_status = 'DON GUI LAI')
+                    THEN file_name_order_code
+                END) AS da_lam
             FROM item_status
         ";
 

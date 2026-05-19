@@ -15,12 +15,12 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
  * - StaffCount: COUNT(DISTINCT user_id)
  * - StaffProductivity: grouped by username
  *
- * Note: FLS uses INNER JOIN (inclusive), PD uses LEFT JOIN + exclusion (NOT IN FLS printers).
+ * Note:
+ * - FLS uses INNER JOIN (inclusive filter).
+ * - PD Productivity uses new CTE structure (DTF + DTG union) per SQL v3.
+ * - PD StaffCount/StaffProductivity still uses LEFT JOIN + exclusion (NOT IN FLS printers).
  *
- * Source: docs/rpt_factory_ops_metrics_v4.sql
- * - Productivity: lines 1020-1082
- * - StaffCount: lines 1235-1308
- * - StaffProductivity: lines 1735-1811
+ * Source: FplatformData/sql/11_hieu_suat_gio_pack_ship.sql (v3.0.0)
  */
 final class GetHourlyPackShipMetricsTask extends ParentTask
 {
@@ -32,9 +32,16 @@ final class GetHourlyPackShipMetricsTask extends ParentTask
         FactoryLine $factory,
         HourlyMetricType $metric,
     ): array {
-        return $factory === FactoryLine::FLS
-            ? $this->runFls($startShift, $endShift, $factory, $metric)
-            : $this->runPd($startShift, $endShift, $metric);
+        if ($factory === FactoryLine::FLS) {
+            return $this->runFls($startShift, $endShift, $factory, $metric);
+        }
+
+        // PD: Productivity uses new CTE structure, others use old exclusion logic
+        if ($metric === HourlyMetricType::Productivity) {
+            return $this->runPdProductivity($startShift, $endShift, $factory);
+        }
+
+        return $this->runPdLegacy($startShift, $endShift, $metric);
     }
 
     /**
@@ -100,9 +107,95 @@ final class GetHourlyPackShipMetricsTask extends ParentTask
     }
 
     /**
-     * PD: LEFT JOIN + exclude FLS printers (everything that's NOT FLS).
+     * PD Productivity: new CTE structure (DTF + DTG union) per SQL v3.
      */
-    private function runPd(
+    private function runPdProductivity(
+        string $startShift,
+        string $endShift,
+        FactoryLine $factory,
+    ): array {
+        $extraUnions = $this->buildExtraPrinterUnions($factory);
+
+        $sql = "
+            WITH
+            target_printers AS (
+                SELECT REPLACE(name, 'Machine ', 'May') AS printer_id
+                FROM printer_manage
+                WHERE factory = ?
+                {$extraUnions}
+            ),
+            slh_filtered AS (
+                SELECT
+                    barcode COLLATE utf8mb4_0900_ai_ci AS barcode,
+                    index_num,
+                    DATE_FORMAT(CONVERT_TZ(created_at, '+07:00', 'US/Central'), '%Y-%m-%d %H') AS date_hour
+                FROM scan_label_history
+                WHERE created_at >= CONVERT_TZ(?, 'US/Central', '+07:00')
+                  AND created_at <  CONVERT_TZ(?, 'US/Central', '+07:00')
+            ),
+            dtf AS (
+                SELECT
+                    slh.date_hour,
+                    COUNT(DISTINCT slh.barcode, slh.index_num) AS sum_shirt
+                FROM slh_filtered slh
+                JOIN order_check_file_dropbox ocfd
+                    ON ocfd.file_name_order_code = slh.barcode
+                    AND ocfd.status <> 2
+                    AND ocfd.folder_date >= DATE(?) - INTERVAL 20 DAY
+                    AND ocfd.folder_date <= DATE(?)
+                JOIN folder_manage fm
+                    ON fm.folder = ocfd.folder COLLATE utf8mb4_unicode_ci
+                    AND fm.status_folder <> 2
+                    AND fm.estimate_date >= DATE(?) - INTERVAL 20 DAY
+                    AND fm.estimate_date <= DATE(?)
+                WHERE COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) IN (
+                    SELECT printer_id FROM target_printers
+                )
+                GROUP BY slh.date_hour
+            ),
+            dtg AS (
+                SELECT
+                    slh.date_hour,
+                    COUNT(DISTINCT slh.barcode, slh.index_num) AS sum_shirt
+                FROM slh_filtered slh
+                JOIN dtg_item_detail dtg_det
+                    ON dtg_det.order_code = slh.barcode
+                    AND dtg_det.active = 1
+                    AND dtg_det.folder_date >= DATE(?) - INTERVAL 20 DAY
+                    AND dtg_det.folder_date <= DATE(?)
+                GROUP BY slh.date_hour
+            )
+            SELECT
+                date_hour,
+                SUM(sum_shirt) AS value
+            FROM (
+                SELECT * FROM dtf
+                UNION ALL
+                SELECT * FROM dtg
+            ) f
+            GROUP BY date_hour
+            ORDER BY date_hour
+        ";
+
+        $bindings = array_merge(
+            $this->printerBindings($factory),
+            [
+                $startShift, $endShift,
+                $startShift, $startShift, $startShift, $startShift,
+                $startShift, $startShift,
+            ],
+        );
+
+        return $this->formatHourlyResults(
+            $this->queryFplatformAll($sql, $bindings),
+            ['value']
+        );
+    }
+
+    /**
+     * PD legacy: LEFT JOIN + exclude FLS printers (for StaffCount/StaffProductivity).
+     */
+    private function runPdLegacy(
         string $startShift,
         string $endShift,
         HourlyMetricType $metric,

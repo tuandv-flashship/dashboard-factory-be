@@ -7,14 +7,15 @@ use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
 use App\Ship\Parents\Tasks\Task as ParentTask;
 
 /**
- * Get daily inventory (tổng việc) for team Pack & Ship (DTF).
+ * Get daily inventory (tổng việc + đã làm) for team Pack & Ship (DTF).
  *
- * Source: FplatformData/sql/05_tong_viec_team_pack_ship.sql (v2.0.0)
+ * Source: FplatformData/sql/05_tong_viec_team_pack_ship.sql (v3.0.0)
  *
- * Logic: target_folders (JOIN order_check_file_dropbox) → order_status (JOIN orders) →
- *        total_per_date / done_filtered / done_per_date CTE.
- *        HOTSHOT/REPRINT printers use strict date >= estimate_date cutoff.
+ * Logic: target_folders (JOIN order_check_file_dropbox) → order_status (JOIN orders, get o.id) →
+ *        item_scan_status (JOIN scan_label_history via mark_time + order_id).
+ *        Uses status_folder derived column (DON UU TIEN GUI LAI, DON GUI LAI, IN LAI, IN).
  *        PD factory includes DTG items (dtg_folder_detail + dtg_item_detail).
+ *        Returns both tong_viec and da_lam.
  */
 final class GetPackShipInventoryTask extends ParentTask
 {
@@ -32,18 +33,20 @@ final class GetPackShipInventoryTask extends ParentTask
      */
     private function runDtfOnly(string $date, FactoryLine $factory): ?array
     {
-        $extraUnions     = $this->buildExtraPrinterUnions($factory);
-        $hotshotPrinters = $this->hotshotPrinterList($factory);
+        $extraUnions = $this->buildExtraPrinterUnions($factory);
 
         $sql = "
-            WITH
-            target_folders AS (
+            WITH target_folders_dtf AS (
                 SELECT
-                    fm.folder,
+                    fm.folder COLLATE utf8mb4_unicode_ci AS folder,
+                    fm.created_at AS mark_time,
                     fm.estimate_date,
-                    fm.printer_default,
-                    d.file_name_order_code,
-                    d.file_name_index_number
+                    d.file_name_order_code COLLATE utf8mb4_unicode_ci AS file_name_order_code,
+                    d.file_name_index_number,
+                    CASE WHEN fm.printer_default = 'MayHOTSHOT' AND fm.folder LIKE '%DON UU TIEN_DON GUI LAI%' THEN 'DON UU TIEN GUI LAI'
+                         WHEN fm.printer_default = 'MayHOTSHOT' AND fm.folder LIKE '%DON GUI LAI%' THEN 'DON GUI LAI'
+                         WHEN fm.printer_default = 'MayREPRINT' THEN 'IN LAI'
+                         ELSE 'IN' END AS status_folder
                 FROM folder_manage fm
                 JOIN order_check_file_dropbox d
                     ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
@@ -56,49 +59,36 @@ final class GetPackShipInventoryTask extends ParentTask
                         WHERE factory = ?
                         {$extraUnions}
                     )
-                GROUP BY fm.estimate_date, fm.folder, fm.printer_default, d.file_name_order_code, d.file_name_index_number
+                GROUP BY fm.folder, fm.created_at, fm.estimate_date, d.file_name_order_code, d.file_name_index_number
             ),
             order_status AS (
-                SELECT tf.*
-                FROM target_folders tf
-                JOIN orders o ON o.order_code = tf.file_name_order_code COLLATE utf8mb4_unicode_ci
+                SELECT tf.*, o.id
+                FROM target_folders_dtf tf
+                JOIN orders o ON o.order_code = tf.file_name_order_code
                     AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
                                        AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
                     AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
             ),
-            total_per_date AS (
-                SELECT estimate_date, COUNT(*) AS total_product
-                FROM order_status
-                GROUP BY estimate_date
-            ),
-            done_filtered AS (
-                SELECT fg.estimate_date
+            item_scan_status AS (
+                SELECT fg.folder, fg.estimate_date, fg.file_name_order_code, fg.file_name_index_number, fg.status_folder,
+                    MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) AS firsr_scan
                 FROM order_status fg
-                LEFT JOIN scan_label_history s
-                    ON s.barcode = fg.file_name_order_code COLLATE utf8mb4_0900_ai_ci
-                    AND s.index_num = fg.file_name_index_number
-                    AND s.created_at >= ? - INTERVAL 15 DAY
-                GROUP BY fg.estimate_date, fg.folder, fg.printer_default, fg.file_name_order_code, fg.file_name_index_number
-                HAVING
-                    CASE
-                        WHEN fg.printer_default IN ({$hotshotPrinters}) THEN
-                            MIN(CASE
-                                WHEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) >= fg.estimate_date
-                                THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central'))
-                            END)
-                        ELSE DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')))
-                    END < ?
-            ),
-            done_per_date AS (
-                SELECT estimate_date, COUNT(*) AS da_lam
-                FROM done_filtered
-                GROUP BY estimate_date
+                LEFT JOIN scan_label_history s ON s.created_at >= fg.mark_time
+                    AND s.order_id = fg.id AND s.index_num = fg.file_name_index_number
+                GROUP BY 1, 2, 3, 4, 5
             )
             SELECT
                 ? AS estimate_date,
-                SUM(t.total_product - COALESCE(d.da_lam, 0)) AS tong_viec
-            FROM total_per_date t
-            LEFT JOIN done_per_date d ON t.estimate_date = d.estimate_date
+                COUNT(DISTINCT CASE
+                    WHEN DATE(firsr_scan) IS NULL OR DATE(firsr_scan) >= ?
+                    THEN CONCAT(file_name_order_code, file_name_index_number)
+                END) AS tong_viec,
+                COUNT(DISTINCT CASE
+                    WHEN DATE(firsr_scan) = ?
+                    THEN CONCAT(file_name_order_code, file_name_index_number)
+                END) AS da_lam
+            FROM item_scan_status
+            WHERE status_folder <> 'DON GUI LAI'
         ";
 
         $bindings = array_merge(
@@ -107,7 +97,7 @@ final class GetPackShipInventoryTask extends ParentTask
             [$date, $date, $date, $date, $date],
         );
 
-        return $this->formatResult($this->queryFplatform($sql, $bindings));
+        return $this->formatHotshotResult($this->queryFplatform($sql, $bindings));
     }
 
     /**
@@ -115,18 +105,20 @@ final class GetPackShipInventoryTask extends ParentTask
      */
     private function runPdWithDtg(string $date, FactoryLine $factory): ?array
     {
-        $extraUnions     = $this->buildExtraPrinterUnions($factory);
-        $hotshotPrinters = $this->hotshotPrinterList($factory);
+        $extraUnions = $this->buildExtraPrinterUnions($factory);
 
         $sql = "
-            WITH
-            target_folders_dtf AS (
+            WITH target_folders_dtf AS (
                 SELECT
                     fm.folder COLLATE utf8mb4_unicode_ci AS folder,
+                    fm.created_at AS mark_time,
                     fm.estimate_date,
-                    fm.printer_default,
                     d.file_name_order_code COLLATE utf8mb4_unicode_ci AS file_name_order_code,
-                    d.file_name_index_number
+                    d.file_name_index_number,
+                    CASE WHEN fm.printer_default = 'MayHOTSHOTPD' AND fm.folder LIKE '%DON UU TIEN_DON GUI LAI%' THEN 'DON UU TIEN GUI LAI'
+                         WHEN fm.printer_default = 'MayHOTSHOTPD' AND fm.folder LIKE '%DON GUI LAI%' THEN 'DON GUI LAI'
+                         WHEN fm.printer_default = 'MayREPRINTPD' THEN 'IN LAI'
+                         ELSE 'IN' END AS status_folder
                 FROM folder_manage fm
                 JOIN order_check_file_dropbox d
                     ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
@@ -139,15 +131,16 @@ final class GetPackShipInventoryTask extends ParentTask
                         WHERE factory = ?
                         {$extraUnions}
                     )
-                GROUP BY fm.estimate_date, fm.folder, fm.printer_default, d.file_name_order_code, d.file_name_index_number
+                GROUP BY fm.folder, fm.created_at, fm.estimate_date, d.file_name_order_code, d.file_name_index_number
             ),
             target_folders_dtg AS (
                 SELECT
                     fm.folder_key AS folder,
+                    fm.scan_at AS mark_time,
                     fm.estimate_folder_date AS estimate_date,
-                    IF(fm.folder_key LIKE 'REPRINT%', 'REPRINT', NULL) AS printer_default,
                     d.order_code AS file_name_order_code,
-                    d.index_num AS file_name_index_number
+                    d.index_num AS file_name_index_number,
+                    IF(fm.folder_key LIKE 'REPRINT%', 'IN LAI', 'IN') AS status_folder
                 FROM dtg_folder_detail fm
                 JOIN dtg_item_detail d
                     ON d.folder_key = fm.folder_key
@@ -161,34 +154,33 @@ final class GetPackShipInventoryTask extends ParentTask
                 SELECT * FROM target_folders_dtg
             ),
             order_status AS (
-                SELECT tf.*
+                SELECT tf.*, o.id
                 FROM printdash tf
-                JOIN orders o ON o.order_code = tf.file_name_order_code COLLATE utf8mb4_unicode_ci
+                JOIN orders o ON o.order_code = tf.file_name_order_code
                     AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
                                        AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
                     AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
             ),
             item_scan_status AS (
-                SELECT
-                    CASE
-                        WHEN fg.printer_default IN ({$hotshotPrinters}) THEN
-                            MIN(CASE
-                                WHEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) >= fg.estimate_date
-                                THEN DATE(CONVERT_TZ(s.created_at, '+7:00', 'US/Central'))
-                            END)
-                        ELSE DATE(MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')))
-                    END AS ngay_lam
+                SELECT fg.folder, fg.estimate_date, fg.file_name_order_code, fg.file_name_index_number, fg.status_folder,
+                    MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) AS firsr_scan
                 FROM order_status fg
-                LEFT JOIN scan_label_history s
-                    ON s.barcode = fg.file_name_order_code COLLATE utf8mb4_0900_ai_ci
-                    AND s.index_num = fg.file_name_index_number
-                    AND s.created_at >= ? - INTERVAL 15 DAY
-                GROUP BY fg.estimate_date, fg.folder, fg.printer_default, fg.file_name_order_code, fg.file_name_index_number
+                LEFT JOIN scan_label_history s ON s.created_at >= fg.mark_time
+                    AND s.order_id = fg.id AND s.index_num = fg.file_name_index_number
+                GROUP BY 1, 2, 3, 4, 5
             )
             SELECT
                 ? AS estimate_date,
-                SUM(IF(ngay_lam IS NULL OR ngay_lam >= ?, 1, 0)) AS tong_viec
+                COUNT(DISTINCT CASE
+                    WHEN DATE(firsr_scan) IS NULL OR DATE(firsr_scan) >= ?
+                    THEN CONCAT(file_name_order_code, file_name_index_number)
+                END) AS tong_viec,
+                COUNT(DISTINCT CASE
+                    WHEN DATE(firsr_scan) = ?
+                    THEN CONCAT(file_name_order_code, file_name_index_number)
+                END) AS da_lam
             FROM item_scan_status
+            WHERE status_folder <> 'DON GUI LAI'
         ";
 
         $bindings = array_merge(
@@ -197,6 +189,6 @@ final class GetPackShipInventoryTask extends ParentTask
             [$date, $date, $date, $date, $date, $date, $date],
         );
 
-        return $this->formatResult($this->queryFplatform($sql, $bindings));
+        return $this->formatHotshotResult($this->queryFplatform($sql, $bindings));
     }
 }

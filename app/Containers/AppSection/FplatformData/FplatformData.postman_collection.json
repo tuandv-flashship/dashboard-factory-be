@@ -1,7 +1,7 @@
 {
     "info": {
-        "name": "FplatformData (v2.0.0)",
-        "description": "## FplatformData Container (v2.0.0)\n\nLấy dữ liệu **tổng việc ngày**, **hiệu suất theo giờ**, **số nhân viên**, **hiệu suất máy in** và **đơn hotshot** từ database `fplatform` (external, read-only).\n\n**Base:** `/v1/fplatform` (public), `/v1/admin/fplatform` (private)\n\n### v2.0.0 Changes\n\n- **File-level granularity:** Tất cả team giờ JOIN `order_check_file_dropbox` để đếm file-level (thay vì `folder_manage.total_file` aggregate).\n- **Order status filter:** CTE `order_status` JOIN `orders` table, loại bỏ đơn HOLD/REQUEST_CANCEL/REJECTED/REJECT_REQUESTED/CANCELED.\n- **COLLATE:** `COLLATE utf8mb4_unicode_ci` trên `orders.order_code` JOINs (utf8mb3 ↔ utf8mb4).\n- **Data pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → team-specific table.\n\n### DB Permission Required\n\n```sql\nGRANT SELECT ON fplatform.orders TO 'dashboard_data'@'%';\n```\n\n### Authentication\n\n- **Public endpoints**: Không cần Bearer Token — dành cho TV dashboard\n- **Private endpoints**: Yêu cầu `Authorization: Bearer {{access_token}}` + permission `shifts.index` hoặc role `admin`\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `print` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cut` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Tồn đơn | `order_inventory` | FLS/PD | Tồn theo đơn hàng |\n| Pick (DTG) | `pick_dtg` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n| Hotshot In | `hotshot_print` | FLS/PD | Hotshot team in |\n| Hotshot Pick | `hotshot_pick` | FLS/PD | Hotshot team pick |\n| Hotshot Cắt | `hotshot_cut` | FLS/PD | Hotshot team cắt |\n| Hotshot Mockup | `hotshot_mockup` | FLS/PD | Hotshot team mockup |\n| Hotshot Pack & Ship | `hotshot_pack_ship` | FLS/PD | Hotshot pack & ship |\n\n### Hourly Metric Types\n\n| Metric | Code | Mô tả |\n|---|---|---|\n| Hiệu suất SX | `productivity` | Sản lượng theo giờ |\n| Số nhân viên | `staff_count` | Đếm NV hoạt động theo giờ |\n| HS nhân viên | `staff_productivity` | Sản lượng từng NV theo giờ |\n| HS máy in | `machine_productivity` | Sản lượng từng máy theo giờ |\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ\n- Hourly metrics: cache 5 phút",
+        "name": "FplatformData (v3.0.0)",
+        "description": "## FplatformData Container (v3.0.0)\n\nLấy dữ liệu **tổng việc ngày**, **hiệu suất theo giờ**, **số nhân viên**, **hiệu suất máy in**, **đơn hotshot** và **log file cut** từ database `fplatform` và `report` (external, read-only).\n\n**Base:** `/v1/fplatform` (public), `/v1/admin/fplatform` (private)\n\n### v3.0.0 Changes\n\n- **Cross-database report.report_orders:** Tồn đơn, Hotshot Order, Hotshot Pack Ship dùng `report.report_orders` thay cho `scan_label_history`.\n- **Pack Ship mark_time JOIN:** `scan_label_history` JOIN bằng `mark_time` + `order_id`. Trả cả `tong_viec` + `da_lam`.\n- **folder_status column:** Phân loại DON GUI LAI / DON UU TIEN GUI LAI / IN.\n- **PD Hourly Pack Ship:** CTE mới (DTF+DTG union).\n- **New endpoint:** `GET /v1/fplatform/log-file-cut` — Log file cut theo user.\n\n### DB Permission Required\n\n```sql\nGRANT SELECT ON fplatform.orders TO 'dashboard_data'@'%';\nGRANT SELECT ON report.report_orders TO 'dashboard_data'@'%';\n```\n\n### Authentication\n\n- **Public endpoints**: Không cần Bearer Token — dành cho TV dashboard\n- **Private endpoints**: Yêu cầu `Authorization: Bearer {{access_token}}` + permission `shifts.index` hoặc role `admin`\n\n### Factory Context\n\nFactory được xác định tự động bởi server (`FACTORY` env variable). FLS deployment sẽ trả dữ liệu DTF FLS, PD deployment trả DTF PD + DTG.\n\n### Teams\n\n| Team | Code | Factory | Mô tả |\n|---|---|---|---|\n| In (DTF) | `print` | FLS/PD | In ấn DTF |\n| Cắt (DTF) | `cut` | FLS/PD | Cắt DTF |\n| Pick (DTF) | `pick` | FLS/PD | Pick hàng DTF |\n| Mockup (DTF) | `mockup` | FLS/PD | Ráp mẫu DTF |\n| Pack & Ship | `pack_ship` | FLS/PD | Đóng gói & giao |\n| Tồn đơn | `order_inventory` | FLS/PD | Tồn theo đơn hàng |\n| Pick (DTG) | `pick_dtg` | PD only | Pick hàng DTG |\n| In (DTG) | `dtg_print` | PD only | In DTG (tổng) |\n| In (DTG) Split | `dtg_print_split` | PD only | In DTG theo máy |\n| Hotshot In | `hotshot_print` | FLS/PD | Hotshot team in |\n| Hotshot Pick | `hotshot_pick` | FLS/PD | Hotshot team pick |\n| Hotshot Cắt | `hotshot_cut` | FLS/PD | Hotshot team cắt |\n| Hotshot Mockup | `hotshot_mockup` | FLS/PD | Hotshot team mockup |\n| Hotshot Pack & Ship | `hotshot_pack_ship` | FLS/PD | Hotshot pack & ship |\n\n### Hourly Metric Types\n\n| Metric | Code | Mô tả |\n|---|---|---|\n| Hiệu suất SX | `productivity` | Sản lượng theo giờ |\n| Số nhân viên | `staff_count` | Đếm NV hoạt động theo giờ |\n| HS nhân viên | `staff_productivity` | Sản lượng từng NV theo giờ |\n| HS máy in | `machine_productivity` | Sản lượng từng máy theo giờ |\n\n### Caching\n\n- Today: cache 5 phút\n- Historical: cache 1 giờ\n- Hourly metrics: cache 5 phút",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -230,7 +230,7 @@
                                 }
                             ]
                         },
-                        "description": "✅ **Public** — Tổng việc ngày cho team **Pack & Ship (DTF)**.\n\n**v2.0.0 Pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `scan_label_history`.\n\n⚠️ **PD factory:** Kết quả UNION với dữ liệu DTG từ `dtg_item_detail` (JOIN `orders` bằng `o.id = d.order_id`)."
+                        "description": "✅ **Public** — Tổng việc ngày cho team **Pack & Ship (DTF)**.\n\n**v3.0.0 Pipeline:** `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `scan_label_history` (mark_time + order_id).\n\n⚠️ **PD factory:** Kết quả UNION với dữ liệu DTG từ `dtg_item_detail` (JOIN `orders` bằng `o.id = d.order_id`).\n\n**v3.0.0:** Trả cả `tong_viec` + `da_lam` (giống hotshot teams)."
                     },
                     "response": [
                         {
@@ -243,7 +243,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 1800,\n    \"team\": \"pack_ship\",\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 1800,\n    \"da_lam\": 1450,\n    \"team\": \"pack_ship\",\n    \"factory\": \"FLS\"\n  }\n}"
                         }
                     ]
                 },
@@ -1690,7 +1690,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_viec\": 15,\n    \"factory\": \"FLS\"\n  }\n}"
+                            "body": "{\n  \"data\": {\n    \"estimate_date\": \"2026-04-14\",\n    \"tong_don\": 15,\n    \"da_lam\": 12,\n    \"factory\": \"FLS\"\n  }\n}"
                         },
                         {
                             "name": "404 — Không có dữ liệu",
@@ -1703,6 +1703,76 @@
                                 }
                             ],
                             "body": "{\n  \"message\": \"Không có dữ liệu hotshot cho ngày này.\"\n}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Log File Cut (Log cắt file) 🆕",
+            "description": "## 🆕 Log File Cut theo User (v3.0.0)\n\nLog thời gian file CẮT theo user từ FPlatform.\n\n**SQL:** `27_log_file_cut_theo_user.sql`\n**Data source:** `user_group_scan` + `folder_manage` + `user`\n**Filter:** `work_status=0`, `work_type=2` (CẮT), factory printers\n\n**Auth:** 🔒 Private — cần Bearer Token\n**Permission:** `shifts.index` hoặc role `admin`\n**Caching:** 5 phút",
+            "item": [
+                {
+                    "name": "Get Log File Cut",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{API_URL}}/v1/fplatform/log-file-cut?start_log=2026-04-14 06:00:00&end_log=2026-04-14 14:00:00",
+                            "host": ["{{API_URL}}"],
+                            "path": [
+                                "v1",
+                                "fplatform",
+                                "log-file-cut"
+                            ],
+                            "query": [
+                                {
+                                    "key": "start_log",
+                                    "value": "2026-04-14 06:00:00",
+                                    "description": "Required. Start datetime (YYYY-MM-DD HH:mm:ss)"
+                                },
+                                {
+                                    "key": "end_log",
+                                    "value": "2026-04-14 14:00:00",
+                                    "description": "Required. End datetime (YYYY-MM-DD HH:mm:ss), phải sau start_log"
+                                }
+                            ]
+                        },
+                        "description": "🔒 **Private** — Log file CẮT theo user.\n\n**v3.0.0 Pipeline:** `user_group_scan` + `folder_manage` (filter factory printers, status_folder ≠ 2) + `user`\n\nFilter: `work_status=0`, `work_type=2` (CẮT)\n\n| Param | Type | Required | Values |\n|---|---|---|---|\n| start_log | datetime | ✅ | `YYYY-MM-DD HH:mm:ss` |\n| end_log | datetime | ✅ | `YYYY-MM-DD HH:mm:ss`, phải > start_log |\n\n**Response:** `{ data: [{ username, created_at, total_file }] }`\n\n**Caching:** 5 phút\n\n**422** nếu thiếu params hoặc end_log ≤ start_log."
+                    },
+                    "response": [
+                        {
+                            "name": "200 OK — Log File Cut",
+                            "status": "OK",
+                            "code": 200,
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n  \"data\": [\n    {\n      \"username\": \"user1\",\n      \"created_at\": \"2026-04-14 08:30:00\",\n      \"total_file\": 25\n    },\n    {\n      \"username\": \"user2\",\n      \"created_at\": \"2026-04-14 09:15:00\",\n      \"total_file\": 18\n    },\n    {\n      \"username\": \"user1\",\n      \"created_at\": \"2026-04-14 10:45:00\",\n      \"total_file\": 32\n    }\n  ]\n}"
+                        },
+                        {
+                            "name": "422 — Validation Error",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n  \"message\": \"The given data was invalid.\",\n  \"errors\": {\n    \"start_log\": [\"Vui lòng nhập thời gian bắt đầu.\"],\n    \"end_log\": [\"Thời gian kết thúc phải sau thời gian bắt đầu.\"]\n  }\n}"
                         }
                     ]
                 }
