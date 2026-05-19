@@ -60,7 +60,7 @@ final class GetDeptDetailTask extends ParentTask
             ->orderBy('hour_index')
             ->get();
 
-        $detailEagerLoad = ['department.productionLine'];
+        $detailEagerLoad = ['department.productionLine', 'latestChange'];
         if ($isPerMachine) {
             $detailEagerLoad[] = 'machines.machine';
         }
