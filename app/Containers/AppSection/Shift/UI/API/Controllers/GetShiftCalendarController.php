@@ -11,16 +11,25 @@ final class GetShiftCalendarController extends ApiController
 {
     public function __invoke(GetShiftCalendarRequest $request): JsonResponse
     {
-        $year = (int) $request->input('year', date('Y'));
+        $year  = (int) $request->input('year', date('Y'));
         $month = (int) $request->input('month', date('n'));
+        $day   = $request->input('day') ? (int) $request->input('day') : null;
 
-        $calendar = app(GetShiftCalendarAction::class)->run($year, $month);
+        $calendar = app(GetShiftCalendarAction::class)->run($year, $month, $day);
 
         // Transform shifts grouped by date
         $days = [];
         foreach ($calendar['days'] as $date => $shifts) {
             $days[$date] = $shifts->map(function ($shift) {
                 $template = $shift->template;
+
+                // Resolve last_change from the latest ShiftDetailChange across all details
+                $latestChange = $shift->details
+                    ->pluck('latestChange')
+                    ->filter()
+                    ->sortByDesc('created_at')
+                    ->first();
+
                 return [
                     'id'             => $shift->getHashedKey(),
                     'shift_number'   => $shift->shift_number,
@@ -28,6 +37,10 @@ final class GetShiftCalendarController extends ApiController
                     'end_time'       => $shift->end_time ? substr($shift->end_time, 0, 5) : null,
                     'template_name'  => $template?->name,
                     'template_color' => $template?->color,
+                    'last_change'    => $latestChange ? [
+                        'user_name'  => $latestChange->user_name,
+                        'changed_at' => $latestChange->created_at->toIso8601String(),
+                    ] : null,
                 ];
             })->values();
         }

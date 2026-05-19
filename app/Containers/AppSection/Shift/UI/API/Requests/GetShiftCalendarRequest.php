@@ -13,6 +13,7 @@ final class GetShiftCalendarRequest extends ParentRequest
         return [
             'year'  => 'sometimes|integer|min:2020|max:2099',
             'month' => 'sometimes|integer|min:1|max:12',
+            'day'   => 'sometimes|integer|min:1|max:31',
         ];
     }
 

@@ -8,9 +8,9 @@ use Illuminate\Support\Collection;
 
 final class GetShiftCalendarAction extends ParentAction
 {
-    public function run(int $year, int $month): array
+    public function run(int $year, int $month, ?int $day = null): array
     {
-        $shifts = app(ListShiftsForMonthTask::class)->run($year, $month);
+        $shifts = app(ListShiftsForMonthTask::class)->run($year, $month, $day);
 
         // Group shifts by date
         $days = $shifts->groupBy(fn ($s) => $s->date->format('Y-m-d'));
