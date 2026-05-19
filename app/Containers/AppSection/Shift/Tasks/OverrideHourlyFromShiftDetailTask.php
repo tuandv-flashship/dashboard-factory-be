@@ -13,10 +13,14 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Cascade shift_detail values to ALL hourly_records of a department.
+ * Cascade shift_detail values to hourly_records that have been manually changed.
  *
  * Triggered only when the FE sends `override_hourly: true`
  * in the "Xác nhận nhân sự làm việc" form.
+ *
+ * Only records with existing hourly_record_changes are overridden.
+ * Records without manual changes are left untouched (they already
+ * match shift_detail defaults via SyncHourlyRecordsTask).
  *
  * Mapping:
  *   headcount     → staff_required  (all types)
@@ -24,6 +28,7 @@ use Illuminate\Support\Facades\Auth;
  *   machine_ids   → pivot sync      (per_machine_dtg) + auto machine_count, target
  *
  * Each modified hourly_record gets its own audit log via HourlyRecordChangeRecorder.
+ * cascadeInventory() still runs for ALL records to maintain correct chain calculation.
  */
 final class OverrideHourlyFromShiftDetailTask extends ParentTask
 {
@@ -38,6 +43,7 @@ final class OverrideHourlyFromShiftDetailTask extends ParentTask
         $records = HourlyRecord::with('department')
             ->where('shift_id', $shift->id)
             ->where('department_id', $departmentId)
+            ->withCount('changes')
             ->orderBy('hour_index')
             ->get();
 
@@ -55,7 +61,12 @@ final class OverrideHourlyFromShiftDetailTask extends ParentTask
         $isPerMachineDtf  = $productivityType?->isPerMachineDtf() ?? false;
 
         // ── 1. Scalar override: staff_required [+ machine_count for DTF] ──
+        // Only override records that have been manually changed.
         foreach ($records as $record) {
+            if ($record->changes_count === 0) {
+                continue;
+            }
+
             $oldSnap = HourlyRecordChangeRecorder::snapshot($record);
 
             $updates = ['staff_required' => $shiftDetail->headcount];
@@ -82,6 +93,10 @@ final class OverrideHourlyFromShiftDetailTask extends ParentTask
             $totalKpi = $machines->sum('kpi_per_hour');
 
             foreach ($records as $record) {
+                if ($record->changes_count === 0) {
+                    continue;
+                }
+
                 $oldMachineNames = HourlyRecordChangeRecorder::snapshotMachineNames($record);
                 $oldPivotSnap = [
                     'machine_count' => $record->machine_count,
