@@ -15,8 +15,13 @@ final class DepartmentScope
      *
      * @return int[]|null  null = global, [] = denied, [1,2,3] = scoped
      */
-    public static function resolve(Authenticatable $user, string $permissionFlag): ?array
+    public static function resolve(?Authenticatable $user, string $permissionFlag): ?array
     {
+        // Unauthenticated (public route) → global access
+        if ($user === null) {
+            return null;
+        }
+
         $key = $user->getAuthIdentifier() . ':' . $permissionFlag;
 
         if (array_key_exists($key, self::$cache)) {
@@ -69,7 +74,7 @@ final class DepartmentScope
      */
     public static function applyToQuery(
         Builder $query,
-        Authenticatable $user,
+        ?Authenticatable $user,
         string $permissionFlag,
         string $column = 'department_id',
     ): Builder {
@@ -84,7 +89,7 @@ final class DepartmentScope
      * Dùng trong create/update/delete actions.
      */
     public static function check(
-        Authenticatable $user,
+        ?Authenticatable $user,
         string $permissionFlag,
         int $departmentId,
     ): bool {
