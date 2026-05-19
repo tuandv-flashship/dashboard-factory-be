@@ -6,9 +6,7 @@ use App\Containers\AppSection\Machine\Models\Machine;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Models\ShiftDetailMachine;
-use App\Containers\AppSection\Shift\Support\ShiftDetailChangeRecorder;
 use App\Ship\Parents\Tasks\Task as ParentTask;
-use Illuminate\Support\Facades\Auth;
 
 /**
  * Sync shift_detail_machines pivot for per_machine departments.
@@ -47,10 +45,6 @@ final class SyncShiftDetailMachinesTask extends ParentTask
             ->get()
             ->keyBy(fn ($sd) => "{$sd->department_id}|{$sd->shift_number}");
 
-        // ── Audit: cache auth info once ──
-        $auditUserId   = Auth::id() ?? 0;
-        $auditUserName = Auth::user()?->name ?? 'System';
-        $auditIp       = request()?->ip();
 
         foreach ($machineEntries as $entry) {
             $key = "{$entry['department_id']}|{$entry['shift_number']}";
@@ -61,9 +55,7 @@ final class SyncShiftDetailMachinesTask extends ParentTask
 
             $machineIds = $entry['machine_ids'];
 
-            // ── Audit: snapshot BEFORE pivot sync ──
-            $oldMachineNames = ShiftDetailChangeRecorder::snapshotMachineNames($shiftDetail);
-            $oldPivotSnap = ['machine_count' => $shiftDetail->machine_count];
+
 
             // Delete old pivot records for this shift_detail
             ShiftDetailMachine::where('shift_detail_id', $shiftDetail->id)->delete();
@@ -71,12 +63,6 @@ final class SyncShiftDetailMachinesTask extends ParentTask
             if (empty($machineIds)) {
                 // No machines → kpi = 0, machine_count = 0
                 $shiftDetail->update(['kpi_per_hour' => 0, 'machine_count' => 0]);
-
-                // ── Audit: record machine changes (cleared all) ──
-                ShiftDetailChangeRecorder::recordMachineChanges(
-                    $shiftDetail, $oldMachineNames, [], $oldPivotSnap,
-                    $auditUserId, $auditUserName, $auditIp,
-                );
                 continue;
             }
 
@@ -109,17 +95,7 @@ final class SyncShiftDetailMachinesTask extends ParentTask
                 'machine_count' => count($pivotRows),
             ]);
 
-            // ── Audit: record machine changes ──
-            $newMachineNames = collect($pivotRows)
-                ->map(fn ($r) => $allMachines->get($r['machine_id'])?->name)
-                ->filter()
-                ->sort()
-                ->values()
-                ->toArray();
-            ShiftDetailChangeRecorder::recordMachineChanges(
-                $shiftDetail, $oldMachineNames, $newMachineNames, $oldPivotSnap,
-                $auditUserId, $auditUserName, $auditIp,
-            );
+
         }
     }
 }
