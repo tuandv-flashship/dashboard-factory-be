@@ -20,7 +20,7 @@ final class GetShiftDepartmentController extends ApiController
 {
     public function __invoke(int $id, int $department_id): JsonResponse
     {
-        $detail = ShiftDetail::with(['department.productionLine', 'department.machines', 'machines.machine'])
+        $detail = ShiftDetail::with(['department.productionLine', 'department.machines', 'machines.machine', 'latestChange'])
             ->where('shift_id', $id)
             ->where('department_id', $department_id)
             ->firstOrFail();

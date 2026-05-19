@@ -40,7 +40,7 @@ final class GetLineSummaryTask extends ParentTask
             ->groupBy('department_id');
 
         // Batch load shift_details for all departments (1 query + machines)
-        $shiftDetails = ShiftDetail::with(['machines.machine'])
+        $shiftDetails = ShiftDetail::with(['machines.machine', 'latestChange'])
             ->where('shift_id', $shift->id)
             ->whereIn('department_id', $deptIds)
             ->get()

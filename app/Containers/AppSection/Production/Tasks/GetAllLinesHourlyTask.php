@@ -54,7 +54,7 @@ final class GetAllLinesHourlyTask extends ParentTask
 
         // 1 query (+1 for machines): ALL shift details for this shift, keyed by department
         $allDetails = ShiftDetail::where('shift_id', $shift->id)
-            ->with(['department.productionLine', 'machines.machine'])
+            ->with(['department.productionLine', 'machines.machine', 'latestChange'])
             ->get()
             ->keyBy('department_id');
 
