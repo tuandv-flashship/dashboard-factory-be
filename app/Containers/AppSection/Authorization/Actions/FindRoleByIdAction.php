@@ -15,6 +15,9 @@ final class FindRoleByIdAction extends ParentAction
 
     public function run(int $id): Role
     {
-        return $this->findRoleTask->run($id);
+        $role = $this->findRoleTask->run($id);
+        $role->load('permissions');
+
+        return $role;
     }
 }
