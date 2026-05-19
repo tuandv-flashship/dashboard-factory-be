@@ -48,7 +48,7 @@ final class GetDeptDetailTask extends ParentTask
             $dept->load('machines');
         }
 
-        $recordEagerLoad = ['issues'];
+        $recordEagerLoad = ['issues', 'latestChange'];
         if ($isPerMachineDtg) {
             $recordEagerLoad[] = 'hourlyMachines.machine';
         }

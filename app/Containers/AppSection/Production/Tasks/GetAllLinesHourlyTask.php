@@ -47,7 +47,7 @@ final class GetAllLinesHourlyTask extends ParentTask
 
         // 1 query: ALL hourly records for this shift, grouped by department
         $allRecords = HourlyRecord::where('shift_id', $shift->id)
-            ->with('hourlyMachines.machine')
+            ->with(['hourlyMachines.machine', 'latestChange'])
             ->orderBy('hour_index')
             ->get()
             ->groupBy('department_id');

@@ -34,7 +34,7 @@ final class GetLineSummaryTask extends ParentTask
         $allRecords = HourlyRecord::query()
             ->where('shift_id', $shift->id)
             ->whereIn('department_id', $deptIds)
-            ->with('hourlyMachines.machine')
+            ->with(['hourlyMachines.machine', 'latestChange'])
             ->orderBy('hour_index')
             ->get()
             ->groupBy('department_id');
