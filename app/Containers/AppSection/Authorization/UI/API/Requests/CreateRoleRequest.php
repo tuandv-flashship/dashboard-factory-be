@@ -16,7 +16,7 @@ final class CreateRoleRequest extends ParentRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|unique:' . config('permission.table_names.roles') . ',name|min:2|max:20|alpha',
+            'name' => 'required|unique:' . config('permission.table_names.roles') . ',name|min:2|max:20|regex:/^[a-zA-Z0-9_-]+$/',
             'description' => 'max:255',
             'display_name' => 'max:100',
             'permission_ids' => 'sometimes|array',
