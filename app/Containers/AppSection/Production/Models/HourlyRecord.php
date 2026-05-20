@@ -85,7 +85,7 @@ final class HourlyRecord extends ParentModel
      * Volatile fields excluded from ID generation.
      * These change between syncs while the identity stays the same.
      */
-    private const VOLATILE_FIELDS = ['value', 'num_staff', '_id'];
+    private const VOLATILE_FIELDS = ['value', 'num_staff', '_id', 'efficiency'];
 
     /**
      * Stamp a deterministic `_id` onto each item in productivity_json.
@@ -110,6 +110,44 @@ final class HourlyRecord extends ParentModel
             ksort($identity);
 
             $item['_id'] = substr(md5(json_encode($identity)), 0, 8);
+
+            return $item;
+        }, $items);
+    }
+
+    /**
+     * Inject per-item efficiency into productivity_json items.
+     *
+     * For per_person / per_machine_dtf: uses a single flat kpiPerHour.
+     * For per_machine_dtg: uses machineKpiMap [strtolower(code) => kpi] to lookup per-machine KPI.
+     *
+     * @param  array|null  $items          Stamped productivity_json items.
+     * @param  float       $kpiPerHour     Department/shift-detail level KPI (used for non-DTG).
+     * @param  array|null  $machineKpiMap  [strtolower(machine_code) => kpi_per_hour] for DTG lookup.
+     * @return array|null
+     */
+    public static function injectItemEfficiency(
+        ?array $items,
+        float $kpiPerHour,
+        ?array $machineKpiMap = null,
+    ): ?array {
+        if (empty($items)) {
+            return $items;
+        }
+
+        return array_map(function (array $item) use ($kpiPerHour, $machineKpiMap) {
+            $value = (int) ($item['value'] ?? 0);
+
+            // DTG per-machine: lookup KPI by machine name (printed_by field)
+            $effectiveKpi = $kpiPerHour;
+            if ($machineKpiMap !== null) {
+                $machineKey = strtolower($item['printed_by'] ?? $item['machine'] ?? '');
+                $effectiveKpi = $machineKpiMap[$machineKey] ?? 0;
+            }
+
+            $item['efficiency'] = $effectiveKpi > 0 && $value > 0
+                ? round(($value / $effectiveKpi) * 100, 1)
+                : 0;
 
             return $item;
         }, $items);

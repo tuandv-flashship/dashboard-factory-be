@@ -160,6 +160,18 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         $defaultTargetMultiplier = $isPerMachineDtf ? ($detail->machine_count ?? 0) : $defaultHeadcount;
         $machineStaff     = $isPerMachineDtg ? $this->countMachinesFromInventory($team, $allInventory) : null;
 
+        // Build per-machine KPI map for DTG: [strtolower(code) => kpi_per_hour]
+        $machineKpiMap = null;
+        if ($isPerMachineDtg) {
+            $machineKpiMap = $detail->machines()
+                ->with('machine')
+                ->get()
+                ->mapWithKeys(fn ($sdm) => [
+                    strtolower($sdm->machine?->code ?? '') => $sdm->kpi_per_hour,
+                ])
+                ->all();
+        }
+
         // ── Batch-fetch FPlatform data (3 API calls) ──
         $shiftStart = $deptStart->format('Y-m-d H:i:s');
         $shiftEnd   = $deptEnd->format('Y-m-d H:i:s');
@@ -241,6 +253,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 ? $machineStaff
                 : (int) ($staffCountMap[$hourKey] ?? 0);
             $productivityJson = HourlyRecord::stampItemIds($productivityDetailMap[$hourKey] ?? null);
+            $productivityJson = HourlyRecord::injectItemEfficiency($productivityJson, $kpiPerHour, $machineKpiMap);
 
             $effectiveTarget = TargetEstimator::effective(
                 $record->target, $kpiPerHour, $record->kpi_percent ?? 100,
