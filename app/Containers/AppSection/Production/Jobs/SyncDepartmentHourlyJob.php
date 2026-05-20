@@ -5,8 +5,10 @@ namespace App\Containers\AppSection\Production\Jobs;
 use App\Containers\AppSection\Department\Enums\ProductivityType;
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\FplatformData\Actions\GetHourlyMetricsAction;
+use App\Containers\AppSection\FplatformData\Enums\FactoryLine;
 use App\Containers\AppSection\FplatformData\Enums\HourlyMetricType;
 use App\Containers\AppSection\FplatformData\Enums\Team;
+use App\Containers\AppSection\FplatformData\Services\CutHourlyImageAllocator;
 use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
@@ -176,19 +178,25 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         $shiftStart = $deptStart->format('Y-m-d H:i:s');
         $shiftEnd   = $deptEnd->format('Y-m-d H:i:s');
 
-        $productivityMap       = $this->fetchAndIndexByHour($hourlyMetricsAction, $team, HourlyMetricType::Productivity, $shiftStart, $shiftEnd);
-        $staffCountMap         = $this->fetchAndIndexByHour($hourlyMetricsAction, $team, HourlyMetricType::StaffCount, $shiftStart, $shiftEnd);
-        // Team::Print always uses MachineProductivity (DTF groups by machine, not staff).
-        // Other teams fall back to department productivity_type setting.
-        $detailMetric = $team->supportsMetric(HourlyMetricType::MachineProductivity)
-            ? HourlyMetricType::MachineProductivity
-            : ($isPerMachineDtg ? HourlyMetricType::MachineProductivity : HourlyMetricType::StaffProductivity);
+        // CUT team uses time-proportional image allocation instead of simple SUM per scan hour.
+        // Single fetch: queries FPlatform once, computes both aggregate + per-user allocations.
+        if ($team === Team::Cut) {
+            [$productivityMap, $productivityDetailMap] = $this->fetchCutMetrics($detail, $shiftDate, $shiftStart, $shiftEnd);
+        } else {
+            $productivityMap       = $this->fetchAndIndexByHour($hourlyMetricsAction, $team, HourlyMetricType::Productivity, $shiftStart, $shiftEnd);
+            // Team::Print always uses MachineProductivity (DTF groups by machine, not staff).
+            // Other teams fall back to department productivity_type setting.
+            $detailMetric = $team->supportsMetric(HourlyMetricType::MachineProductivity)
+                ? HourlyMetricType::MachineProductivity
+                : ($isPerMachineDtg ? HourlyMetricType::MachineProductivity : HourlyMetricType::StaffProductivity);
 
-        $productivityDetailMap = $this->fetchAndGroupByHour(
-            $hourlyMetricsAction, $team,
-            $detailMetric,
-            $shiftStart, $shiftEnd,
-        );
+            $productivityDetailMap = $this->fetchAndGroupByHour(
+                $hourlyMetricsAction, $team,
+                $detailMetric,
+                $shiftStart, $shiftEnd,
+            );
+        }
+        $staffCountMap = $this->fetchAndIndexByHour($hourlyMetricsAction, $team, HourlyMetricType::StaffCount, $shiftStart, $shiftEnd);
 
         // ── Sync actual data from FPlatform ──
         // target, staff_required, kpi_minutes/hours/percent are manual-only — NOT touched.
@@ -392,6 +400,39 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         }
 
         return count($teamData['machines']);
+    }
+
+    /**
+     * Fetch CUT productivity using time-proportional image allocation.
+     *
+     * Queries FPlatform ONCE and computes both aggregate (productivityMap)
+     * and per-user (productivityDetailMap) allocations in a single pass.
+     *
+     * @return array{0: array<string, int>, 1: array<string, array>}
+     *         [productivityMap, productivityDetailMap]
+     */
+    private function fetchCutMetrics(ShiftDetail $detail, string $shiftDate, string $shiftStart, string $shiftEnd): array
+    {
+        $breaks = CutHourlyImageAllocator::extractBreaks($detail, $shiftDate);
+        $factory = FactoryLine::current();
+        $allocator = app(CutHourlyImageAllocator::class);
+        $logTask = app(\App\Containers\AppSection\FplatformData\Tasks\GetLogFileCutTask::class);
+
+        // Single remote query
+        $logs = $logTask->run($shiftStart, $shiftEnd, $factory);
+
+        // Single-pass: both aggregate + per-user allocations
+        [$productivityMap, $perUserItems] = $allocator->allocateBoth(
+            $logs, $shiftDate, $detail->start_time, $breaks,
+        );
+
+        // Group per-user items by hourKey for productivityDetailMap
+        $productivityDetailMap = [];
+        foreach ($perUserItems as $item) {
+            $productivityDetailMap[$item['date_hour']][] = $item;
+        }
+
+        return [$productivityMap, $productivityDetailMap];
     }
 
     private function parseHourSlot(string $hourSlot, string $shiftDate): array
