@@ -40,7 +40,8 @@ final class GetAllLinesHourlyController extends ApiController
         $resolvedDate = $data['shift']->date->toDateString();
         $resolvedShift = $data['shift']->shift_number;
 
-        $cacheKey = "all-lines-hourly:{$resolvedDate}:{$resolvedShift}";
+        $userId = auth()->id();
+        $cacheKey = "all-lines-hourly:{$resolvedDate}:{$resolvedShift}:u{$userId}";
         $ttl = $isToday ? self::CACHE_TTL_TODAY : self::CACHE_TTL_HISTORICAL;
 
         $response = Cache::remember($cacheKey, $ttl, function () use ($data) {
