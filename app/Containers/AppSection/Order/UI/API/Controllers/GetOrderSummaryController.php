@@ -3,10 +3,10 @@
 namespace App\Containers\AppSection\Order\UI\API\Controllers;
 
 use App\Containers\AppSection\Order\Actions\GetOrderSummaryAction;
+use App\Containers\AppSection\Order\UI\API\Requests\GetOrderSummaryRequest;
 use App\Containers\AppSection\Order\UI\API\Transformers\OrderSummaryTransformer;
 use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Ship\Parents\Controllers\ApiController;
-use App\Ship\Requests\ShiftFilterRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
@@ -19,7 +19,7 @@ final class GetOrderSummaryController extends ApiController
     ) {
     }
 
-    public function __invoke(ShiftFilterRequest $request): JsonResponse
+    public function __invoke(GetOrderSummaryRequest $request): JsonResponse
     {
         $date = $request->filterDate();
         $shift = $request->filterShift();

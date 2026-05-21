@@ -9,22 +9,23 @@ use App\Containers\AppSection\Production\UI\API\Transformers\HourlyRecordTransfo
 use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftDetailTransformer;
 use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftTransformer;
 use App\Ship\Parents\Controllers\ApiController;
-use App\Ship\Requests\ShiftFilterRequest;
+use App\Containers\AppSection\Production\UI\API\Requests\GetAllLinesHourlyRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * GET /v1/production/hourly — All lines → departments → hourly records + summary.
+ * GET /v1/admin/production/hourly — All lines → departments → hourly records + summary.
  *
  * Supports ?date=&shift= for historical queries.
  * Caching: today = 2 min, historical = 1 hour.
+ * Requires: dashboard.view permission (scoped by department).
  */
 final class GetAllLinesHourlyController extends ApiController
 {
     private const CACHE_TTL_TODAY      = 120;   // 2 minutes
     private const CACHE_TTL_HISTORICAL = 3600;  // 1 hour
 
-    public function __invoke(ShiftFilterRequest $request): JsonResponse
+    public function __invoke(GetAllLinesHourlyRequest $request): JsonResponse
     {
         $date = $request->filterDate();
         $shift = $request->filterShift();
