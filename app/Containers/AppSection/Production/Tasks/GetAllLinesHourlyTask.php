@@ -64,9 +64,7 @@ final class GetAllLinesHourlyTask extends ParentTask
                 $records = $allRecords->get($dept->id, collect());
 
                 // Wire shiftDetail + department onto each record to avoid N+1 in transformer
-                if ($detail) {
-                    $records->each(fn ($r) => $r->setRelation('shiftDetail', $detail));
-                }
+                $records->each(fn ($r) => $r->setRelation('shiftDetail', $detail));
                 $records->each(fn ($r) => $r->setRelation('department', $dept));
 
                 return [

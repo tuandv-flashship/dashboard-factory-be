@@ -51,9 +51,7 @@ final class GetLineSummaryTask extends ParentTask
             $shiftDetail = $shiftDetails->get($dept->id);
 
             // Wire shiftDetail + department onto each record to avoid N+1 in transformer
-            if ($shiftDetail) {
-                $records->each(fn ($r) => $r->setRelation('shiftDetail', $shiftDetail));
-            }
+            $records->each(fn ($r) => $r->setRelation('shiftDetail', $shiftDetail));
             $records->each(fn ($r) => $r->setRelation('department', $dept));
 
             return [
