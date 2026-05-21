@@ -15,6 +15,6 @@ final class FindShiftRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('shifts.index');
+        return true;
     }
 }

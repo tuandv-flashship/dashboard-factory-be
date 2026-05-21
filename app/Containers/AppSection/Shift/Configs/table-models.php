@@ -23,7 +23,7 @@ return [
         'model'             => ShiftTemplate::class,
         'repository'        => ShiftTemplateRepository::class,
         'permission_prefix' => 'shift-templates',
-        'permission'        => 'shift-templates.index',
+        'permission'        => null,
         'api_prefix'        => '/v1/admin/shift-templates',
         'fe_prefix'         => '/shift-templates',
         'default_sort'      => ['key' => 'sort_order', 'direction' => 'asc'],

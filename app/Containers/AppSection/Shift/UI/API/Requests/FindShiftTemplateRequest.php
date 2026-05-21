@@ -15,6 +15,6 @@ final class FindShiftTemplateRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('shift-templates.index');
+        return true;
     }
 }

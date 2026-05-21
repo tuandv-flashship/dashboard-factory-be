@@ -19,6 +19,6 @@ final class ListKpiRatingLevelsRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('kpi-rating-levels.index');
+        return true;
     }
 }
