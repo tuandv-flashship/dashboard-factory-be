@@ -8,7 +8,9 @@ use App\Containers\AppSection\Authentication\Values\RequestProxies\PasswordGrant
 use App\Containers\AppSection\User\Models\User;
 use Illuminate\Contracts\Container\Container;
 use Laravel\Passport\AccessToken;
+use Laravel\Passport\Exceptions\OAuthServerException as PassportOAuthServerException;
 use League\OAuth2\Server\AuthorizationServer;
+use League\OAuth2\Server\Exception\OAuthServerException as LeagueOAuthServerException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Symfony\Bridge\PsrHttpMessage\Factory\PsrHttpFactory;
@@ -42,15 +44,19 @@ final class PasswordTokenFactory
 
     protected function dispatchRequestToAuthorizationServer(ServerRequestInterface $request): array
     {
-        return json_decode(
-            (string) $this->server->respondToAccessTokenRequest(
-                $request,
-                $this->container->make(ResponseInterface::class),
-            )->getBody(),
-            true,
-            512,
-            JSON_THROW_ON_ERROR,
-        );
+        try {
+            return json_decode(
+                (string) $this->server->respondToAccessTokenRequest(
+                    $request,
+                    $this->container->make(ResponseInterface::class),
+                )->getBody(),
+                true,
+                512,
+                JSON_THROW_ON_ERROR,
+            );
+        } catch (LeagueOAuthServerException $e) {
+            throw new PassportOAuthServerException($e);
+        }
     }
 
     protected function createRequest(AccessTokenProxy|RefreshTokenProxy $proxy): ServerRequestInterface
