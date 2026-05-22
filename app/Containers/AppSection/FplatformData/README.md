@@ -1,16 +1,17 @@
-# FplatformData Container (v3.0.0)
+# FplatformData Container (v4.0.0)
 
-Container lấy dữ liệu **tổng việc ngày**, **hiệu suất theo giờ**, **đơn hotshot** và **log file cut** từ database `fplatform` và `report` (external, read-only).
+Container lấy dữ liệu **tổng việc ngày**, **hiệu suất theo giờ**, **đơn hotshot** và **log file cut** từ database `fplatform` (external, read-only).
 
 ## Mô tả
 
-Container cung cấp số liệu tồn kho, hiệu suất sản xuất, nhân viên và máy in theo giờ cho các team thuộc 2 dây chuyền DTF (FLS/PD) và DTG. Tất cả dữ liệu được query từ database `fplatform` và `report` (cross-database, cùng MySQL connection) — không migration, không write.
+Container cung cấp số liệu tồn kho, hiệu suất sản xuất, nhân viên và máy in theo giờ cho các team thuộc 2 dây chuyền DTF (FLS/PD) và DTG. Tất cả dữ liệu được query từ database `fplatform` — không migration, không write.
 
 > **Lưu ý:**
 >
-> - Database `fplatform` và `report` là **read-only** — chỉ SELECT, không INSERT/UPDATE/DELETE.
-> - Connection config: `config/database.php` → `fplatform` (sử dụng `DB_*_FPLATFORM` env vars). Cross-database access via `report.report_orders` prefix.
+> - Database `fplatform` là **read-only** — chỉ SELECT, không INSERT/UPDATE/DELETE.
+> - Connection config: `config/database.php` → `fplatform` (sử dụng `DB_*_FPLATFORM` env vars).
 > - Có PDO timeout 10s để bảo vệ khi remote DB chậm/down.
+> - **v4.0.0:** Tồn đơn / Hotshot Order / Hotshot Pack Ship đã chuyển từ `report.report_orders` sang `scan_label_history` (realtime, không phụ thuộc sync pipeline).
 
 ## Database Tables (fplatform + report)
 
@@ -42,13 +43,7 @@ Các table thuộc database `fplatform` và `report` (external, read-only, cùng
 
 | Table                | Mô tả                           | Các cột chính sử dụng                           |
 | -------------------- | ------------------------------- | ----------------------------------------------- |
-| `scan_label_history` | Lịch sử quét nhãn khi đóng gói. | `barcode`, `index_num`, `user_id`, `created_at`, `mark_time`, `order_id` |
-
-### Bảng Report (database `report` — cross-database access)
-
-| Table                    | Mô tả                                                                                                 | Các cột chính sử dụng                                             |
-| ------------------------ | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `report.report_orders`   | **(v3.0.0)** Báo cáo trạng thái đơn hàng. JOIN bằng `orders.id`. Thay thế `scan_label_history` cho status tracking. | `id`, `first_get_label_at`, `last_get_label_at` |
+| `scan_label_history` | Lịch sử quét nhãn khi đóng gói. **(v4.0.0)** Dùng lại cho tồn đơn/hotshot (thay `report.report_orders`). JOIN bằng `created_at >= mark_time` + `order_id` + `index_num`. | `barcode`, `index_num`, `user_id`, `created_at`, `order_id` |
 
 ### Bảng DTG
 
@@ -60,16 +55,16 @@ Các table thuộc database `fplatform` và `report` (external, read-only, cùng
 
 ## SQL Reference
 
-SQL tham chiếu v3.0.0 nằm trong `docs/sql_v3/` directory (6 files) và `sql/` directory (12 files legacy).
+SQL tham chiếu v4.0.0 nằm trong `sql/` directory (authoritative cho tồn đơn/hotshot) và `docs/sql_v3/` directory (cho pack ship/hourly).
 
-> **Ghi chú v3.0.0:**
+> **Ghi chú v4.0.0:**
 >
-> - Pack Ship tồn: `scan_label_history` JOIN bằng `mark_time` + `order_id` (thay vì barcode + 15-day interval).
-> - Tồn đơn / Hotshot Order / Hotshot Pack Ship: dùng `report.report_orders` (first_get_label_at, last_get_label_at) thay cho `scan_label_history`.
-> - `folder_status` column: phân loại DON GUI LAI / DON UU TIEN GUI LAI / IN — special handling trong tong_don/da_lam.
-> - Pack Ship trả thêm `da_lam` (tổng đã hoàn thành).
-> - PD Hourly Productivity: CTE mới (target_printers → slh_filtered → dtf + dtg UNION ALL).
-> - SQL 27 (NEW): Log file cut theo user — `user_group_scan` + `folder_manage` + `user`.
+> - Tồn đơn (06) / Hotshot Order (16) / Hotshot Pack Ship (26): dùng `scan_label_history` trực tiếp (thay vì `report.report_orders`). JOIN bằng `created_at >= mark_time` + `order_id` + `index_num`. Output: `tong_viec` + `da_lam`.
+> - `status_folder` column (đổi tên từ `folder_status`): DON GUI LAI excluded bằng `WHERE` clause.
+> - DTG tồn đơn: dùng `dtg_folder_detail JOIN dtg_item_detail` (thêm `scan_at AS mark_time`).
+> - Pack Ship tồn (05): vẫn dùng `scan_label_history` (mark_time + order_id) từ v3.
+> - PD Hourly Productivity (11): CTE mới (target_printers → slh_filtered → dtf + dtg UNION ALL).
+> - SQL 27: Log file cut theo user — `user_group_scan` + `folder_manage` + `user`.
 > - Parameter `:estimate_date` (date) — cho tồn đầu/cuối ngày.
 > - Parameter `:start_shift`, `:end_shift` (datetime, US/Central) — cho hourly metrics.
 > - Parameter `:start_log`, `:end_log` (datetime) — cho log file cut.
@@ -85,18 +80,18 @@ SQL tham chiếu v3.0.0 nằm trong `docs/sql_v3/` directory (6 files) và `sql/
 | Pick        | `pick`            | `pick`      | `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `user_group_scan` (work_type=100, copy_job=0, created_at interval) | product |
 | Mockup      | `mockup`          | `mockup`    | `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `log_check_mockup`                                                 | file    |
 | Pack & Ship | `pack_ship`       | `pack_ship` | `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → `scan_label_history` (mark_time + order_id). PD: thêm DTG union từ `dtg_item_detail`. **v3: trả cả `tong_viec` + `da_lam`**      | shirt   |
-| Tồn đơn     | `order_inventory` | —           | `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → **`report.report_orders`** (first_get/last_get). DON GUI LAI special handling. Đếm `COUNT(DISTINCT order_code)`             | order   |
+| Tồn đơn     | `order_inventory` | —           | `folder_manage` → `order_check_file_dropbox` → `orders` (filter) → **`scan_label_history`** (first_scan). DON GUI LAI excluded via WHERE. Đếm `COUNT(DISTINCT order_code)`             | order   |
 
 ### Hotshot Teams (yêu cầu `factory`: FLS hoặc PD)
 
-| Team                | `team` param        | Data Source (v2.0.0)                                                                        | Đơn vị  | Filter                            |
+| Team                | `team` param        | Data Source                                                                                  | Đơn vị  | Filter                            |
 | ------------------- | ------------------- | ------------------------------------------------------------------------------------------- | ------- | --------------------------------- |
 | Hotshot In          | `hotshot_print`     | `folder_manage` → `order_check_file_dropbox` → `orders` → `user_group_scan` (work_type=0)   | file    | `printer_default = MayHOTSHOT/PD` |
 | Hotshot Pick        | `hotshot_pick`      | `folder_manage` → `order_check_file_dropbox` → `orders` → `user_group_scan` (work_type=100) | product | `printer_default = MayHOTSHOT/PD` |
 | Hotshot Cắt         | `hotshot_cut`       | `folder_manage` → `order_check_file_dropbox` → `orders` → `user_group_scan` (work_type=2)   | file    | `printer_default = MayHOTSHOT/PD` |
 | Hotshot Mockup      | `hotshot_mockup`    | `folder_manage` → `order_check_file_dropbox` → `orders` → `log_check_mockup`                | file    | `printer_default = MayHOTSHOT/PD` |
-| Hotshot Pack & Ship | `hotshot_pack_ship` | `folder_manage` → `order_check_file_dropbox` → `orders` → **`report.report_orders`**. DON GUI LAI excluded              | shirt   | `printer_default = MayHOTSHOT/PD` |
-| Hotshot Đơn         | _(existing)_        | Dùng endpoint riêng `/hotshot-orders`. **v3:** `report.report_orders`                                                       | order   | `printer_default = MayHOTSHOT/PD` |
+| Hotshot Pack & Ship | `hotshot_pack_ship` | `folder_manage` → `order_check_file_dropbox` → `orders` → **`scan_label_history`**. DON GUI LAI excluded              | shirt   | `printer_default = MayHOTSHOT/PD` |
+| Hotshot Đơn         | _(existing)_        | Dùng endpoint riêng `/hotshot-orders`. **v4:** `scan_label_history`                                                       | order   | `printer_default = MayHOTSHOT/PD` |
 
 > **Hotshot teams** trả về `{ tong_viec, da_lam }` — khác với teams thường chỉ trả `{ tong_viec }`.
 > **v3.0.0:** Pack & Ship thường cũng trả `{ tong_viec, da_lam }` (giống hotshot).
@@ -526,14 +521,17 @@ FplatformData/
 ### SQL Reference Files
 
 ```
-# v3.0.0 reference (authoritative)
+# v4.0.0 reference (authoritative for tồn đơn/hotshot — scan_label_history)
+sql/
+├── 06_tong_don_theo_don.sql            # Tồn đơn hàng (scan_label_history) — DTF FLS + DTF PD + DTG
+├── 16_so_don_hotshot.sql               # Hotshot order (scan_label_history) — FLS + PD
+├── 26_hotshot_ao_pack_ship.sql         # Hotshot Pack & Ship (scan_label_history) — FLS + PD
+
+# v3.0.0 reference (still valid for pack ship, hourly, log)
 docs/sql_v3/
 ├── 05_tong_viec_team_pack_ship.sql     # Pack & Ship (mark_time + order_id, da_lam)
-├── 06_tong_don_theo_don.sql            # Tồn đơn hàng (report.report_orders)
 ├── 11_hieu_suat_gio_pack_ship.sql      # Hourly Pack Ship (PD: DTF+DTG CTE)
-├── 16_so_don_hotshot.sql               # Hotshot order (report.report_orders)
-├── 26_hotshot_ao_pack_ship.sql         # Hotshot Pack & Ship (report.report_orders)
-└── 27_log_file_cut_theo_user.sql       # 🆕 Log file cut theo user
+└── 27_log_file_cut_theo_user.sql       # Log file cut theo user
 
 # v2.0.0 reference (still valid for unchanged teams)
 sql/
@@ -542,13 +540,10 @@ sql/
 ├── 03_tong_viec_team_cat.sql           # Team Cắt
 ├── 04_tong_viec_team_mockup.sql        # Team Mockup
 ├── 05_tong_viec_team_pack_ship.sql     # [SUPERSEDED by v3] Team Pack & Ship
-├── 06_tong_don_theo_don.sql            # [SUPERSEDED by v3] Tồn đơn hàng
-├── 16_so_don_hotshot.sql               # [SUPERSEDED by v3] Hotshot order count
 ├── 22_hotshot_file_team_in.sql         # Hotshot In
 ├── 23_hotshot_ao_team_pick.sql         # Hotshot Pick
 ├── 24_hotshot_file_team_cat.sql        # Hotshot Cắt
-├── 25_hotshot_file_team_mockup.sql     # Hotshot Mockup
-└── 26_hotshot_ao_pack_ship.sql         # [SUPERSEDED by v3] Hotshot Pack & Ship
+└── 25_hotshot_file_team_mockup.sql     # Hotshot Mockup
 
 # Legacy (deprecated)
 docs/sql_v2_update_240226/
@@ -561,6 +556,16 @@ docs/
 ```
 
 ## Changelog
+
+### v4.0.0 (2026-05-22)
+
+- **`scan_label_history` thay `report.report_orders`**: Tồn đơn (06), Hotshot Order (16), Hotshot Pack Ship (26) chuyển từ `report.report_orders` (first_get_label_at / last_get_label_at) sang `scan_label_history` trực tiếp. JOIN bằng `created_at >= mark_time` + `order_id` + `index_num`. Lý do: `report.report_orders` phụ thuộc sync pipeline bên ngoài, có thể ngừng cập nhật.
+- **`status_folder` column** (đổi tên từ `folder_status`): DON GUI LAI excluded bằng `WHERE status_folder <> 'DON GUI LAI'` (đơn giản hơn v3 CASE logic).
+- **`mark_time` field**: Thêm `fm.created_at AS mark_time` cho DTF, `fm.scan_at AS mark_time` cho DTG — dùng làm lower bound cho scan_label_history JOIN.
+- **DTG tồn đơn**: Đổi từ self-contained `dtg_item_detail` sang `dtg_folder_detail JOIN dtg_item_detail` (thêm `scan_at`).
+- **SQL output column**: `tong_don` → `tong_viec` (SQL output). `formatOrderResult()` alias lại thành `tong_don` trong API response — **API contract không đổi**.
+- **Explicit COLLATE**: Thêm `COLLATE utf8mb4_unicode_ci` trên `folder` và `file_name_order_code` columns.
+- **Không còn cần `report.report_orders`**: Loại bỏ dependency cross-database. Không cần GRANT SELECT trên `report.*`.
 
 ### v3.0.0 (2026-05-19)
 
