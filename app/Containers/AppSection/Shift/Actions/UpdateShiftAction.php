@@ -42,8 +42,8 @@ final class UpdateShiftAction extends ParentAction
 
             // Sync details if provided
             if (isset($data['details'])) {
-                // Snapshot work_hours BEFORE upsert to detect changes
-                $beforeSnapshot = $this->snapshotWorkHours($shift);
+                // Snapshot schedule BEFORE upsert to detect changes
+                $beforeSnapshot = $this->snapshotSchedule($shift);
 
                 $this->syncShiftDetailsTask->run($shift, $data['details']);
 
@@ -53,7 +53,7 @@ final class UpdateShiftAction extends ParentAction
                 // ── Recalculate Shift header end_time = max dept end_time ──
                 $this->recalculateShiftEndTime($shift);
 
-                // Detect which ShiftDetails had work_hours changed
+                // Detect which ShiftDetails had schedule changed (work_hours or start_time)
                 $changedDetailIds = $this->detectChangedDetails($shift, $beforeSnapshot, $data['details']);
             }
 
@@ -73,39 +73,61 @@ final class UpdateShiftAction extends ParentAction
     }
 
     /**
-     * Snapshot the current work_hours for each ShiftDetail before upsert.
+     * Snapshot the current schedule for each ShiftDetail before upsert.
      *
-     * @return array<int, float>  department_id → work_hours
+     * Captures all fields that affect the FPlatform query range:
+     * work_hours + start_time → deptStart, meal_break_minutes → deptEnd.
+     *
+     * @return array<int, array{work_hours: float, start_time: string, meal_break_minutes: int}>  department_id → schedule
      */
-    private function snapshotWorkHours(Shift $shift): array
+    private function snapshotSchedule(Shift $shift): array
     {
         return ShiftDetail::where('shift_id', $shift->id)
             ->get()
-            ->pluck('work_hours', 'department_id')
-            ->map(fn ($v) => (float) $v)
+            ->keyBy('department_id')
+            ->map(fn ($d) => [
+                'work_hours'          => (float) $d->work_hours,
+                'start_time'          => $d->start_time,
+                'meal_break_minutes'  => (int) ($d->meal_break_minutes ?? 0),
+            ])
             ->toArray();
     }
 
     /**
-     * Compare new work_hours payload vs snapshot and return changed ShiftDetail IDs.
+     * Compare new schedule payload vs snapshot and return changed ShiftDetail IDs.
+     *
+     * Detects changes in both work_hours AND start_time, since either change
+     * shifts the FPlatform query range and requires a resync.
      *
      * @return int[]
      */
     private function detectChangedDetails(Shift $shift, array $beforeSnapshot, array $detailsData): array
     {
-        $payloadWorkHours = collect($detailsData)
-            ->filter(fn ($d) => isset($d['department_id'], $d['work_hours']))
-            ->pluck('work_hours', 'department_id')
-            ->map(fn ($v) => (float) $v)
-            ->toArray();
-
         $changedDeptIds = [];
 
-        foreach ($payloadWorkHours as $deptId => $newWorkHours) {
-            $oldWorkHours = $beforeSnapshot[(int) $deptId] ?? null;
+        foreach ($detailsData as $detail) {
+            $deptId = (int) ($detail['department_id'] ?? 0);
+            if (!$deptId || !isset($beforeSnapshot[$deptId])) {
+                continue;
+            }
 
-            if ($oldWorkHours !== null && abs($oldWorkHours - $newWorkHours) > 0.001) {
-                $changedDeptIds[] = (int) $deptId;
+            $old = $beforeSnapshot[$deptId];
+
+            // Check work_hours change
+            if (isset($detail['work_hours']) && abs($old['work_hours'] - (float) $detail['work_hours']) > 0.001) {
+                $changedDeptIds[] = $deptId;
+                continue;
+            }
+
+            // Check start_time change
+            if (isset($detail['start_time']) && $old['start_time'] !== $detail['start_time']) {
+                $changedDeptIds[] = $deptId;
+                continue;
+            }
+
+            // Check meal_break_minutes change (affects deptEnd → FPlatform query range)
+            if (isset($detail['meal_break_minutes']) && $old['meal_break_minutes'] !== (int) $detail['meal_break_minutes']) {
+                $changedDeptIds[] = $deptId;
             }
         }
 

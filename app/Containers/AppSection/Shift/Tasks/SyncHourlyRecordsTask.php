@@ -18,7 +18,10 @@ use Illuminate\Support\Carbon;
  * – kpi_hours, kpi_minutes, kpi_percent computed per slot
  * – Target prorated by kpi_percent for partial slots
  *
- * – Preserves actual, hour_start_inventory, efficiency, error_rate
+ * – Detects slot shifts (hour_slot label changed at same hour_index)
+ *   and resets actual/staff/status/efficiency/productivity_json so
+ *   stale data from the old time slot doesn't leak into the new one.
+ * – Preserves actual data only when the slot label is unchanged.
  * – Soft-deletes stale records via bulk query (not N loops)
  * – Restores previously soft-deleted records via upsert
  * – Target calculation via ComputesHourlyTarget trait
@@ -67,25 +70,35 @@ final class SyncHourlyRecordsTask extends ParentTask
 
                 $kpiData = $this->computeKpiHoursData($slot['start'], $slot['end'], $breaks);
 
+                // Detect slot shift: same hour_index but different hour_slot label.
+                // When a department's start_time changes, slots shift positions
+                // (e.g. hour_index=4 was "10h-11h" → now "11h-12h").
+                // In that case, the old actual/status/efficiency belong to a
+                // DIFFERENT time period and must be reset to avoid stale data
+                // appearing on future (or wrong) slots.
+                $slotShifted = $prev && $prev->hour_slot !== $slot['label'];
+
                 $records[$key] = [
                     'shift_id'             => $shift->id,
                     'department_id'        => $deptId,
                     'hour_slot'            => $slot['label'],
                     'hour_index'           => $hourIndex,
-                    'staff'                => $prev?->staff,
+                    'staff'                => $slotShifted ? null : $prev?->staff,
                     'target'               => $prev?->target,
                     'kpi_hours'            => $kpiData['hours'],
                     'kpi_minutes'          => $kpiData['minutes'],
                     'kpi_percent'          => $kpiData['percent'],
-                    // ── Preserve actual data when it exists ──
-                    'actual'               => $prev?->actual,
+                    // ── Preserve actual data ONLY when slot label is unchanged ──
+                    'actual'               => $slotShifted ? null : $prev?->actual,
                     'hour_start_inventory' => $prev?->hour_start_inventory ?? 0,
-                    'efficiency'           => $prev?->efficiency ?? 0,
+                    'efficiency'           => $slotShifted ? 0 : ($prev?->efficiency ?? 0),
                     'error_rate'           => $prev?->error_rate ?? 0,
-                    'status'               => $prev?->status ?? HourlyRecordStatus::Pending->value,
-                    'productivity_json'    => $prev?->productivity_json
+                    'status'               => $slotShifted
+                        ? HourlyRecordStatus::Pending->value
+                        : ($prev?->status ?? HourlyRecordStatus::Pending->value),
+                    'productivity_json'    => $slotShifted ? null : ($prev?->productivity_json
                         ? json_encode($prev->productivity_json)
-                        : null,
+                        : null),
                     'deleted_at'           => null, // restore if previously soft-deleted
                     'created_at'           => $prev?->created_at ?? $now,
                     'updated_at'           => $now,
@@ -106,6 +119,8 @@ final class SyncHourlyRecordsTask extends ParentTask
         }
 
         // ── 5. Upsert all records (insert new, update existing, restore soft-deleted) ──
+        // actual + staff MUST be in the update list so that slot-shift resets
+        // (null values) are written to DB, not silently ignored.
         if (!empty($records)) {
             HourlyRecord::withTrashed()->upsert(
                 array_values($records),
@@ -113,6 +128,7 @@ final class SyncHourlyRecordsTask extends ParentTask
                 [
                     'hour_slot',
                     'kpi_hours', 'kpi_minutes', 'kpi_percent',
+                    'actual', 'staff',
                     'hour_start_inventory', 'efficiency', 'error_rate',
                     'status', 'productivity_json', 'deleted_at', 'updated_at',
                 ]

@@ -238,10 +238,32 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
             $hourStartInventory = max(0, $currentInv);
 
-            // ── Future slot: only update hour_start_inventory ──
+            // ── Future slot: update inventory + clean stale data ──
+            // After a schedule change (e.g. start_time shifted later),
+            // SyncHourlyRecordsTask may leave stale actual/status from the
+            // old hour_index mapping. Ensure future slots are always clean.
             if ($isFutureSlot) {
+                $updates = [];
+
                 if ($record->hour_start_inventory !== $hourStartInventory) {
-                    $record->update(['hour_start_inventory' => $hourStartInventory]);
+                    $updates['hour_start_inventory'] = $hourStartInventory;
+                }
+
+                // Reset stale production data on future slots
+                if ($record->actual !== null) {
+                    $updates['actual'] = null;
+                    $updates['efficiency'] = 0;
+                    $updates['productivity_json'] = null;
+                }
+                if ($record->staff !== null) {
+                    $updates['staff'] = null;
+                }
+                if ($record->status !== HourlyRecordStatus::Pending->value) {
+                    $updates['status'] = HourlyRecordStatus::Pending->value;
+                }
+
+                if (!empty($updates)) {
+                    $record->update($updates);
                     $updated++;
                 }
 

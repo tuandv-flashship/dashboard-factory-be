@@ -47,7 +47,9 @@ final class UpdateShiftDepartmentAction extends ParentAction
                 ->where('shift_number', $shiftNumber)
                 ->first();
 
-            $beforeWorkHours = $shiftDetail ? (float) $shiftDetail->work_hours : null;
+            $beforeWorkHours      = $shiftDetail ? (float) $shiftDetail->work_hours : null;
+            $beforeStartTime      = $shiftDetail?->start_time;
+            $beforeMealBreak      = $shiftDetail ? (int) ($shiftDetail->meal_break_minutes ?? 0) : null;
 
             $dbColumns = [
                 'headcount', 'machine_count',
@@ -118,9 +120,28 @@ final class UpdateShiftDepartmentAction extends ParentAction
                 $this->recalculateShiftEndTime($shift);
             }
 
-            // Detect if work_hours changed
+            // Detect if schedule changed (work_hours, start_time, or meal_break_minutes)
+            // Any of these affects the FPlatform query range (deptStart → deptEnd)
+            // and requires a resync to fetch correct hourly data.
+            $scheduleChanged = false;
+
             $newWorkHours = isset($data['work_hours']) ? (float) $data['work_hours'] : ($shiftDetail ? (float) $shiftDetail->work_hours : null);
             if ($beforeWorkHours !== null && $newWorkHours !== null && abs($beforeWorkHours - $newWorkHours) > 0.001) {
+                $scheduleChanged = true;
+            }
+
+            if (!$scheduleChanged && $beforeStartTime !== null && isset($data['start_time']) && $beforeStartTime !== $data['start_time']) {
+                $scheduleChanged = true;
+            }
+
+            if (!$scheduleChanged && $beforeMealBreak !== null && isset($data['meal_break_minutes'])) {
+                $newMealBreak = (int) $data['meal_break_minutes'];
+                if ($beforeMealBreak !== $newMealBreak) {
+                    $scheduleChanged = true;
+                }
+            }
+
+            if ($scheduleChanged) {
                 $changedDetailId = $shiftDetail->id;
             }
 
