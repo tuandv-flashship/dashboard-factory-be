@@ -6,6 +6,9 @@ use App\Containers\AppSection\FplatformData\Enums\FactoryLine;
 use App\Containers\AppSection\FplatformData\Tasks\GetAllTeamsInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetHotshotOrderInventoryTask;
 use App\Containers\AppSection\Order\Models\OrderSummary;
+use App\Containers\AppSection\Production\Models\HourlyRecord;
+use App\Containers\AppSection\Production\Support\DepartmentSummary;
+use App\Containers\AppSection\Production\Support\TargetEstimator;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
@@ -55,7 +58,7 @@ final class SyncOrderInventoryTask extends ParentTask
         $shiftNumber = $shift->shift_number;
         $factory = FactoryLine::current();
 
-        // estimated_done = thời gian kết thúc ca của department muộn nhất
+        // estimated_done = thời gian kết thúc dự kiến dựa trên tồn việc thực tế
         $estimatedDone = $this->resolveEstimatedDone($shift);
 
         // ── Fetch inventory (cache hit if SyncHourlyRecords already ran) ──
@@ -166,37 +169,83 @@ final class SyncOrderInventoryTask extends ParentTask
     }
 
     /**
-     * Resolve estimated_done = end_time của department kết thúc muộn nhất.
+     * Resolve estimated_done from hourly records inventory data.
      *
-     * Tính trực tiếp trong SQL: MAX(start_time + work_hours + meal_break)
-     * thay vì load tất cả ShiftDetail rồi tính bằng PHP accessor.
+     * For each department, finds the first slot where hour_start_inventory <= target
+     * and computes the proportional finish time. Takes MAX across all departments
+     * (the department that finishes latest determines the estimated_done).
      *
-     * Kết quả: 1 query, 1 scalar — không load N rows vào memory.
+     * Falls back to MAX(shift_detail.end_time) if no hourly records exist yet.
      */
     private function resolveEstimatedDone(Shift $shift): string
     {
-        try {
-            $maxEndTime = ShiftDetail::where('shift_id', $shift->id)
-                ->selectRaw("
-                    MAX(
-                        DATE_FORMAT(
-                            ADDTIME(start_time, SEC_TO_TIME((work_hours * 3600) + (COALESCE(meal_break_minutes, 0) * 60))),
-                            '%H:%i'
-                        )
-                    ) AS max_end_time
-                ")
-                ->value('max_end_time');
+        $details = ShiftDetail::with('department')
+            ->where('shift_id', $shift->id)
+            ->get();
 
-            if ($maxEndTime) {
-                return $maxEndTime;
-            }
-        } catch (\Illuminate\Database\QueryException) {
-            // MySQL-specific functions unavailable (e.g., SQLite in tests)
+        $allRecords = HourlyRecord::where('shift_id', $shift->id)
+            ->orderBy('hour_index')
+            ->get()
+            ->groupBy('department_id');
+
+        // No hourly records yet → fallback to shift_detail end_time
+        if ($allRecords->isEmpty()) {
+            return $this->fallbackEstimatedDone($shift, $details);
         }
 
-        // Fallback: shift-level end_time
-        return $shift->end_time
-            ? substr($shift->end_time, 0, 5)
-            : '--';
+        $maxTime = null;
+
+        foreach ($details as $detail) {
+            $dept = $detail->department;
+            if (!$dept) {
+                continue;
+            }
+
+            $records = $allRecords[$dept->id] ?? collect();
+            if ($records->isEmpty()) {
+                continue;
+            }
+
+            $isPerMachineDtg = $dept->productivity_type?->isPerMachineDtg() ?? false;
+            $isPerMachineDtf = $dept->productivity_type?->isPerMachineDtf() ?? false;
+            $kpiPerHour = $isPerMachineDtg
+                ? ($detail->kpi_per_hour ?? 0)
+                : ($dept->kpi_per_hour ?? 0);
+            $defaultHeadcount = $detail->headcount ?? 0;
+            $defaultTargetMultiplier = $isPerMachineDtf
+                ? ($detail->machine_count ?? 0)
+                : $defaultHeadcount;
+
+            $effectiveTargets = $records->map(fn ($r) => TargetEstimator::effective(
+                $r->target,
+                $kpiPerHour,
+                $r->kpi_percent ?? 100,
+                $isPerMachineDtg,
+                $isPerMachineDtf
+                    ? ($r->machine_count ?? $defaultTargetMultiplier)
+                    : ($r->staff_required ?? $defaultHeadcount),
+            ));
+
+            [$estimatedEndTime] = DepartmentSummary::computeEstimatedEndTime($records, $effectiveTargets);
+
+            if ($estimatedEndTime !== null && ($maxTime === null || $estimatedEndTime > $maxTime)) {
+                $maxTime = $estimatedEndTime;
+            }
+        }
+
+        return $maxTime ?? $this->fallbackEstimatedDone($shift, $details);
+    }
+
+    /**
+     * Fallback: MAX(shift_detail.end_time) — used when no hourly records exist yet.
+     */
+    private function fallbackEstimatedDone(Shift $shift, $details): string
+    {
+        $maxEndTime = $details
+            ->map(fn ($d) => $d->end_time)
+            ->filter()
+            ->max();
+
+        return $maxEndTime ?? ($shift->end_time ? substr($shift->end_time, 0, 5) : '--');
     }
 }

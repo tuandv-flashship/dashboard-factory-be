@@ -98,29 +98,7 @@ final class DepartmentSummary
             : 0;
 
         // ── Estimated end time: first slot where department runs out of work ──
-        $outOfWorkAt = null;
-        $estimatedEndTime = null;
-        foreach ($records as $i => $r) {
-            $et = $effectiveTargets[$i] ?? 0;
-            if ($r->hour_start_inventory !== null && $et > 0 && $r->hour_start_inventory <= $et) {
-                $outOfWorkAt = $r->hour_slot;
-                // Proportional: inventory/target × kpi_minutes from slot start
-                $slotMinutes = $r->kpi_minutes ?? 60;
-                $ratio = $r->hour_start_inventory / $et;
-                $minutes = (int) ceil($ratio * $slotMinutes);
-                $startHour = (int) explode('h', $r->hour_slot)[0];
-                $estimatedEndTime = sprintf('%d:%02d', $startHour, $minutes);
-                break;
-            }
-        }
-
-        // Fallback: no out-of-work slot → end time = last slot start + kpi_minutes
-        if ($estimatedEndTime === null && $records->isNotEmpty()) {
-            $lastRecord = $records->last();
-            $startHour = (int) explode('h', $lastRecord->hour_slot)[0];
-            $slotMinutes = $lastRecord->kpi_minutes ?? 60;
-            $estimatedEndTime = sprintf('%d:%02d', $startHour, $slotMinutes);
-        }
+        [$estimatedEndTime, $outOfWorkAt] = self::computeEstimatedEndTime($records, $effectiveTargets);
 
         return [
             'total_target'        => $totalTarget,
@@ -140,5 +118,50 @@ final class DepartmentSummary
             'out_of_work_at'      => $outOfWorkAt,
             'estimated_end_time'  => $estimatedEndTime,
         ];
+    }
+
+    /**
+     * Compute estimated end time from hourly records and their effective targets.
+     *
+     * Finds the first slot where hour_start_inventory <= effectiveTarget
+     * and calculates proportional finish time within that slot.
+     *
+     * Reusable by:
+     *   - DepartmentSummary::build()          (API response)
+     *   - SyncOrderInventoryTask              (order estimated_done)
+     *
+     * @return array{0: string|null, 1: string|null} [estimatedEndTime, outOfWorkAt]
+     */
+    public static function computeEstimatedEndTime(Collection $records, Collection $effectiveTargets): array
+    {
+        $outOfWorkAt = null;
+        $estimatedEndTime = null;
+
+        foreach ($records as $i => $r) {
+            $et = $effectiveTargets[$i] ?? 0;
+            if ($r->hour_start_inventory !== null && $et > 0 && $r->hour_start_inventory <= $et) {
+                $outOfWorkAt = $r->hour_slot;
+                // Proportional: inventory/target × kpi_minutes from slot start
+                $slotMinutes = $r->kpi_minutes ?? 60;
+                $ratio = $r->hour_start_inventory / $et;
+                $minutes = (int) ceil($ratio * $slotMinutes);
+                $startHour = (int) explode('h', $r->hour_slot)[0];
+                // Handle overflow: minutes >= 60 → carry to next hour
+                $totalMinutes = $startHour * 60 + $minutes;
+                $estimatedEndTime = sprintf('%02d:%02d', intdiv($totalMinutes, 60), $totalMinutes % 60);
+                break;
+            }
+        }
+
+        // Fallback: no out-of-work slot → end time = last slot start + kpi_minutes
+        if ($estimatedEndTime === null && $records->isNotEmpty()) {
+            $lastRecord = $records->last();
+            $startHour = (int) explode('h', $lastRecord->hour_slot)[0];
+            $slotMinutes = $lastRecord->kpi_minutes ?? 60;
+            $totalMinutes = $startHour * 60 + $slotMinutes;
+            $estimatedEndTime = sprintf('%02d:%02d', intdiv($totalMinutes, 60), $totalMinutes % 60);
+        }
+
+        return [$estimatedEndTime, $outOfWorkAt];
     }
 }
