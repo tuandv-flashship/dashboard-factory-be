@@ -2,8 +2,10 @@
 
 namespace App\Containers\AppSection\Production\Providers;
 
+use App\Containers\AppSection\Production\Jobs\EndOfDaySyncJob;
 use App\Containers\AppSection\Production\Jobs\FinalizeShiftRecordsJob;
 use App\Containers\AppSection\Production\Jobs\SyncHourlyRecordsJob;
+use App\Containers\AppSection\Production\Services\ShiftSchedulerGuard;
 use App\Ship\Parents\Providers\ServiceProvider as ParentServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 
@@ -24,6 +26,11 @@ final class ProductionServiceProvider extends ParentServiceProvider
 
             $schedule->job(new FinalizeShiftRecordsJob())
                 ->dailyAt('01:00')
+                ->withoutOverlapping()
+                ->onOneServer();
+
+            $schedule->job(new EndOfDaySyncJob())
+                ->dailyAt(app(ShiftSchedulerGuard::class)->endOfDaySyncAt())
                 ->withoutOverlapping()
                 ->onOneServer();
         });

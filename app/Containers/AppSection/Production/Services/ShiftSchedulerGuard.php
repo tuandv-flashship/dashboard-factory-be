@@ -34,6 +34,7 @@ final class ShiftSchedulerGuard
     public const SETTING_OFF_SHIFT_INTERVAL         = 'scheduler.off_shift_interval';
     public const SETTING_OFF_SHIFT_BEFORE_MINUTES   = 'scheduler.off_shift_before_minutes';
     public const SETTING_OFF_SHIFT_AFTER_MINUTES    = 'scheduler.off_shift_after_minutes';
+    public const SETTING_END_OF_DAY_SYNC_AT          = 'scheduler.end_of_day_sync_at';
 
     /** All setting keys managed by this guard (used for cache invalidation). */
     public const ALL_SETTING_KEYS = [
@@ -41,6 +42,7 @@ final class ShiftSchedulerGuard
         self::SETTING_OFF_SHIFT_INTERVAL,
         self::SETTING_OFF_SHIFT_BEFORE_MINUTES,
         self::SETTING_OFF_SHIFT_AFTER_MINUTES,
+        self::SETTING_END_OF_DAY_SYNC_AT,
     ];
 
     /** Short-lived cache for today's shifts — avoids 1 DB query/minute during off-shift. */
@@ -163,6 +165,18 @@ final class ShiftSchedulerGuard
         return (int) $this->setting(
             self::SETTING_OFF_SHIFT_AFTER_MINUTES,
             config('factory.off_shift_after_minutes', 180),
+        );
+    }
+
+    /**
+     * Time to run end-of-day final sync (HH:MM format).
+     * Read from DB setting → cache → config fallback.
+     */
+    public function endOfDaySyncAt(): string
+    {
+        return (string) $this->setting(
+            self::SETTING_END_OF_DAY_SYNC_AT,
+            config('factory.end_of_day_sync_at', '23:55'),
         );
     }
 }

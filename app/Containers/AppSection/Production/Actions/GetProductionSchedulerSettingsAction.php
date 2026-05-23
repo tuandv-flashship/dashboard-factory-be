@@ -23,6 +23,7 @@ final class GetProductionSchedulerSettingsAction extends ParentAction
         $keys = [
             ...ShiftSchedulerGuard::ALL_SETTING_KEYS,
             'scheduler.daily_shift_job_at',
+            'scheduler.end_of_day_sync_at',
         ];
 
         $saved = $this->getSettingsTask->run($keys);
@@ -34,6 +35,7 @@ final class GetProductionSchedulerSettingsAction extends ParentAction
                 'off_shift_before_minutes' => config('factory.off_shift_before_minutes', 120),
                 'off_shift_after_minutes'  => config('factory.off_shift_after_minutes', 180),
                 'daily_shift_job_at'       => config('factory.daily_shift_job_at', '00:00'),
+                'end_of_day_sync_at'       => config('factory.end_of_day_sync_at', '23:55'),
             ],
         ];
 

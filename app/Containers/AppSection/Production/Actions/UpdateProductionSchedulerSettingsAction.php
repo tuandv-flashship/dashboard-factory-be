@@ -39,5 +39,10 @@ final class UpdateProductionSchedulerSettingsAction extends ParentAction
         if (isset($data['daily_shift_job_at'])) {
             Cache::forget(ShiftSchedulerGuard::SETTING_CACHE_PREFIX . 'scheduler.daily_shift_job_at');
         }
+
+        // Invalidate EndOfDaySyncJob target-time cache if updated
+        if (isset($data['end_of_day_sync_at'])) {
+            Cache::forget(ShiftSchedulerGuard::SETTING_CACHE_PREFIX . 'scheduler.end_of_day_sync_at');
+        }
     }
 }

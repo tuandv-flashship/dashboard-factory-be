@@ -97,6 +97,22 @@ final class DepartmentSummary
             ? round(($currentActual / $currentTarget) * 100, 2)
             : 0;
 
+        // ── Estimated end time: first slot where department runs out of work ──
+        $outOfWorkAt = null;
+        $estimatedEndTime = null;
+        foreach ($records as $i => $r) {
+            $et = $effectiveTargets[$i] ?? 0;
+            if ($r->hour_start_inventory !== null && $et > 0 && $r->hour_start_inventory <= $et) {
+                $outOfWorkAt = $r->hour_slot;
+                // Proportional: inventory/target × 60 minutes from slot start
+                $ratio = $r->hour_start_inventory / $et;
+                $minutes = (int) ceil($ratio * 60);
+                $startHour = (int) explode('h', $r->hour_slot)[0];
+                $estimatedEndTime = sprintf('%d:%02d', $startHour, $minutes);
+                break;
+            }
+        }
+
         return [
             'total_target'        => $totalTarget,
             'total_completed'     => $totalCompleted,
@@ -112,6 +128,8 @@ final class DepartmentSummary
             'actual_current'      => $currentActual,
             'target_current'      => $currentTarget,
             'error_rate'          => 0,
+            'out_of_work_at'      => $outOfWorkAt,
+            'estimated_end_time'  => $estimatedEndTime,
         ];
     }
 }

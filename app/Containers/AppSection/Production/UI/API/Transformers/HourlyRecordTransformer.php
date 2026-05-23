@@ -111,6 +111,9 @@ final class HourlyRecordTransformer extends ParentTransformer
             'staff' => $record->staff,
             'staff_required' => $staffRequired,
             'hour_start_inventory' => $record->hour_start_inventory,
+            'is_out_of_work' => $record->hour_start_inventory !== null
+                && $target > 0
+                && $record->hour_start_inventory <= $target,
             'efficiency' => $target > 0 && $record->actual > 0
                 ? round(($record->actual / $target) * 100, 1)
                 : 0,

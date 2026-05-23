@@ -82,4 +82,20 @@ return [
     'off_shift_before_minutes'   => (int) env('OFF_SHIFT_BEFORE_MINUTES', 120),
     'off_shift_after_minutes'    => (int) env('OFF_SHIFT_AFTER_MINUTES', 180),
 
+    /*
+    |--------------------------------------------------------------------------
+    | End-of-Day Final Sync
+    |--------------------------------------------------------------------------
+    |
+    | Time to run a final forced resync of all shifts for the current day.
+    | Captures latest FPlatform data (order status changes, late scans)
+    | that occurred after the off-shift sync window closed.
+    |
+    | Format: HH:MM (uses APP_TIMEZONE, default America/Chicago).
+    | Default: 23:55 — just before midnight rollover.
+    |
+    */
+
+    'end_of_day_sync_at' => env('END_OF_DAY_SYNC_AT', '23:55'),
+
 ];

@@ -20,6 +20,7 @@ final class UpdateProductionSchedulerSettingsRequest extends ParentRequest
             'off_shift_before_minutes' => ['sometimes', 'integer', 'min:0', 'max:480'],
             'off_shift_after_minutes'  => ['sometimes', 'integer', 'min:0', 'max:480'],
             'daily_shift_job_at'       => ['sometimes', 'string', 'date_format:H:i'],
+            'end_of_day_sync_at'       => ['sometimes', 'string', 'date_format:H:i'],
         ];
     }
 
