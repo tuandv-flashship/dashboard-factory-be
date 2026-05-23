@@ -104,13 +104,22 @@ final class DepartmentSummary
             $et = $effectiveTargets[$i] ?? 0;
             if ($r->hour_start_inventory !== null && $et > 0 && $r->hour_start_inventory <= $et) {
                 $outOfWorkAt = $r->hour_slot;
-                // Proportional: inventory/target × 60 minutes from slot start
+                // Proportional: inventory/target × kpi_minutes from slot start
+                $slotMinutes = $r->kpi_minutes ?? 60;
                 $ratio = $r->hour_start_inventory / $et;
-                $minutes = (int) ceil($ratio * 60);
+                $minutes = (int) ceil($ratio * $slotMinutes);
                 $startHour = (int) explode('h', $r->hour_slot)[0];
                 $estimatedEndTime = sprintf('%d:%02d', $startHour, $minutes);
                 break;
             }
+        }
+
+        // Fallback: no out-of-work slot → end time = last slot start + kpi_minutes
+        if ($estimatedEndTime === null && $records->isNotEmpty()) {
+            $lastRecord = $records->last();
+            $startHour = (int) explode('h', $lastRecord->hour_slot)[0];
+            $slotMinutes = $lastRecord->kpi_minutes ?? 60;
+            $estimatedEndTime = sprintf('%d:%02d', $startHour, $slotMinutes);
         }
 
         return [
