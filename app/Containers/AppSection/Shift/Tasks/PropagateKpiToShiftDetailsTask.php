@@ -3,7 +3,7 @@
 namespace App\Containers\AppSection\Shift\Tasks;
 
 use App\Containers\AppSection\Production\Models\HourlyRecordMachine;
-use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
+use Illuminate\Support\Facades\Cache;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Models\ShiftDetailMachine;
 use App\Ship\Parents\Tasks\Task as ParentTask;
@@ -37,7 +37,6 @@ final class PropagateKpiToShiftDetailsTask extends ParentTask
         $affectedDetails = ShiftDetail::query()
             ->where('department_id', $departmentId)
             ->whereHas('shift', fn ($q) => $q->where('date', '>=', now()->toDateString()))
-            ->with('shift')
             ->get();
 
         if ($affectedDetails->isEmpty()) {
@@ -50,8 +49,8 @@ final class PropagateKpiToShiftDetailsTask extends ParentTask
         ShiftDetail::whereIn('id', $detailIds)
             ->update(['kpi_per_hour' => $newKpi]);
 
-        // Flush production caches for affected shifts
-        $this->flushCachesForDetails($affectedDetails);
+        // Flush all cache to ensure stale data is cleared
+        Cache::flush();
     }
 
     /**
@@ -110,25 +109,7 @@ final class PropagateKpiToShiftDetailsTask extends ParentTask
                 ->update(['kpi_per_hour' => $newKpi]);
         });
 
-        // Flush production caches for affected shifts
-        $affectedDetailsForCache = ShiftDetail::whereIn('id', $affectedDetailIds)
-            ->with('shift')
-            ->get();
-        $this->flushCachesForDetails($affectedDetailsForCache);
-    }
-
-    /**
-     * Flush production caches for all shifts affected by KPI propagation.
-     */
-    private function flushCachesForDetails(\Illuminate\Support\Collection $details): void
-    {
-        $shifts = $details
-            ->pluck('shift')
-            ->filter()
-            ->unique('id');
-
-        foreach ($shifts as $shift) {
-            ProductionCacheKeys::flushForShift($shift);
-        }
+        // Flush all cache to ensure stale data is cleared
+        Cache::flush();
     }
 }
