@@ -100,6 +100,11 @@ final class DepartmentSummary
         // ── Estimated end time: first slot where department runs out of work ──
         [$estimatedEndTime, $outOfWorkAt] = self::computeEstimatedEndTime($records, $effectiveTargets);
 
+        // ── Per-machine/person overall efficiency across all hour slots ──
+        $productivityEfficiency = self::computeProductivityEfficiency(
+            $records, $dept, $kpiPerHour, $shiftDetail,
+        );
+
         return [
             'total_target'        => $totalTarget,
             'total_completed'     => $totalCompleted,
@@ -117,7 +122,93 @@ final class DepartmentSummary
             'error_rate'          => 0,
             'out_of_work_at'      => $outOfWorkAt,
             'estimated_end_time'  => $estimatedEndTime,
+            'productivity_efficiency' => $productivityEfficiency,
         ];
+    }
+
+    /**
+     * Compute overall efficiency per machine/person across all hour slots.
+     *
+     * Groups productivity_json items by identifier (machine, username, or printed_by),
+     * sums their values and kpi_per_hour for each slot, then computes:
+     *   efficiency = Σ value / Σ kpi_per_hour × 100
+     *
+     * @param Collection       $records     HourlyRecord collection
+     * @param Department       $dept        The department model
+     * @param float            $kpiPerHour  Department/shift-level KPI per hour (flat for non-DTG)
+     * @param ShiftDetail|null $shiftDetail For DTG: contains machines with per-machine KPI
+     * @return array<int, array{name: string, total_value: int, total_kpi: float, efficiency: float}>
+     */
+    public static function computeProductivityEfficiency(
+        Collection $records,
+        Department $dept,
+        float $kpiPerHour,
+        ?ShiftDetail $shiftDetail,
+    ): array {
+        $isPerMachineDtg = $dept->productivity_type?->isPerMachineDtg() ?? false;
+
+        // Build machine KPI map for DTG: [strtolower(code) => kpi_per_hour]
+        $machineKpiMap = null;
+        if ($isPerMachineDtg && $shiftDetail) {
+            $sdMachines = $shiftDetail->relationLoaded('machines')
+                ? $shiftDetail->machines
+                : $shiftDetail->machines()->with('machine')->get();
+
+            $machineKpiMap = $sdMachines->mapWithKeys(fn ($sdm) => [
+                strtolower($sdm->machine?->code ?? '') => $sdm->kpi_per_hour,
+            ])->all();
+        }
+
+        // Aggregate: [identifier => ['total_value' => int, 'total_kpi' => float]]
+        $aggregated = [];
+
+        foreach ($records as $record) {
+            $items = $record->productivity_json;
+            if (empty($items)) {
+                continue;
+            }
+
+            foreach ($items as $item) {
+                // Determine the identifier key (machine, username, or printed_by)
+                $name = $item['machine'] ?? $item['username'] ?? $item['printed_by'] ?? null;
+                if ($name === null) {
+                    continue;
+                }
+
+                $value = (int) ($item['value'] ?? 0);
+
+                // Determine effective KPI for this item
+                $effectiveKpi = $kpiPerHour;
+                if ($machineKpiMap !== null) {
+                    $machineKey = strtolower($item['printed_by'] ?? $item['machine'] ?? '');
+                    $effectiveKpi = $machineKpiMap[$machineKey] ?? 0;
+                }
+
+                if (!isset($aggregated[$name])) {
+                    $aggregated[$name] = ['total_value' => 0, 'total_kpi' => 0.0];
+                }
+
+                $aggregated[$name]['total_value'] += $value;
+                $aggregated[$name]['total_kpi']   += $effectiveKpi;
+            }
+        }
+
+        // Build result sorted by name
+        $result = [];
+        ksort($aggregated);
+
+        foreach ($aggregated as $name => $data) {
+            $result[] = [
+                'name'        => $name,
+                'total_value' => $data['total_value'],
+                'total_kpi'   => $data['total_kpi'],
+                'efficiency'  => $data['total_kpi'] > 0
+                    ? round(($data['total_value'] / $data['total_kpi']) * 100, 1)
+                    : 0,
+            ];
+        }
+
+        return $result;
     }
 
     /**
