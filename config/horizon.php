@@ -157,7 +157,7 @@ return [
     |
     */
 
-    'memory_limit' => 128,
+    'memory_limit' => (int) env('HORIZON_MEMORY_LIMIT', 256),
 
     /*
     |--------------------------------------------------------------------------
@@ -181,7 +181,7 @@ return [
             'queue' => ['default', 'sync', 'notifications', 'media'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
-            'maxProcesses' => 1,
+            'maxProcesses' => (int) env('HORIZON_MAX_PROCESSES', 20),
             'maxTime' => 0,
             'maxJobs' => 0,
             'memory' => 128,
@@ -194,7 +194,7 @@ return [
     'environments' => [
         'production' => [
             'supervisor-1' => [
-                'maxProcesses' => 15,
+                'maxProcesses' => (int) env('HORIZON_MAX_PROCESSES', 20),
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
@@ -202,20 +202,20 @@ return [
 
         'staging' => [
             'supervisor-1' => [
-                'maxProcesses' => 15,
+                'maxProcesses' => (int) env('HORIZON_MAX_PROCESSES', 20),
             ],
         ],
 
         'local' => [
             'supervisor-1' => [
-                'maxProcesses' => 15,
+                'maxProcesses' => (int) env('HORIZON_MAX_PROCESSES', 20),
             ],
         ],
 
         // Fallback for APP_ENV=fls or APP_ENV=pd (factory-env.sh)
         '*' => [
             'supervisor-1' => [
-                'maxProcesses' => 15,
+                'maxProcesses' => (int) env('HORIZON_MAX_PROCESSES', 20),
             ],
         ],
     ],

@@ -576,7 +576,7 @@ environment=APP_ENV="production",FACTORY="PD"
 | `command`      | `horizon`            | Horizon master — tự spawn/balance queue workers          |
 | `numprocs`     | `1`                  | Chỉ cần 1 Horizon process (tự quản lý workers bên trong) |
 | `stopwaitsecs` | `3600`               | Đợi job hiện tại xong trước khi kill (max 1h)            |
-| Workers config | `config/horizon.php` | Số workers, strategy, queues — config bằng code          |
+| Workers config | `config/horizon.php` | Số workers (`HORIZON_MAX_PROCESSES`), strategy, queues — tunable qua `.env` |
 
 > **Horizon vs queue:work:** Horizon **thay thế** `queue:work`. Không chạy cả 2. Horizon cung cấp: web dashboard `/horizon`, auto-scaling, job metrics, failed job management.
 
@@ -1185,23 +1185,37 @@ ps aux | grep php | grep -v grep
 
 ### A. Scaling Guide
 
-| Khi nào              | Hành động                                                   |
-| -------------------- | ----------------------------------------------------------- |
-| API response > 500ms | Tăng Octane workers: `--workers=8` trong supervisor command |
-| Queue backlog tăng   | Tăng `maxProcesses` trong `config/horizon.php` → deploy     |
-| Redis memory > 200MB | Tăng `maxmemory` trong `/etc/redis/redis.conf`              |
-| MySQL queries chậm   | Thêm indexes, check slow query log                          |
-| Disk > 85%           | Xóa old logs, tăng disk                                     |
+| Khi nào              | Hành động                                                              |
+| -------------------- | ---------------------------------------------------------------------- |
+| API response > 500ms | Tăng Octane workers: `--workers=8` trong supervisor command            |
+| Queue backlog tăng   | Tăng `HORIZON_MAX_PROCESSES` trong `.env` → `horizon:terminate`        |
+| Redis memory > 200MB | Tăng `maxmemory` trong `/etc/redis/redis.conf`                         |
+| MySQL queries chậm   | Thêm indexes, check slow query log                                     |
+| Disk > 85%           | Xóa old logs, tăng disk                                                |
 
 ### B. Horizon Worker Tuning
 
-Config tại `config/horizon.php`:
+Config qua **environment variable** — không cần sửa code:
+
+```bash
+# .env
+HORIZON_MAX_PROCESSES=20        # Max workers tổng (default: 20)
+HORIZON_MEMORY_LIMIT=256        # Supervisor memory limit MB (default: 256)
+```
+
+Sau khi thay đổi:
+
+```bash
+php artisan horizon:terminate   # Graceful restart — Supervisor tự khởi động lại
+```
+
+Chi tiết config tại `config/horizon.php`:
 
 ```php
 'environments' => [
     'production' => [
         'supervisor-1' => [
-            'maxProcesses' => 10,        // Max workers tổng
+            'maxProcesses' => (int) env('HORIZON_MAX_PROCESSES', 20),
             'balanceMaxShift' => 1,      // Thêm/bớt 1 worker mỗi lần
             'balanceCooldown' => 3,      // Chờ 3s giữa mỗi lần scale
         ],
@@ -1209,13 +1223,16 @@ Config tại `config/horizon.php`:
 ],
 ```
 
-| Param                 | Default | Mô tả                                       |
-| --------------------- | ------- | ------------------------------------------- |
-| `maxProcesses`        | `5`     | Giới hạn tổng số workers                    |
-| `balance`             | `auto`  | Auto-scale dựa trên queue backlog           |
-| `autoScalingStrategy` | `time`  | Scale theo wait time (không phải job count) |
-| `tries`               | `3`     | Retry job 3 lần trước khi mark failed       |
-| `timeout`             | `120`   | Kill job sau 120s                           |
+| Param                    | Default | Mô tả                                       |
+| ------------------------ | ------- | ------------------------------------------- |
+| `HORIZON_MAX_PROCESSES`  | `20`    | Giới hạn tổng số workers (env variable)     |
+| `HORIZON_MEMORY_LIMIT`   | `256`   | Memory limit cho supervisor (MB)            |
+| `balance`                | `auto`  | Auto-scale dựa trên queue backlog           |
+| `autoScalingStrategy`    | `time`  | Scale theo wait time (không phải job count) |
+| `tries`                  | `3`     | Retry job 3 lần trước khi mark failed       |
+| `timeout`                | `120`   | Kill job sau 120s                           |
+
+> **Lưu ý:** Mỗi worker chiếm ~50-100MB RAM + 1 DB connection. Với 20 workers cần ~1-2GB RAM riêng cho queue. Tăng thêm cần đảm bảo server đủ resource.
 
 ### C. File quan trọng
 
