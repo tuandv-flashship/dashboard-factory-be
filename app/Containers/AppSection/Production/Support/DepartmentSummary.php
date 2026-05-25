@@ -29,9 +29,9 @@ final class DepartmentSummary
     {
         $isPerMachineDtg  = $dept->productivity_type?->isPerMachineDtg() ?? false;
         $isPerMachineDtf  = $dept->productivity_type?->isPerMachineDtf() ?? false;
-        $kpiPerHour       = $isPerMachineDtg
-            ? ($shiftDetail?->kpi_per_hour ?? 0)
-            : ($dept->kpi_per_hour ?? 0);
+
+        // Always use shift_detail snapshot KPI for historical accuracy
+        $kpiPerHour = $shiftDetail?->kpi_per_hour ?? ($dept->kpi_per_hour ?? 0);
         $defaultHeadcount = $shiftDetail?->headcount ?? 0;
         // Target multiplier: DTF → machine_count, per_person → headcount
         $defaultTargetMultiplier = $isPerMachineDtf ? ($shiftDetail?->machine_count ?? 0) : $defaultHeadcount;

@@ -93,10 +93,8 @@ final class GetDeptDetailController extends ApiController
 
     private function transformDepartment(mixed $dept, mixed $shiftDetail): array
     {
-        $isPerMachineDtg = $dept->productivity_type?->isPerMachineDtg() ?? false;
-        $kpiPerHour   = $isPerMachineDtg
-            ? ($shiftDetail?->kpi_per_hour ?? 0)
-            : $dept->kpi_per_hour;
+        // Always use shift_detail snapshot KPI for historical accuracy
+        $kpiPerHour = $shiftDetail?->kpi_per_hour ?? $dept->kpi_per_hour;
 
         $data = [
             'id'               => $dept->getHashedKey(),

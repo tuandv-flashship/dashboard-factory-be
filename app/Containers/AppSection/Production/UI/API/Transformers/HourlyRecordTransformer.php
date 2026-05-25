@@ -44,9 +44,13 @@ final class HourlyRecordTransformer extends ParentTransformer
     {
         $isPerMachineDtg = $record->department?->productivity_type?->isPerMachineDtg() ?? false;
         $isPerMachineDtf = $record->department?->productivity_type?->isPerMachineDtf() ?? false;
-        $kpiPerHour      = $isPerMachineDtg
-            ? ($record->shiftDetail?->kpi_per_hour ?? 0)
-            : ($record->department?->kpi_per_hour ?? 0);
+
+        // Always use shift_detail snapshot KPI (point-in-time value when shift was created).
+        // Fallback to department only if shiftDetail is not available.
+        // Previously, per_person/dtf used department->kpi_per_hour (live value),
+        // causing historical shifts to show wrong target after department KPI changes.
+        $kpiPerHour = $record->shiftDetail?->kpi_per_hour
+            ?? ($record->department?->kpi_per_hour ?? 0);
         // staff_required: always fallback to headcount (display purpose)
         $defaultStaffRequired = $record->shiftDetail?->headcount ?? 0;
         $staffRequired = $record->staff_required ?? $defaultStaffRequired;

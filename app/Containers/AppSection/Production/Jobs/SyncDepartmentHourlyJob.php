@@ -156,7 +156,9 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         // ── Pre-compute shared values ──
         $isPerMachineDtg  = $dept->productivity_type?->isPerMachineDtg() ?? false;
         $isPerMachineDtf  = $dept->productivity_type?->isPerMachineDtf() ?? false;
-        $kpiPerHour       = $isPerMachineDtg ? ($detail->kpi_per_hour ?? 0) : ($dept->kpi_per_hour ?? 0);
+
+        // Always use shift_detail snapshot KPI for consistency
+        $kpiPerHour = $detail->kpi_per_hour ?? ($dept->kpi_per_hour ?? 0);
         $defaultHeadcount = $detail->headcount ?? 0;
         // Target multiplier: DTF → machine_count, per_person → headcount
         $defaultTargetMultiplier = $isPerMachineDtf ? ($detail->machine_count ?? 0) : $defaultHeadcount;

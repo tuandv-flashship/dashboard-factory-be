@@ -4,7 +4,9 @@ namespace App\Containers\AppSection\Shift\Tasks;
 
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Models\HourlyRecordMachine;
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Containers\AppSection\Production\Support\TargetEstimator;
+use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Models\ShiftDetailMachine;
 use App\Ship\Parents\Tasks\Task as ParentTask;
@@ -33,7 +35,7 @@ final class PropagateKpiToShiftDetailsTask extends ParentTask
         $affectedDetails = ShiftDetail::query()
             ->where('department_id', $departmentId)
             ->whereHas('shift', fn ($q) => $q->where('date', '>=', now()->toDateString()))
-            ->with('department')
+            ->with(['department', 'shift'])
             ->get();
 
         if ($affectedDetails->isEmpty()) {
@@ -50,6 +52,9 @@ final class PropagateKpiToShiftDetailsTask extends ParentTask
             // ── 2. Recalc hourly_records target ──
             $this->recalcHourlyTargetsForDetails($affectedDetails, $newKpi);
         });
+
+        // ── 3. Flush production caches for affected shifts ──
+        $this->flushCachesForDetails($affectedDetails);
     }
 
     /**
@@ -114,6 +119,12 @@ final class PropagateKpiToShiftDetailsTask extends ParentTask
                 $this->recalcHourlyTargetsDtg($detail);
             }
         });
+
+        // ── Layer 5: Flush production caches for affected shifts ──
+        $affectedDetailsForCache = ShiftDetail::whereIn('id', $affectedDetailIds)
+            ->with('shift')
+            ->get();
+        $this->flushCachesForDetails($affectedDetailsForCache);
     }
 
     /**
@@ -232,6 +243,26 @@ final class PropagateKpiToShiftDetailsTask extends ParentTask
 
         foreach ($updateGroups as $target => $ids) {
             HourlyRecord::whereIn('id', $ids)->update(['target' => $target]);
+        }
+    }
+
+    /**
+     * Flush production caches for all shifts affected by KPI propagation.
+     *
+     * Uses ProductionCacheKeys::flushForShift() which handles:
+     *   - allLinesHourly (cached for today with 2-min TTL)
+     *   - deptDetail, lineSummary, quality (cached for historical only)
+     */
+    private function flushCachesForDetails(\Illuminate\Support\Collection $details): void
+    {
+        // Collect unique shifts (avoid flushing the same shift multiple times)
+        $shifts = $details
+            ->pluck('shift')
+            ->filter()
+            ->unique('id');
+
+        foreach ($shifts as $shift) {
+            ProductionCacheKeys::flushForShift($shift);
         }
     }
 }
