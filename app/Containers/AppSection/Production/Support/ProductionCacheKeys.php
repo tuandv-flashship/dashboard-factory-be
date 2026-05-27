@@ -52,12 +52,42 @@ final class ProductionCacheKeys
     }
 
     /**
-     * all-lines-hourly:{date}:{shift}
-     * Used by: GetAllLinesHourlyController, ResyncHourlyRecordsController/Command
+     * Base key prefix for all-lines-hourly cache.
+     * Used internally for version counter key.
      */
     public static function allLinesHourly(string $date, int|string $shift): string
     {
         return "all-lines-hourly:{$date}:{$shift}";
+    }
+
+    /**
+     * Scope-aware, versioned cache key for all-lines-hourly.
+     *
+     * Key format: all-lines-hourly:{date}:{shift}:v{version}:s{scopeHash}
+     *
+     * - scopeHash: md5 of sorted dept IDs (or 'global' for admins)
+     *   → users with identical department_scope share the same cache entry.
+     * - version: auto-incremented on flush → all old entries become orphaned
+     *   and expire naturally via TTL (2min today / 1hr historical).
+     *
+     * Used by: GetAllLinesHourlyController
+     *
+     * @param int[]|null $scopedDeptIds  null = global access, [] = no access, [1,2,...] = scoped
+     */
+    public static function allLinesHourlyScoped(string $date, int|string $shift, ?array $scopedDeptIds): string
+    {
+        $base = self::allLinesHourly($date, $shift);
+        $ver  = (int) Cache::get("{$base}:ver", 0);
+
+        if ($scopedDeptIds === null) {
+            $scopeHash = 'global';
+        } else {
+            $sorted = $scopedDeptIds;
+            sort($sorted);
+            $scopeHash = md5(implode(',', $sorted));
+        }
+
+        return "{$base}:v{$ver}:s{$scopeHash}";
     }
 
     /**
@@ -104,8 +134,8 @@ final class ProductionCacheKeys
         $date     = $shift->date->toDateString();
         $shiftNum = $shift->shift_number;
 
-        // Always flush allLinesHourly and orderSummary — cached for both today and historical
-        Cache::forget(self::allLinesHourly($date, $shiftNum));
+        // Always flush allLinesHourly (version bump) and orderSummary
+        self::flushAllLinesHourly($date, $shiftNum);
         Cache::forget(self::orderSummary($date, $shiftNum));
 
         if (!self::isHistorical($date)) {
@@ -135,8 +165,10 @@ final class ProductionCacheKeys
         $date     = $shift->date->toDateString();
         $shiftNum = $shift->shift_number;
 
+        // Bump version for allLinesHourly (scope-aware, can't enumerate keys)
+        self::flushAllLinesHourly($date, $shiftNum);
+
         $keys = [
-            self::allLinesHourly($date, $shiftNum),
             self::orderSummary($date, $shiftNum),
         ];
 
@@ -164,9 +196,23 @@ final class ProductionCacheKeys
 
         $keys[] = self::quality($date, $shiftNum);
 
-        foreach (array_unique($keys) as $key) {
+        $keys = array_unique($keys);
+        foreach ($keys as $key) {
             Cache::forget($key);
         }
+    }
+
+    /**
+     * Invalidate all scope-specific allLinesHourly cache entries for a date+shift.
+     *
+     * Instead of enumerating all scope hashes, we increment a version counter.
+     * Old cache entries (with the previous version) become orphaned and expire
+     * naturally via their TTL (2min for today, 1hr for historical).
+     */
+    public static function flushAllLinesHourly(string $date, int|string $shift): void
+    {
+        $base = self::allLinesHourly($date, $shift);
+        Cache::increment("{$base}:ver");
     }
 }
 

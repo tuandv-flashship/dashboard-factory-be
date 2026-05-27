@@ -21,9 +21,9 @@ use App\Ship\Supports\DepartmentScope;
  */
 final class GetAllLinesHourlyTask extends ParentTask
 {
-    public function run(?string $date = null, ?int $shiftNumber = null): array
+    public function run(?string $date = null, ?int $shiftNumber = null, ?Shift $resolvedShift = null): array
     {
-        $shift = Shift::resolve($date, $shiftNumber);
+        $shift = $resolvedShift ?? Shift::resolve($date, $shiftNumber);
         if (!$shift) {
             return ['shift' => null, 'lines' => []];
         }

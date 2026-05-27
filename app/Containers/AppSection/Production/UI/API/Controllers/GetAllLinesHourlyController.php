@@ -4,12 +4,15 @@ namespace App\Containers\AppSection\Production\UI\API\Controllers;
 
 use App\Containers\AppSection\Department\UI\API\Transformers\DepartmentTransformer;
 use App\Containers\AppSection\Production\Support\DepartmentSummary;
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Containers\AppSection\Production\Tasks\GetAllLinesHourlyTask;
 use App\Containers\AppSection\Production\UI\API\Transformers\HourlyRecordTransformer;
+use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftDetailTransformer;
 use App\Containers\AppSection\Shift\UI\API\Transformers\ShiftTransformer;
 use App\Ship\Parents\Controllers\ApiController;
 use App\Containers\AppSection\Production\UI\API\Requests\GetAllLinesHourlyRequest;
+use App\Ship\Supports\DepartmentScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
@@ -19,6 +22,9 @@ use Illuminate\Support\Facades\Cache;
  * Supports ?date=&shift= for historical queries.
  * Caching: today = 2 min, historical = 1 hour.
  * Requires: dashboard.view permission (scoped by department).
+ *
+ * Performance: resolves shift first (1 query), then wraps ALL DB queries
+ * + transformation inside Cache::remember(). On cache hit → 0 heavy queries.
  */
 final class GetAllLinesHourlyController extends ApiController
 {
@@ -28,30 +34,33 @@ final class GetAllLinesHourlyController extends ApiController
     public function __invoke(GetAllLinesHourlyRequest $request): JsonResponse
     {
         $date = $request->filterDate();
-        $shift = $request->filterShift();
+        $shiftNumber = $request->filterShift();
         $isToday = $date === null || $date === now()->toDateString();
 
-        $data = app(GetAllLinesHourlyTask::class)->run($date, $shift);
+        // 1 lightweight query to resolve shift (needed for cache key)
+        $shift = Shift::resolve($date, $shiftNumber);
 
-        if ($data['shift'] === null) {
+        if (!$shift) {
             return response()->json(['message' => 'No active shift found'], 404);
         }
 
-        $resolvedDate = $data['shift']->date->toDateString();
-        $resolvedShift = $data['shift']->shift_number;
+        $resolvedDate  = $shift->date->toDateString();
+        $resolvedShift = $shift->shift_number;
 
-        $userId = auth()->id();
-        $cacheKey = "all-lines-hourly:{$resolvedDate}:{$resolvedShift}:u{$userId}";
+        $scopedDeptIds = DepartmentScope::resolve(auth()->user(), 'dashboard.view');
+        $cacheKey = ProductionCacheKeys::allLinesHourlyScoped($resolvedDate, $resolvedShift, $scopedDeptIds);
         $ttl = $isToday ? self::CACHE_TTL_TODAY : self::CACHE_TTL_HISTORICAL;
 
-        $response = Cache::remember($cacheKey, $ttl, function () use ($data) {
+        // Wrap ALL heavy queries + transformation inside cache
+        $response = Cache::remember($cacheKey, $ttl, function () use ($shift) {
+            $data = app(GetAllLinesHourlyTask::class)->run(resolvedShift: $shift);
+
             $deptTransformer = new DepartmentTransformer();
             $shiftDetailTransformer = new ShiftDetailTransformer();
 
             // ── Shift context for same-day-ended status override ──
-            $shift      = $data['shift'];
-            $shiftDate  = $shift->date;
-            $shiftEndAt = $shift->computeEndAt();
+            $shiftDate  = $data['shift']->date;
+            $shiftEndAt = $data['shift']->computeEndAt();
 
             $hourlyTransformer = (new HourlyRecordTransformer())
                 ->setShiftDate($shiftDate)

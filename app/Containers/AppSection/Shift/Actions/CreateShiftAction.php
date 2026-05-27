@@ -8,6 +8,7 @@ use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Models\ShiftTemplate;
 use App\Containers\AppSection\Shift\Tasks\CreateShiftFromTemplateTask;
 use App\Containers\AppSection\Shift\Tasks\GenerateHourlyRecordsTask;
+use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
 use App\Ship\Parents\Actions\Action as ParentAction;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Bus;
@@ -22,7 +23,7 @@ final class CreateShiftAction extends ParentAction
      */
     public function run(array $data): Shift
     {
-        return DB::transaction(function () use ($data) {
+        $shift = DB::transaction(function () use ($data) {
             $template     = ShiftTemplate::with('details')->findOrFail($data['shift_template_id']);
             $shiftNumbers = $data['shift_numbers'] ?: [1];
 
@@ -77,7 +78,7 @@ final class CreateShiftAction extends ParentAction
                     $minStart
                 )->format('H:i');
 
-                $shift = Shift::create([
+                $createdShift = Shift::create([
                     'date'              => $data['date'],
                     'shift_number'      => $shiftNumber,
                     'start_time'        => $startFormatted,
@@ -88,16 +89,21 @@ final class CreateShiftAction extends ParentAction
                 ]);
 
                 // Copy template details → shift_details, merge override nếu có
-                app(CreateShiftFromTemplateTask::class)->run($shift, $template->id, $overrides);
+                app(CreateShiftFromTemplateTask::class)->run($createdShift, $template->id, $overrides);
 
                 // Generate hourly_records
-                app(GenerateHourlyRecordsTask::class)->run($shift);
+                app(GenerateHourlyRecordsTask::class)->run($createdShift);
 
-                $lastShift = $shift;
+                $lastShift = $createdShift;
             }
 
             return $lastShift->load(['details.department.productionLine', 'details.machines.machine', 'template', 'hourlyRecords']);
         });
+
+        // ── Invalidate production dashboard caches (after transaction commits) ──
+        ProductionCacheKeys::flushForShift($shift);
+
+        return $shift;
     }
 
     /**
@@ -132,7 +138,12 @@ final class CreateShiftAction extends ParentAction
             $validDates
         );
 
-        $batchName = 'create-shifts:' . implode(',', $validDates);
+        $batchName = sprintf(
+            'create-shifts:%s~%s(%d)',
+            $validDates[0],
+            end($validDates),
+            count($validDates),
+        );
 
         $batch = Bus::batch($jobs)
             ->name($batchName)

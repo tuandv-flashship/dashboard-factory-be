@@ -65,7 +65,7 @@ final class UpdateHourlyStaffAction extends ParentAction
 
             Cache::forget(ProductionCacheKeys::deptDetail($line->code, $dept->code, $date, $shiftNumber));
             Cache::forget(ProductionCacheKeys::lineSummary($line->code, $date, $shiftNumber));
-            Cache::forget(ProductionCacheKeys::allLinesHourly($date, $shiftNumber));
+            ProductionCacheKeys::flushAllLinesHourly($date, $shiftNumber);
         }
     }
 }
