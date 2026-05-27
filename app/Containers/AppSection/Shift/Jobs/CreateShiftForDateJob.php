@@ -48,7 +48,7 @@ final class CreateShiftForDateJob implements ShouldQueue
             return;
         }
 
-        $shiftNumbers = $this->shiftData['shift_numbers'] ?? [1];
+        $shiftNumbers = $this->shiftData['shift_numbers'] ?: [1];
 
         foreach ($shiftNumbers as $shiftNumber) {
             $existing = Shift::where('date', $this->date)

@@ -24,7 +24,7 @@ final class CreateShiftAction extends ParentAction
     {
         return DB::transaction(function () use ($data) {
             $template     = ShiftTemplate::with('details')->findOrFail($data['shift_template_id']);
-            $shiftNumbers = $data['shift_numbers'] ?? [1];
+            $shiftNumbers = $data['shift_numbers'] ?: [1];
 
             // FE có thể gửi kèm details đã chỉnh sửa (những cell màu trắng trong mockup).
             $overrides = $data['details'] ?? [];

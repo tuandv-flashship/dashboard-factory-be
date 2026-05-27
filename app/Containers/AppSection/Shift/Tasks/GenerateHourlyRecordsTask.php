@@ -84,7 +84,15 @@ final class GenerateHourlyRecordsTask extends ParentTask
         }
 
         if (!empty($records)) {
-            HourlyRecord::insert($records);
+            HourlyRecord::upsert(
+                $records,
+                ['shift_id', 'department_id', 'hour_index'],
+                [
+                    'hour_slot', 'kpi_hours', 'kpi_minutes', 'kpi_percent',
+                    'staff', 'hour_start_inventory', 'target', 'actual',
+                    'efficiency', 'error_rate', 'status', 'updated_at',
+                ]
+            );
         }
     }
 }
