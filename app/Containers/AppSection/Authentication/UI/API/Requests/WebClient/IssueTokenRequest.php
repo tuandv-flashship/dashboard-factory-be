@@ -7,8 +7,15 @@ use App\Ship\Parents\Requests\Request as ParentRequest;
 final class IssueTokenRequest extends ParentRequest
 {
     protected array $decode = [];
-    
-    
+
+    /**
+     * Login must be accessible without authentication.
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+
     public function rules(): array
     {
         return [
