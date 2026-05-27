@@ -8,8 +8,11 @@ final class LoginRequest extends ParentRequest
 {
     protected array $decode = [];
 
-    
-    
+    public function authorize(): bool
+    {
+        return true;
+    }
+
     public function rules(): array
     {
         return [

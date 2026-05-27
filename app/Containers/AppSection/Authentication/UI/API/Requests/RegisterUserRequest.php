@@ -10,8 +10,12 @@ use Illuminate\Validation\Rules\Password;
 final class RegisterUserRequest extends ParentRequest
 {
     protected array $decode = [];
-    
-    
+
+    public function authorize(): bool
+    {
+        return true;
+    }
+
     public function rules(): array
     {
         return [
