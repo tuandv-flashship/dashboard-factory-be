@@ -13,7 +13,7 @@ final class UpdatePasswordController extends ApiController
 {
     public function __invoke(UpdatePasswordRequest $request, UpdatePasswordAction $action): JsonResponse
     {
-        $user = $action->run($request->user_id, $request->new_password);
+        $user = $action->run((int) $request->user_id, $request->new_password);
 
         return Response::create($user, UserTransformer::class)->ok();
     }
