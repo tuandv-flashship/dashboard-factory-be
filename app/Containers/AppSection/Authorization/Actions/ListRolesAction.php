@@ -19,6 +19,6 @@ final class ListRolesAction extends ParentAction
         $this->repository->addRequestCriteria();
         $this->repository->whereGuard(auth()->activeGuard());
 
-        return $this->repository->paginate();
+        return $this->repository->orderBy('name')->paginate();
     }
 }
