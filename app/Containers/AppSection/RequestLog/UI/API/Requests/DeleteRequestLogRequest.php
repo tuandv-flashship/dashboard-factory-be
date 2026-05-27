@@ -17,6 +17,6 @@ final class DeleteRequestLogRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('request-log.destroy');
+        return $this->user()?->can('request-log.destroy') ?? false;
     }
 }

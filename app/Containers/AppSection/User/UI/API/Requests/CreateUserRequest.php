@@ -37,6 +37,6 @@ final class CreateUserRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('users.create');
+        return $this->user()?->can('users.create') ?? false;
     }
 }

@@ -17,6 +17,6 @@ final class ListUsersRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('index', [User::class]);
+        return $this->user()?->can('index', [User::class]) ?? false;
     }
 }

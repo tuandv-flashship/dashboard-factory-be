@@ -22,6 +22,6 @@ final class CreateProductionLineRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('production-lines.create');
+        return $this->user()?->can('production-lines.create') ?? false;
     }
 }

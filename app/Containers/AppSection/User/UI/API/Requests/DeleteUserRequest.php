@@ -18,6 +18,6 @@ final class DeleteUserRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('delete', [User::class]);
+        return $this->user()?->can('delete', [User::class]) ?? false;
     }
 }

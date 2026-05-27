@@ -22,6 +22,6 @@ final class UpdateReasonErrorRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('reason-codes.edit');
+        return $this->user()?->can('reason-codes.edit') ?? false;
     }
 }

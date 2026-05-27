@@ -26,6 +26,6 @@ final class UpdateProductionSchedulerSettingsRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('update', Setting::class);
+        return $this->user()?->can('update', Setting::class) ?? false;
     }
 }

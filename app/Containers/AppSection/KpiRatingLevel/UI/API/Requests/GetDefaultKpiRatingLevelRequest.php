@@ -15,6 +15,6 @@ final class GetDefaultKpiRatingLevelRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('kpi-rating-levels.store');
+        return $this->user()?->can('kpi-rating-levels.store') ?? false;
     }
 }

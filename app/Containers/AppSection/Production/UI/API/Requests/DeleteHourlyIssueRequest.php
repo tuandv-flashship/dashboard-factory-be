@@ -20,6 +20,6 @@ final class DeleteHourlyIssueRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('hourly-issues.destroy');
+        return $this->user()?->can('hourly-issues.destroy') ?? false;
     }
 }

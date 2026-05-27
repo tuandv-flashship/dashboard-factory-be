@@ -39,6 +39,6 @@ final class CreateShiftTemplateRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('shift-templates.create');
+        return $this->user()?->can('shift-templates.create') ?? false;
     }
 }

@@ -30,6 +30,6 @@ final class UpdateKpiRatingLevelRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('kpi-rating-levels.edit');
+        return $this->user()?->can('kpi-rating-levels.edit') ?? false;
     }
 }

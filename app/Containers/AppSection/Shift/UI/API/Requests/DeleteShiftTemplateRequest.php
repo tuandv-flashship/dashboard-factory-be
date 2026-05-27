@@ -15,6 +15,6 @@ final class DeleteShiftTemplateRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('shift-templates.destroy');
+        return $this->user()?->can('shift-templates.destroy') ?? false;
     }
 }

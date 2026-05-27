@@ -25,6 +25,6 @@ final class ListAuditLogsRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('audit-log.index');
+        return $this->user()?->can('audit-log.index') ?? false;
     }
 }

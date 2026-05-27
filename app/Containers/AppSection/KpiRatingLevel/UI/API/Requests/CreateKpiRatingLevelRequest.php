@@ -30,6 +30,6 @@ final class CreateKpiRatingLevelRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('kpi-rating-levels.create');
+        return $this->user()?->can('kpi-rating-levels.create') ?? false;
     }
 }

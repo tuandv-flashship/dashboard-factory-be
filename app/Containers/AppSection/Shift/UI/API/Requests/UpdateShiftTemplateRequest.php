@@ -39,6 +39,6 @@ final class UpdateShiftTemplateRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('shift-templates.edit');
+        return $this->user()?->can('shift-templates.edit') ?? false;
     }
 }

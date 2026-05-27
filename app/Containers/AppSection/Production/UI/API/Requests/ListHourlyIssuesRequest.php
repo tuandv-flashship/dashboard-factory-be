@@ -29,6 +29,6 @@ final class ListHourlyIssuesRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('hourly-issues.index');
+        return $this->user()?->can('hourly-issues.index') ?? false;
     }
 }

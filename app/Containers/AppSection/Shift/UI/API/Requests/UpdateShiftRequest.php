@@ -37,6 +37,6 @@ final class UpdateShiftRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('shifts.edit');
+        return $this->user()?->can('shifts.edit') ?? false;
     }
 }

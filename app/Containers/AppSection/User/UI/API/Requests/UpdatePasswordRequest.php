@@ -17,7 +17,7 @@ final class UpdatePasswordRequest extends ParentRequest
     {
         return [
             'current_password' => [
-                Rule::requiredIf(fn (): bool => !is_null($this->user()->password)),
+                Rule::requiredIf(fn (): bool => !is_null($this->user()?->password)),
                 'current_password:api',
             ],
             'new_password' => [
@@ -30,6 +30,6 @@ final class UpdatePasswordRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('update', [User::class, $this->user_id]);
+        return $this->user()?->can('update', [User::class, $this->user_id]) ?? false;
     }
 }

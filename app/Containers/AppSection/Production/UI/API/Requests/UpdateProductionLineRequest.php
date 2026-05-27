@@ -23,6 +23,6 @@ final class UpdateProductionLineRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('production-lines.edit');
+        return $this->user()?->can('production-lines.edit') ?? false;
     }
 }

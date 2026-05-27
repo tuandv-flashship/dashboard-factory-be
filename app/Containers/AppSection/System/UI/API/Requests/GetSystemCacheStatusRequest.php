@@ -16,6 +16,6 @@ final class GetSystemCacheStatusRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('system.cache');
+        return $this->user()?->can('system.cache') ?? false;
     }
 }

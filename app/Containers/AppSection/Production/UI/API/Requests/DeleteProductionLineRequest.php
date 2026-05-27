@@ -15,6 +15,6 @@ final class DeleteProductionLineRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('production-lines.destroy');
+        return $this->user()?->can('production-lines.destroy') ?? false;
     }
 }

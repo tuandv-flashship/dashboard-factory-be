@@ -21,6 +21,6 @@ final class RunDevArtisanCommandRequest extends ParentRequest
     {
         return !app()->isProduction()
             && $this->user()
-            && $this->user()->isSuperAdmin();
+            && $this->user()?->isSuperAdmin();
     }
 }

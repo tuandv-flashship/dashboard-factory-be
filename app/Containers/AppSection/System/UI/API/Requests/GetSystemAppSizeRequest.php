@@ -16,6 +16,6 @@ final class GetSystemAppSizeRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('system.info');
+        return $this->user()?->can('system.info') ?? false;
     }
 }

@@ -25,7 +25,7 @@ final class CopyShiftRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('shifts.create');
+        return $this->user()?->can('shifts.create') ?? false;
     }
 
     public function messages(): array

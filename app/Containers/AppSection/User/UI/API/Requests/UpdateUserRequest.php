@@ -18,7 +18,7 @@ final class UpdateUserRequest extends ParentRequest
     
     public function rules(): array
     {
-        $isAdmin = $this->user()->hasRole(RoleEnum::SUPER_ADMIN);
+        $isAdmin = $this->user()?->hasRole(RoleEnum::SUPER_ADMIN);
 
         return [
             'name' => 'min:2|max:50',
@@ -32,7 +32,7 @@ final class UpdateUserRequest extends ParentRequest
                 Rule::enum(UserStatus::class),
             ],
             'current_password' => [
-                Rule::requiredIf(fn (): bool => !$isAdmin && !is_null($this->user()->password) && $this->filled('new_password')),
+                Rule::requiredIf(fn (): bool => !$isAdmin && !is_null($this->user()?->password) && $this->filled('new_password')),
                 'current_password:api',
             ],
             'new_password' => [
@@ -45,6 +45,6 @@ final class UpdateUserRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('update', [User::class, $this->user_id]);
+        return $this->user()?->can('update', [User::class, $this->user_id]) ?? false;
     }
 }

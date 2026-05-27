@@ -30,6 +30,6 @@ final class CreateRoleRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('roles.create');
+        return $this->user()?->can('roles.create') ?? false;
     }
 }

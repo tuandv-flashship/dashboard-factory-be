@@ -15,6 +15,6 @@ final class DeleteKpiRatingLevelRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('kpi-rating-levels.destroy');
+        return $this->user()?->can('kpi-rating-levels.destroy') ?? false;
     }
 }

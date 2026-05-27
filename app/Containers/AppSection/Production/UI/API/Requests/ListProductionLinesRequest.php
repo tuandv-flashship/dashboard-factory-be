@@ -18,6 +18,6 @@ final class ListProductionLinesRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('production-lines.index');
+        return $this->user()?->can('production-lines.index') ?? false;
     }
 }

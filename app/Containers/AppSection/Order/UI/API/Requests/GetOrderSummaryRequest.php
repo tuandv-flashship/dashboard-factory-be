@@ -31,7 +31,7 @@ final class GetOrderSummaryRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('dashboard.view');
+        return $this->user()?->can('dashboard.view') ?? false;
     }
 
     public function filterDate(): ?string

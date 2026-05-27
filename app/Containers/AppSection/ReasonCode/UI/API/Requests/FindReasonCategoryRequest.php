@@ -15,6 +15,6 @@ final class FindReasonCategoryRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('reason-codes.index');
+        return $this->user()?->can('reason-codes.index') ?? false;
     }
 }

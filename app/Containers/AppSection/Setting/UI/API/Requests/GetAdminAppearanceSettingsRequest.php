@@ -17,6 +17,6 @@ final class GetAdminAppearanceSettingsRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('viewAny', Setting::class);
+        return $this->user()?->can('viewAny', Setting::class) ?? false;
     }
 }

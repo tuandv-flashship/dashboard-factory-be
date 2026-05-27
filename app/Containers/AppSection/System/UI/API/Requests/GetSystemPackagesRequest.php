@@ -19,6 +19,6 @@ final class GetSystemPackagesRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('system.info');
+        return $this->user()?->can('system.info') ?? false;
     }
 }

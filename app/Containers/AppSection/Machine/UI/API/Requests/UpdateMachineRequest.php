@@ -29,6 +29,6 @@ final class UpdateMachineRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->hasRole('admin');
+        return $this->user()?->hasRole('admin') ?? false;
     }
 }

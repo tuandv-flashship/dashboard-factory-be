@@ -18,6 +18,6 @@ final class ListPermissionsTreeRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('roles.index');
+        return $this->user()?->can('roles.index') ?? false;
     }
 }

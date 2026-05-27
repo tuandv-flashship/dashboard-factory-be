@@ -22,6 +22,6 @@ final class ResyncHourlyRecordsRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('dashboard.view-productivity');
+        return $this->user()?->can('dashboard.view-productivity') ?? false;
     }
 }

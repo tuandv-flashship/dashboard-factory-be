@@ -16,6 +16,6 @@ final class DeleteAllAuditLogsRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('audit-log.destroy');
+        return $this->user()?->can('audit-log.destroy') ?? false;
     }
 }

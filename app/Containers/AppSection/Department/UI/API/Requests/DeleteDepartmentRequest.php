@@ -15,6 +15,6 @@ final class DeleteDepartmentRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('departments.destroy');
+        return $this->user()?->can('departments.destroy') ?? false;
     }
 }

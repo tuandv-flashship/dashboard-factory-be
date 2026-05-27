@@ -30,6 +30,6 @@ final class UpdateRoleWithPermissionsRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('roles.edit');
+        return $this->user()?->can('roles.edit') ?? false;
     }
 }

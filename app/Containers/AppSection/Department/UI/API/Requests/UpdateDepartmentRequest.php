@@ -31,6 +31,6 @@ final class UpdateDepartmentRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('departments.edit');
+        return $this->user()?->can('departments.edit') ?? false;
     }
 }

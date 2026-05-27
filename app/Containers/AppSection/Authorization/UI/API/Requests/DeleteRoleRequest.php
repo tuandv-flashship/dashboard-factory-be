@@ -17,6 +17,6 @@ final class DeleteRoleRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('roles.destroy');
+        return $this->user()?->can('roles.destroy') ?? false;
     }
 }

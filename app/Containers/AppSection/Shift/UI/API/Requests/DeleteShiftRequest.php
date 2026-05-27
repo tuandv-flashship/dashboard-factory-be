@@ -15,6 +15,6 @@ final class DeleteShiftRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('shifts.destroy');
+        return $this->user()?->can('shifts.destroy') ?? false;
     }
 }

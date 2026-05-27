@@ -15,6 +15,6 @@ final class FindHourlyRecordRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('shifts.view');
+        return $this->user()?->can('shifts.view') ?? false;
     }
 }

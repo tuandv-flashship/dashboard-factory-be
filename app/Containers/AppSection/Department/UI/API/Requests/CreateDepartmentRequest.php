@@ -27,7 +27,7 @@ final class CreateDepartmentRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('departments.create');
+        return $this->user()?->can('departments.create') ?? false;
     }
 
     /**

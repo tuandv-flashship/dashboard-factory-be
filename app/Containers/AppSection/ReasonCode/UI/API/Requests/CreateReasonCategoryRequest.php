@@ -23,6 +23,6 @@ final class CreateReasonCategoryRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('reason-codes.create');
+        return $this->user()?->can('reason-codes.create') ?? false;
     }
 }

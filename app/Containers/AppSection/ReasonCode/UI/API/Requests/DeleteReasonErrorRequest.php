@@ -15,6 +15,6 @@ final class DeleteReasonErrorRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('reason-codes.destroy');
+        return $this->user()?->can('reason-codes.destroy') ?? false;
     }
 }

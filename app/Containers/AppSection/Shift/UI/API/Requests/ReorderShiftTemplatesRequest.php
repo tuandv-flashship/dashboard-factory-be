@@ -19,6 +19,6 @@ final class ReorderShiftTemplatesRequest extends ParentRequest
 
     public function authorize(): bool
     {
-        return $this->user()->can('shift-templates.edit');
+        return $this->user()?->can('shift-templates.edit') ?? false;
     }
 }
