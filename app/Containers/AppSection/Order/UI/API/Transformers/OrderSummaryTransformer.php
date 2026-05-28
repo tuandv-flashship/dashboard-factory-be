@@ -20,6 +20,7 @@ final class OrderSummaryTransformer extends ParentTransformer
             'rush_completed' => $order->rush_completed,
             'rush_total'     => $order->rush_total,
             'progress'       => $order->progress,
+            'production_workload' => $order->production_workload_json,
         ];
     }
 }

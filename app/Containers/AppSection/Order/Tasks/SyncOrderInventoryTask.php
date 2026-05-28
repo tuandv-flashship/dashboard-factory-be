@@ -5,6 +5,7 @@ namespace App\Containers\AppSection\Order\Tasks;
 use App\Containers\AppSection\FplatformData\Enums\FactoryLine;
 use App\Containers\AppSection\FplatformData\Tasks\GetAllTeamsInventoryTask;
 use App\Containers\AppSection\FplatformData\Tasks\GetHotshotOrderInventoryTask;
+use App\Containers\AppSection\FplatformData\Tasks\GetOrderByEstimateTask;
 use App\Containers\AppSection\Order\Models\OrderSummary;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Support\DepartmentSummary;
@@ -34,6 +35,7 @@ final class SyncOrderInventoryTask extends ParentTask
     public function __construct(
         private readonly GetAllTeamsInventoryTask $allTeamsInventoryTask,
         private readonly GetHotshotOrderInventoryTask $hotshotTask,
+        private readonly GetOrderByEstimateTask $estimateTask,
     ) {
     }
 
@@ -68,6 +70,12 @@ final class SyncOrderInventoryTask extends ParentTask
         // Hotshot orders (DTF only — filters by MayHOTSHOT/MayHOTSHOTPD)
         $hotshotResult = $this->hotshotTask->run($today, $factory);
 
+        // Production workload breakdown by estimate date (SQL #28)
+        $workloadDtf = $this->estimateTask->runDtf($today, $factory);
+        $workloadDtg = $factory === FactoryLine::PD
+            ? $this->estimateTask->runDtg($today)
+            : [];
+
         // ── Upsert per-line rows ──────────────────────────
         $upserted = 0;
 
@@ -86,6 +94,7 @@ final class SyncOrderInventoryTask extends ParentTask
                     $dtfLine['tong_don'], $dtfLine['da_lam'],
                     $rushTotal, $rushCompleted,
                     $estimatedDone,
+                    $workloadDtf,
                 );
                 $upserted++;
             }
@@ -102,6 +111,7 @@ final class SyncOrderInventoryTask extends ParentTask
                 $dtgLine['tong_don'], $dtgLine['da_lam'],
                 0, 0,
                 $estimatedDone,
+                $workloadDtg,
             );
             $upserted++;
         }
@@ -132,6 +142,7 @@ final class SyncOrderInventoryTask extends ParentTask
         int $rushTotal,
         int $rushCompleted,
         string $estimatedDone,
+        array $workload = [],
     ): void {
         $completed = $daLam;
         $remaining = max(0, $tongViec - $daLam);
@@ -140,14 +151,15 @@ final class SyncOrderInventoryTask extends ParentTask
             : 0;
 
         $values = [
-            'line_label'     => $label,
-            'total'          => $tongViec,
-            'completed'      => $completed,
-            'remaining'      => $remaining,
-            'estimated_done' => $estimatedDone,
-            'rush_completed' => $rushCompleted,
-            'rush_total'     => $rushTotal,
-            'progress'       => $progress,
+            'line_label'                => $label,
+            'total'                     => $tongViec,
+            'completed'                 => $completed,
+            'remaining'                 => $remaining,
+            'estimated_done'            => $estimatedDone,
+            'rush_completed'            => $rushCompleted,
+            'rush_total'                => $rushTotal,
+            'progress'                  => $progress,
+            'production_workload_json'  => !empty($workload) ? $workload : null,
         ];
 
         // Use whereDate for immutable_date cast compatibility (SQLite + MySQL)

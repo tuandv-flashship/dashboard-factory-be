@@ -13,6 +13,7 @@ final class OrderSummary extends ParentModel
         'date', 'shift_number', 'line', 'line_label',
         'total', 'completed', 'remaining', 'estimated_done',
         'rush_completed', 'rush_total', 'progress',
+        'production_workload_json',
     ];
 
     protected $casts = [
@@ -24,6 +25,7 @@ final class OrderSummary extends ParentModel
         'rush_completed' => 'integer',
         'rush_total' => 'integer',
         'progress' => 'float',
+        'production_workload_json' => 'array',
     ];
 
     /**
