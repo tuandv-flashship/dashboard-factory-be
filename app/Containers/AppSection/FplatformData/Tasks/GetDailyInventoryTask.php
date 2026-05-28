@@ -51,7 +51,7 @@ final class GetDailyInventoryTask extends ParentTask
                 JOIN order_check_file_dropbox d
                     ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
                     AND d.status <> 2
-                WHERE fm.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                WHERE fm.estimate_date BETWEEN ? - INTERVAL 9 DAY AND ?
                     AND fm.status_folder <> 2
                     AND COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) IN (
                         SELECT REPLACE(name, 'Machine ', 'May')

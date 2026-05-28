@@ -32,7 +32,7 @@ final class GetDtgPickInventoryTask extends ParentTask
                     AND o.created BETWEEN CONVERT_TZ(CONCAT(?, ' 00:00:00'), 'US/Central', '+7:00') - INTERVAL 24 DAY
                                        AND CONVERT_TZ(CONCAT(?, ' 23:59:59'), 'US/Central', '+7:00')
                     AND o.status NOT IN ('HOLD','REQUEST_CANCEL','REJECTED','REJECT_REQUESTED','CANCELED')
-                WHERE d.estimate_folder_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                WHERE d.estimate_folder_date BETWEEN ? - INTERVAL 9 DAY AND ?
                     AND d.active = 1
                 GROUP BY d.estimate_folder_date, d.folder_key, d.order_code, d.distribute_id, d.index_num
             )

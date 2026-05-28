@@ -20,7 +20,7 @@ WITH target_folders_dtf AS (
     JOIN fplatform.order_check_file_dropbox d 
         ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
         AND d.status <> 2 
-    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 9 DAY AND ':estimate_date'
       AND fm.status_folder <> 2
       AND COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) IN (
           SELECT REPLACE(name, 'Machine ', 'May') 
@@ -52,11 +52,7 @@ SELECT
 count(distinct CASE 
         WHEN date(firsr_scan) IS NULL OR date(firsr_scan) >= ':estimate_date'
         THEN concat(file_name_order_code,file_name_index_number)
-    END) AS tong_viec,
-count(distinct CASE 
-        WHEN date(firsr_scan) = ':estimate_date' 
-        THEN concat(file_name_order_code,file_name_index_number)
-    END) AS da_lam
+    END) AS tong_viec
 FROM item_scan_status
 where status_folder <> 'DON GUI LAI';
 
@@ -77,7 +73,7 @@ WITH target_folders_dtf AS (
     JOIN fplatform.order_check_file_dropbox d 
         ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
         AND d.status <> 2 
-    WHERE fm.estimate_date  between ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+    WHERE fm.estimate_date  between ':estimate_date' - INTERVAL 9 DAY AND ':estimate_date'
       AND fm.status_folder <> 2
       AND COALESCE(fm.printer_share, fm.printer_run, fm.printer_default) IN (
           SELECT REPLACE(name, 'Machine ', 'May') 
@@ -100,7 +96,7 @@ WITH target_folders_dtf AS (
     JOIN fplatform.dtg_item_detail d 
         ON d.folder_key = fm.folder_key
         AND d.active = 1
-    WHERE fm.estimate_folder_date  between ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+    WHERE fm.estimate_folder_date  between ':estimate_date' - INTERVAL 9 DAY AND ':estimate_date'
     GROUP BY 1, 2, 3,4,5
 )
 , printdash AS (
@@ -129,10 +125,6 @@ SELECT
 count(distinct CASE 
         WHEN date(firsr_scan) IS NULL OR date(firsr_scan) >= ':estimate_date'
         THEN concat(file_name_order_code,file_name_index_number)
-    END) AS tong_viec,
-count(distinct CASE 
-        WHEN date(firsr_scan) = ':estimate_date' 
-        THEN concat(file_name_order_code,file_name_index_number)
-    END) AS da_lam
+    END) AS tong_viec
 FROM item_scan_status
 where status_folder <> 'DON GUI LAI';

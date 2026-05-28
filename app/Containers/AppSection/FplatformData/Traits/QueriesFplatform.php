@@ -157,4 +157,20 @@ trait QueriesFplatform
             return $item;
         }, $rows);
     }
+
+    /**
+     * Format estimate-grouped results (multiple rows).
+     *
+     * Used by order-by-estimate queries that group by estimate_date.
+     * Returns array of rows with estimate_date, tong_don, da_lam, chua_lam.
+     */
+    protected function formatEstimateResults(array $rows): array
+    {
+        return array_map(fn (object $row) => [
+            'estimate_date' => $row->estimate_date,
+            'tong_don'      => (int) $row->tong_don,
+            'da_lam'        => (int) $row->da_lam,
+            'chua_lam'      => (int) $row->chua_lam,
+        ], $rows);
+    }
 }

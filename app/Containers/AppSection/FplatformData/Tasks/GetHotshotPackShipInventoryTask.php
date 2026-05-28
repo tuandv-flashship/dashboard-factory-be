@@ -43,7 +43,7 @@ final class GetHotshotPackShipInventoryTask extends ParentTask
                 JOIN order_check_file_dropbox d
                     ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
                     AND d.status <> 2
-                WHERE fm.estimate_date BETWEEN ? - INTERVAL 10 DAY AND ?
+                WHERE fm.estimate_date BETWEEN ? - INTERVAL 9 DAY AND ?
                     AND fm.status_folder <> 2
                     AND fm.printer_default = ?
                 GROUP BY fm.folder, fm.created_at, fm.estimate_date, d.file_name_order_code, d.file_name_index_number

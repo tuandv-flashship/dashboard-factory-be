@@ -19,7 +19,7 @@ WITH target_folders_dtf AS (
     JOIN fplatform.order_check_file_dropbox d 
         ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
         AND d.status <> 2 
-    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 9 DAY AND ':estimate_date'
       AND fm.status_folder <> 2
       AND fm.printer_default = 'MayHOTSHOT'
     GROUP BY fm.folder, fm.created_at,fm.estimate_date, d.file_name_order_code, d.file_name_index_number
@@ -69,7 +69,7 @@ WITH target_folders_dtf AS (
     JOIN fplatform.order_check_file_dropbox d 
         ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
         AND d.status <> 2 
-    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 9 DAY AND ':estimate_date'
       AND fm.status_folder <> 2
       AND fm.printer_default = 'MayHOTSHOTPD'
     GROUP BY fm.folder, fm.created_at,fm.estimate_date, d.file_name_order_code, d.file_name_index_number

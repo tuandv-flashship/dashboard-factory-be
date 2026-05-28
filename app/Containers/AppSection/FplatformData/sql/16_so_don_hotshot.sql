@@ -19,7 +19,7 @@ WITH target_folders_dtf AS (
     JOIN fplatform.order_check_file_dropbox d 
         ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
         AND d.status <> 2 
-    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 9 DAY AND ':estimate_date'
       AND fm.status_folder <> 2
       AND fm.printer_default = 'MayHOTSHOT'
     GROUP BY fm.folder, fm.created_at,fm.estimate_date, d.file_name_order_code, d.file_name_index_number
@@ -34,24 +34,33 @@ WITH target_folders_dtf AS (
 )
 , item_scan_status AS (
     SELECT fg.folder, fg.estimate_date, fg.file_name_order_code, fg.file_name_index_number, fg.status_folder,
-    min(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) as firsr_scan
+    MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) as firsr_scan
     FROM order_status fg
 	LEFT JOIN fplatform.scan_label_history s ON s.created_at >= fg.mark_time
     AND s.order_id = fg.id AND s.index_num = fg.file_name_index_number
     group by 1,2,3,4,5
 )
+, order_summary AS (
+    SELECT 
+        file_name_order_code,
+        MAX(estimate_date) as estimate_date,
+        COUNT(*) AS total_items,                
+        COUNT(firsr_scan) AS scanned_items,     
+        MAX(DATE(firsr_scan)) AS last_scan_date, 
+        MIN(DATE(firsr_scan)) AS first_scan_date
+    FROM item_scan_status
+    WHERE status_folder <> 'DON GUI LAI'
+    GROUP BY file_name_order_code
+)
 SELECT 
     ':estimate_date' AS estimate_date,
-count(distinct CASE 
-        WHEN date(firsr_scan) IS NULL OR date(firsr_scan) >= ':estimate_date'
-        THEN file_name_order_code
-    END) AS tong_viec,
-count(distinct CASE 
-        WHEN date(firsr_scan) = ':estimate_date' 
-        THEN file_name_order_code
+    COUNT(DISTINCT CASE 
+        WHEN first_scan_date IS NULL OR last_scan_date >= ':estimate_date' THEN file_name_order_code 
+    END) AS tong_don,
+    COUNT(DISTINCT CASE 
+        WHEN total_items = scanned_items AND last_scan_date = ':estimate_date' THEN file_name_order_code 
     END) AS da_lam
-FROM item_scan_status
-where status_folder <> 'DON GUI LAI';
+FROM order_summary;
 
 
 -- DTF2 - PD
@@ -69,7 +78,7 @@ WITH target_folders_dtf AS (
     JOIN fplatform.order_check_file_dropbox d 
         ON d.folder = fm.folder COLLATE utf8mb4_unicode_ci
         AND d.status <> 2 
-    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 10 DAY AND ':estimate_date'
+    WHERE fm.estimate_date BETWEEN ':estimate_date' - INTERVAL 9 DAY AND ':estimate_date'
       AND fm.status_folder <> 2
       AND fm.printer_default = 'MayHOTSHOTPD'
     GROUP BY fm.folder, fm.created_at,fm.estimate_date, d.file_name_order_code, d.file_name_index_number
@@ -84,21 +93,30 @@ WITH target_folders_dtf AS (
 )
 , item_scan_status AS (
     SELECT fg.folder, fg.estimate_date, fg.file_name_order_code, fg.file_name_index_number, fg.status_folder,
-    min(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) as firsr_scan
+    MIN(CONVERT_TZ(s.created_at, '+7:00', 'US/Central')) as firsr_scan
     FROM order_status fg
 	LEFT JOIN fplatform.scan_label_history s ON s.created_at >= fg.mark_time
     AND s.order_id = fg.id AND s.index_num = fg.file_name_index_number
     group by 1,2,3,4,5
 )
+, order_summary AS (
+    SELECT 
+        file_name_order_code,
+        MAX(estimate_date) as estimate_date,
+        COUNT(*) AS total_items,                
+        COUNT(firsr_scan) AS scanned_items,     
+        MAX(DATE(firsr_scan)) AS last_scan_date, 
+        MIN(DATE(firsr_scan)) AS first_scan_date
+    FROM item_scan_status
+    WHERE status_folder <> 'DON GUI LAI'
+    GROUP BY file_name_order_code
+)
 SELECT 
     ':estimate_date' AS estimate_date,
-count(distinct CASE 
-        WHEN date(firsr_scan) IS NULL OR date(firsr_scan) >= ':estimate_date'
-        THEN file_name_order_code
-    END) AS tong_viec,
-count(distinct CASE 
-        WHEN date(firsr_scan) = ':estimate_date' 
-        THEN file_name_order_code
+    COUNT(DISTINCT CASE 
+        WHEN first_scan_date IS NULL OR last_scan_date >= ':estimate_date' THEN file_name_order_code 
+    END) AS tong_don,
+    COUNT(DISTINCT CASE 
+        WHEN total_items = scanned_items AND last_scan_date = ':estimate_date' THEN file_name_order_code 
     END) AS da_lam
-FROM item_scan_status
-where status_folder <> 'DON GUI LAI';
+FROM order_summary;

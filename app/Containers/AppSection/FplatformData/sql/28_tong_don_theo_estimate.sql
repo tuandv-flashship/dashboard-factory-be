@@ -50,7 +50,7 @@ WITH target_folders_dtf AS (
 , order_summary AS (
     SELECT 
         file_name_order_code,
-        MAX(estimate_date) as estimate_date,
+        max(estimate_date) as estimate_date,
         COUNT(*) AS total_items,                
         COUNT(firsr_scan) AS scanned_items,     
         MAX(DATE(firsr_scan)) AS last_scan_date, 
@@ -60,14 +60,19 @@ WITH target_folders_dtf AS (
     GROUP BY file_name_order_code
 )
 SELECT 
-    ':estimate_date' AS estimate_date,
+    estimate_date,
     COUNT(DISTINCT CASE 
         WHEN first_scan_date IS NULL OR last_scan_date >= ':estimate_date' THEN file_name_order_code 
     END) AS tong_don,
     COUNT(DISTINCT CASE 
         WHEN total_items = scanned_items AND last_scan_date = ':estimate_date' THEN file_name_order_code 
-    END) AS da_lam
-FROM order_summary;
+    END) AS da_lam,
+    COUNT(DISTINCT CASE 
+        WHEN first_scan_date IS NULL THEN file_name_order_code END) AS chua_lam
+FROM order_summary
+GROUP BY 1
+ORDER BY 1 DESC;
+
 
 
 -- DTF2 - PD
@@ -126,15 +131,18 @@ WITH target_folders_dtf AS (
     GROUP BY file_name_order_code
 )
 SELECT 
-    ':estimate_date' AS estimate_date,
+    estimate_date,
     COUNT(DISTINCT CASE 
         WHEN first_scan_date IS NULL OR last_scan_date >= ':estimate_date' THEN file_name_order_code 
     END) AS tong_don,
     COUNT(DISTINCT CASE 
         WHEN total_items = scanned_items AND last_scan_date = ':estimate_date' THEN file_name_order_code 
-    END) AS da_lam
-FROM order_summary;
-
+    END) AS da_lam,
+    COUNT(DISTINCT CASE 
+        WHEN first_scan_date IS NULL THEN file_name_order_code END) AS chua_lam
+FROM order_summary
+GROUP BY 1
+ORDER BY 1 DESC;
 
 
 -- DTG - PD
@@ -150,7 +158,7 @@ WITH target_items AS (
     JOIN fplatform.dtg_item_detail d 
         ON d.folder_key = fm.folder_key
         AND d.active = 1
-    WHERE fm.estimate_folder_date  between ':estimate_date' - INTERVAL 9 DAY AND ':estimate_date'
+    WHERE fm.estimate_folder_date  BETWEEN ':estimate_date' - INTERVAL 9 DAY AND ':estimate_date'
     GROUP BY 1, 2, 3, 4, 5
 )
 , order_status as (
@@ -180,11 +188,15 @@ WITH target_items AS (
     GROUP BY file_name_order_code
 )
 SELECT 
-    ':estimate_date' AS estimate_date,
+    estimate_date,
     COUNT(DISTINCT CASE 
         WHEN first_scan_date IS NULL OR last_scan_date >= ':estimate_date' THEN file_name_order_code 
     END) AS tong_don,
     COUNT(DISTINCT CASE 
         WHEN total_items = scanned_items AND last_scan_date = ':estimate_date' THEN file_name_order_code 
-    END) AS da_lam
-FROM order_summary;
+    END) AS da_lam,
+    COUNT(DISTINCT CASE 
+        WHEN first_scan_date IS NULL THEN file_name_order_code END) AS chua_lam
+FROM order_summary
+GROUP BY 1
+ORDER BY 1 DESC;
