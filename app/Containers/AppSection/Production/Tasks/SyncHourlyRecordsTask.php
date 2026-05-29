@@ -41,7 +41,6 @@ final class SyncHourlyRecordsTask extends ParentTask
 
     public function __construct(
         private readonly GetAllTeamsInventoryTask $allTeamsInventoryTask,
-        private readonly SyncOrderInventoryTask $syncOrderInventoryTask,
     ) {
     }
 
@@ -132,7 +131,7 @@ final class SyncHourlyRecordsTask extends ParentTask
 
                 // Order sync (uses cached allInventory — fast)
                 try {
-                    $this->syncOrderInventoryTask->run($shiftDate);
+                    app(SyncOrderInventoryTask::class)->run($shiftDate);
 
                     // Invalidate order-summary API cache so next request gets fresh data
                     \Illuminate\Support\Facades\Cache::forget(
