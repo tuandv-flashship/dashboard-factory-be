@@ -167,6 +167,16 @@ final class UpdateShiftDepartmentAction extends ParentAction
         $shiftDate = $shift->date->toDateString();
         $shiftNum  = $shift->shift_number;
 
+        // Skip FPlatform resync for future dates — data doesn't exist yet.
+        if ($shiftDate > now()->toDateString()) {
+            Log::info('[UpdateShiftDepartment] Future date — skipping FPlatform resync.', [
+                'shift_id' => $shift->id,
+                'date'     => $shiftDate,
+            ]);
+
+            return;
+        }
+
         Log::info('[UpdateShiftDepartment] work_hours changed — auto-dispatching FPlatform resync.', [
             'shift_id'      => $shift->id,
             'date'          => $shiftDate,

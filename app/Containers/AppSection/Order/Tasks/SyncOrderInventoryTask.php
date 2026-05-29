@@ -13,6 +13,7 @@ use App\Containers\AppSection\Production\Support\TargetEstimator;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -159,7 +160,7 @@ final class SyncOrderInventoryTask extends ParentTask
             'rush_completed'            => $rushCompleted,
             'rush_total'                => $rushTotal,
             'progress'                  => $progress,
-            'production_workload_json'  => !empty($workload) ? $workload : null,
+            'production_workload_json'  => !empty($workload) ? $this->padWorkloadDates($workload, $date) : null,
         ];
 
         // Use whereDate for immutable_date cast compatibility (SQLite + MySQL)
@@ -259,5 +260,40 @@ final class SyncOrderInventoryTask extends ParentTask
             ->max();
 
         return $maxEndTime ?? ($shift->end_time ? substr($shift->end_time, 0, 5) : '--');
+    }
+
+    /**
+     * Pad workload array to ensure all 10 dates in range are present.
+     *
+     * FPlatform SQL returns rows only for dates that have data.
+     * Missing dates (e.g., DTG has no folders for today) would cause
+     * inconsistent per_line arrays in the API response.
+     *
+     * Fills gaps with zeroed entries: { estimate_date, tong_don: 0, da_lam: 0, chua_lam: 0 }
+     * Output is sorted by estimate_date DESC (newest first).
+     */
+    private function padWorkloadDates(array $workload, string $date): array
+    {
+        // Build index of existing rows by date
+        $indexed = [];
+        foreach ($workload as $row) {
+            $indexed[$row['estimate_date']] = $row;
+        }
+
+        // Generate full 10-day range: date → date - 9 days
+        $result = [];
+        $current = Carbon::parse($date);
+
+        for ($i = 0; $i < 10; $i++) {
+            $d = $current->copy()->subDays($i)->toDateString();
+            $result[] = $indexed[$d] ?? [
+                'estimate_date' => $d,
+                'tong_don'      => 0,
+                'da_lam'        => 0,
+                'chua_lam'      => 0,
+            ];
+        }
+
+        return $result;
     }
 }
