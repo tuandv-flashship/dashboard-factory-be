@@ -22,17 +22,27 @@ return new class extends Migration
 
         $now = now();
 
-        // 1. Create "pick" production line (sort_order=1: hiển thị đầu tiên)
-        $pickLineId = DB::table('production_lines')->insertGetId([
-            'code'       => 'pick',
-            'label'      => 'Pick',
-            'color'      => '#06b6d4',
-            'subtitle'   => 'Lấy hàng — Chung',
-            'sort_order' => 1,
-            'is_active'  => true,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        // 1. Create "pick" production line (sort_order=1: hiển thị đầu tiên) — idempotent
+        $pickLine = DB::table('production_lines')->where('code', 'pick')->first();
+        if (!$pickLine) {
+            $pickLineId = DB::table('production_lines')->insertGetId([
+                'code'       => 'pick',
+                'label'      => 'Pick',
+                'color'      => '#06b6d4',
+                'subtitle'   => 'Lấy hàng — Chung',
+                'sort_order' => 1,
+                'is_active'  => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        } else {
+            $pickLineId = $pickLine->id;
+            // Ensure correct sort_order
+            DB::table('production_lines')->where('id', $pickLineId)->update([
+                'sort_order' => 1,
+                'updated_at' => $now,
+            ]);
+        }
 
         // Re-order existing lines: DTF=2, DTG=3, Pack&Ship=4
         DB::table('production_lines')->where('code', 'dtf')->update([
@@ -48,28 +58,39 @@ return new class extends Migration
             'updated_at'  => $now,
         ]);
 
-        // 2. Create parent "pick" department (visible, aggregate)
-        $pickParentId = DB::table('departments')->insertGetId([
-            'production_line_id' => $pickLineId,
-            'parent_id'          => null,
-            'code'               => 'pick',
-            'label'              => 'Pick',
-            'label_en'           => 'Pick',
-            'icon'               => 'ShoppingCart',
-            'unit'               => 'shirt',
-            'kpi_per_hour'       => 0,
-            'factory'            => 'PD',
-            'sort_order'         => 1,
-            'is_active'          => true,
-            'is_hidden'          => false,
-            'productivity_type'  => 'per_person',
-            'created_at'         => $now,
-            'updated_at'         => $now,
-        ]);
+        // 2. Create parent "pick" department (visible, aggregate) — idempotent
+        $pickParent = DB::table('departments')
+            ->where('production_line_id', $pickLineId)
+            ->where('code', 'pick')
+            ->whereNull('parent_id')
+            ->first();
+
+        if (!$pickParent) {
+            $pickParentId = DB::table('departments')->insertGetId([
+                'production_line_id' => $pickLineId,
+                'parent_id'          => null,
+                'code'               => 'pick',
+                'label'              => 'Pick',
+                'label_en'           => 'Pick',
+                'icon'               => 'ShoppingCart',
+                'unit'               => 'shirt',
+                'kpi_per_hour'       => 0,
+                'factory'            => 'PD',
+                'sort_order'         => 1,
+                'is_active'          => true,
+                'is_hidden'          => false,
+                'productivity_type'  => 'per_person',
+                'created_at'         => $now,
+                'updated_at'         => $now,
+            ]);
+        } else {
+            $pickParentId = $pickParent->id;
+        }
 
         // 3. Move DTF "pick" → Pick line as "pick_dtf" child (hidden)
         $dtfLine = DB::table('production_lines')->where('code', 'dtf')->first();
         if ($dtfLine) {
+            // Look in DTF line first, then in Pick line (if already moved)
             $dtfPickDept = DB::table('departments')
                 ->where('production_line_id', $dtfLine->id)
                 ->where('code', 'pick')
@@ -87,6 +108,7 @@ return new class extends Migration
                     'updated_at'         => $now,
                 ]);
             }
+            // else: already moved in a previous run — skip
         }
 
         // 4. Move DTG "pick_dtg" → Pick line as child (hidden)
@@ -106,6 +128,7 @@ return new class extends Migration
                     'updated_at'         => $now,
                 ]);
             }
+            // else: already moved — skip
         }
     }
 
