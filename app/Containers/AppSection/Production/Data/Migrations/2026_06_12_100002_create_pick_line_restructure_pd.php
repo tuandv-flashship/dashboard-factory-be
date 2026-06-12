@@ -122,6 +122,8 @@ return new class extends Migration
                 DB::table('departments')->where('id', $dtgPickDept->id)->update([
                     'production_line_id' => $pickLineId,
                     'parent_id'          => $pickParentId,
+                    'label'              => 'Pick DTG',
+                    'label_en'           => 'Pick DTG',
                     'is_hidden'          => true,
                     'sort_order'         => 3,
                     'updated_at'         => $now,
