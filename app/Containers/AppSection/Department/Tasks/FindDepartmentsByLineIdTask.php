@@ -20,7 +20,8 @@ final class FindDepartmentsByLineIdTask extends ParentTask
     {
         $query = Department::query()
             ->where('production_line_id', $productionLineId)
-            ->with('machines')
+            ->where('is_hidden', false)
+            ->with(['machines', 'children'])
             ->orderBy('sort_order');
 
         // Apply department scope — only return departments user has access to

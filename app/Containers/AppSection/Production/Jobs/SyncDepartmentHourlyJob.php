@@ -41,7 +41,8 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
     private const DEPT_TEAM_MAP = [
         'print'     => Team::Print,
         'cut'       => Team::Cut,
-        'pick'      => Team::Pick,
+        'pick'      => Team::Pick,      // FLS: pick under DTF line
+        'pick_dtf'  => Team::Pick,      // PD: pick child under Pick line
         'mockup'    => Team::Mockup,
         'pack_ship' => Team::PackShip,
         'pick_dtg'  => Team::PickDtg,
@@ -52,7 +53,8 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
     private const DEPT_HOTSHOT_MAP = [
         'print'     => 'hotshot_print',
         'cut'       => 'hotshot_cut',
-        'pick'      => 'hotshot_pick',
+        'pick'      => 'hotshot_pick',      // FLS
+        'pick_dtf'  => 'hotshot_pick',      // PD: same FPlatform hotshot key
         'mockup'    => 'hotshot_mockup',
         'pack_ship' => 'hotshot_pack_ship',
     ];

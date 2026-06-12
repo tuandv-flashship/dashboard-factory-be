@@ -74,12 +74,30 @@ final class GetAllLinesHourlyController extends ApiController
                     $shiftDetail = $deptData['shift_detail'];
                     $hourly      = $deptData['hourly'];
 
-                    return [
+                    $result = [
                         'department'   => $deptTransformer->transform($dept),
                         'shift_detail' => $shiftDetail ? $shiftDetailTransformer->transform($shiftDetail) : null,
                         'hourly'       => $hourly->map(fn ($r) => $hourlyTransformer->transform($r))->values(),
                         'summary'      => DepartmentSummary::build($hourly, $dept, $shiftDetail, $shiftDate, $shiftEndAt),
                     ];
+
+                    // Include children data for parent departments (FE toggle)
+                    if (isset($deptData['children'])) {
+                        $result['children'] = collect($deptData['children'])->map(function ($childData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer, $shiftDate, $shiftEndAt) {
+                            $child       = $childData['department'];
+                            $childDetail = $childData['shift_detail'];
+                            $childHourly = $childData['hourly'];
+
+                            return [
+                                'department'   => $deptTransformer->transform($child),
+                                'shift_detail' => $childDetail ? $shiftDetailTransformer->transform($childDetail) : null,
+                                'hourly'       => $childHourly->map(fn ($r) => $hourlyTransformer->transform($r))->values(),
+                                'summary'      => DepartmentSummary::build($childHourly, $child, $childDetail, $shiftDate, $shiftEndAt),
+                            ];
+                        })->values();
+                    }
+
+                    return $result;
                 })->values();
 
                 return [

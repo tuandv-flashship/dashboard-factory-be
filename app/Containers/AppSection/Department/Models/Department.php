@@ -16,13 +16,14 @@ final class Department extends ParentModel
     protected $table = 'departments';
 
     protected $fillable = [
-        'production_line_id', 'code', 'label', 'label_en', 'description', 'icon', 'unit',
-        'kpi_per_hour', 'factory', 'sort_order', 'is_active', 'productivity_type',
+        'production_line_id', 'parent_id', 'code', 'label', 'label_en', 'description', 'icon', 'unit',
+        'kpi_per_hour', 'factory', 'sort_order', 'is_active', 'is_hidden', 'productivity_type',
     ];
 
     protected $casts = [
         'sort_order'        => 'integer',
         'is_active'         => 'boolean',
+        'is_hidden'         => 'boolean',
         'kpi_per_hour'      => 'integer',
         'unit'              => DepartmentUnit::class,
         'productivity_type' => ProductivityType::class,
@@ -37,9 +38,21 @@ final class Department extends ParentModel
         return $this->attributes['factory'] ?? null;
     }
 
+    // ── Relationships ────────────────────────────────────
+
     public function productionLine(): BelongsTo
     {
         return $this->belongsTo(ProductionLine::class, 'production_line_id');
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id')->orderBy('sort_order');
     }
 
     public function hourlyRecords(): HasMany
@@ -50,6 +63,19 @@ final class Department extends ParentModel
     public function machines(): HasMany
     {
         return $this->hasMany(Machine::class, 'department_id')->orderBy('sort_order');
+    }
+
+    // ── Helpers ──────────────────────────────────────────
+
+    /**
+     * Whether this department is a parent (has children).
+     * Uses loaded relation if available to avoid extra query.
+     */
+    public function isParent(): bool
+    {
+        return $this->relationLoaded('children')
+            ? $this->children->isNotEmpty()
+            : $this->children()->exists();
     }
 
     /**
@@ -81,3 +107,4 @@ final class Department extends ParentModel
         ])->values()->all();
     }
 }
+

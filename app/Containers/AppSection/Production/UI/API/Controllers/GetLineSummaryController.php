@@ -44,7 +44,7 @@ final class GetLineSummaryController extends ApiController
         $hourlyTransformer = new HourlyRecordTransformer();
 
         $departments = collect($data['departments'])->map(function ($deptData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer) {
-            return [
+            $result = [
                 'department'   => $deptTransformer->transform($deptData['department']),
                 'shift_detail' => $deptData['shift_detail']
                     ? $shiftDetailTransformer->transform($deptData['shift_detail'])
@@ -53,6 +53,23 @@ final class GetLineSummaryController extends ApiController
                     fn ($r) => $hourlyTransformer->transform($r)
                 )->values(),
             ];
+
+            // Include children data for parent departments (FE toggle)
+            if (isset($deptData['children'])) {
+                $result['children'] = collect($deptData['children'])->map(function ($childData) use ($deptTransformer, $shiftDetailTransformer, $hourlyTransformer) {
+                    return [
+                        'department'   => $deptTransformer->transform($childData['department']),
+                        'shift_detail' => $childData['shift_detail']
+                            ? $shiftDetailTransformer->transform($childData['shift_detail'])
+                            : null,
+                        'hourly'       => $childData['hourly']->map(
+                            fn ($r) => $hourlyTransformer->transform($r)
+                        )->values(),
+                    ];
+                })->values();
+            }
+
+            return $result;
         });
 
         $response = [

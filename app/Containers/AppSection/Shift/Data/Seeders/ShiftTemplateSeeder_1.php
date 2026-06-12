@@ -14,7 +14,7 @@ use App\Ship\Parents\Seeders\Seeder;
  * Uses config('factory.current') to determine which departments get templates.
  *
  * FLS departments: DTF (Print, Pick, Cut, Mockup, Pack & Ship)
- * PD  departments: DTF (Print, Pick, Cut, Mockup) + DTG (Pick DTG, DTG Print group) + Pack & Ship
+ * PD  departments: DTF (Print, Cut, Mockup) + DTG (DTG Print) + Pick (Pick parent, Pick DTF, Pick DTG) + Pack & Ship
  *
  * 2 templates:
  * 1. Ca 1 (active) — shift_number = 1 only, color blue
@@ -55,14 +55,16 @@ final class ShiftTemplateSeeder_1 extends Seeder
                 ['dtf-pack_ship', 1, 0, '08:00', 8, 0,  '10:30', 15, '13:00', 30, '15:30', 15, '18:00', 15],
             ],
             'PD' => [
-                // DTF — 4 departments
+                // DTF — 3 departments (pick moved to Pick line)
                 ['dtf-print',     1, 0, '06:30', 8, 23, '09:00', 15, '11:30', 30, '14:00', 15, '16:30', 15],
-                ['dtf-pick',      1, 0, '06:00', 8, 0,  '08:30', 15, '11:00', 30, '13:30', 15, '16:00', 15],
                 ['dtf-cut',       1, 0, '07:00', 8, 0,  '09:30', 15, '12:00', 30, '14:30', 15, '17:00', 15],
                 ['dtf-mockup',    1, 0, '07:30', 8, 0,  '10:00', 15, '12:30', 30, '15:00', 15, '17:30', 15],
-                // DTG — 2 departments
-                ['dtg-pick_dtg',  1, 0, '06:00', 8, 0,  '08:30', 15, '11:00', 30, '13:30', 15, '16:00', 15],
+                // DTG — 1 department (pick_dtg moved to Pick line)
                 ['dtg-dtg_print', 1, 0, '06:30', 8, 20, '09:00', 15, '11:00', 30, '14:00', 15, '16:30', 15],
+                // Pick — 3 departments (1 parent + 2 children)
+                ['pick-pick',     1, 0, '06:00', 8, 0,  '08:30', 15, '11:00', 30, '13:30', 15, '16:00', 15],
+                ['pick-pick_dtf', 1, 0, '06:00', 8, 0,  '08:30', 15, '11:00', 30, '13:30', 15, '16:00', 15],
+                ['pick-pick_dtg', 1, 0, '06:00', 8, 0,  '08:30', 15, '11:00', 30, '13:30', 15, '16:00', 15],
                 // Pack & Ship — 1 department
                 ['pack_ship-pack_ship', 1, 0, '08:00', 8, 0, '10:30', 15, '13:00', 30, '15:30', 15, '18:00', 15],
             ],
@@ -81,14 +83,16 @@ final class ShiftTemplateSeeder_1 extends Seeder
                 ['dtf-pack_ship', 2, 0, '16:30', 8, 0, '19:00', 15, '21:30', 30, '00:00', 15, '02:30', 15],
             ],
             'PD' => [
-                // DTF — 4 departments
+                // DTF — 3 departments (pick moved to Pick line)
                 ['dtf-print',     2, 0, '15:00', 8, 0, '17:30', 15, '20:00', 30, '22:30', 15, '01:00', 15],
-                ['dtf-pick',      2, 0, '14:30', 8, 0, '17:00', 15, '19:30', 30, '22:00', 15, '00:30', 15],
                 ['dtf-cut',       2, 0, '15:30', 8, 0, '18:00', 15, '20:30', 30, '23:00', 15, '01:30', 15],
                 ['dtf-mockup',    2, 0, '16:00', 8, 0, '18:30', 15, '21:00', 30, '23:30', 15, '02:00', 15],
-                // DTG — 2 departments
-                ['dtg-pick_dtg',  2, 0, '14:30', 8, 0, '17:00', 15, '19:30', 30, '22:00', 15, '00:30', 15],
+                // DTG — 1 department (pick_dtg moved to Pick line)
                 ['dtg-dtg_print', 2, 0, '15:00', 8, 0, '17:30', 15, '20:00', 30, '22:30', 15, '01:00', 15],
+                // Pick — 3 departments (1 parent + 2 children)
+                ['pick-pick',     2, 0, '14:30', 8, 0, '17:00', 15, '19:30', 30, '22:00', 15, '00:30', 15],
+                ['pick-pick_dtf', 2, 0, '14:30', 8, 0, '17:00', 15, '19:30', 30, '22:00', 15, '00:30', 15],
+                ['pick-pick_dtg', 2, 0, '14:30', 8, 0, '17:00', 15, '19:30', 30, '22:00', 15, '00:30', 15],
                 // Pack & Ship — 1 department
                 ['pack_ship-pack_ship', 2, 0, '16:30', 8, 0, '19:00', 15, '21:30', 30, '00:00', 15, '02:30', 15],
             ],

@@ -2,9 +2,11 @@
 
 namespace App\Containers\AppSection\Production\Tasks;
 
+use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\FplatformData\Enums\Team;
 use App\Containers\AppSection\FplatformData\Tasks\GetAllTeamsInventoryTask;
 use App\Containers\AppSection\Order\Tasks\SyncOrderInventoryTask;
+use App\Containers\AppSection\Production\Jobs\AggregateParentHourlyJob;
 use App\Containers\AppSection\Production\Jobs\SyncDepartmentHourlyJob;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
@@ -32,7 +34,8 @@ final class SyncHourlyRecordsTask extends ParentTask
     private const DEPT_TEAM_MAP = [
         'print'     => Team::Print,
         'cut'       => Team::Cut,
-        'pick'      => Team::Pick,
+        'pick'      => Team::Pick,      // FLS: pick under DTF line
+        'pick_dtf'  => Team::Pick,      // PD: pick child under Pick line
         'mockup'    => Team::Mockup,
         'pack_ship' => Team::PackShip,
         'pick_dtg'  => Team::PickDtg,
@@ -121,11 +124,14 @@ final class SyncHourlyRecordsTask extends ParentTask
                     ->name("pipeline:{$shiftDate}:shift-{$shiftNum}:stage-2-sync")
                     ->onQueue('sync')
                     ->allowFailures()
-                    ->then(function (Batch $b) use ($shiftDate, $shiftNum) {
+                    ->then(function (Batch $b) use ($shiftDate, $shiftNum, $shiftId) {
                         Log::info("[SyncHourlyRecords] Stage 2 dept sync done for {$shiftDate} shift {$shiftNum}.", [
                             'total'  => $b->totalJobs,
                             'failed' => $b->failedJobs,
                         ]);
+
+                        // ── Stage 3: Aggregate parent departments ──
+                        self::dispatchParentAggregation($shiftId);
                     })
                     ->dispatch();
 
@@ -177,6 +183,12 @@ final class SyncHourlyRecordsTask extends ParentTask
         $now  = now();
         $shiftDate = $shift->date->toDateString();
 
+        // Preload parent department IDs to avoid N+1 in the loop
+        $parentDeptIds = Department::whereNull('parent_id')
+            ->whereHas('children')
+            ->pluck('id')
+            ->toArray();
+
         foreach ($shiftDetails as $detail) {
             // ── Targeted resync: skip all other departments ──
             if ($shiftDetailId !== null && $detail->id !== $shiftDetailId) {
@@ -190,6 +202,11 @@ final class SyncHourlyRecordsTask extends ParentTask
 
             $team = self::DEPT_TEAM_MAP[$dept->code] ?? null;
             if (!$team) {
+                continue;
+            }
+
+            // ── Skip parent departments: they are aggregated, not synced from FPlatform ──
+            if (in_array($dept->id, $parentDeptIds, true)) {
                 continue;
             }
 
@@ -229,5 +246,36 @@ final class SyncHourlyRecordsTask extends ParentTask
         }
 
         return $data;
+    }
+
+    /**
+     * Dispatch aggregation jobs for parent departments (e.g. Pick parent).
+     *
+     * Finds all parent departments that have children with shift_details
+     * for the given shift, then dispatches AggregateParentHourlyJob for each.
+     */
+    private static function dispatchParentAggregation(int $shiftId): void
+    {
+        // Find parent departments (parent_id IS NULL + has children) that have shift_details
+        $parentDepts = Department::whereNull('parent_id')
+            ->whereHas('children')
+            ->whereHas('hourlyRecords', fn ($q) => $q->where('shift_id', $shiftId))
+            ->get();
+
+        if ($parentDepts->isEmpty()) {
+            return;
+        }
+
+        $jobs = $parentDepts->map(
+            fn (Department $d) => new AggregateParentHourlyJob($shiftId, $d->id)
+        )->all();
+
+        Bus::batch($jobs)
+            ->name("pipeline:shift-{$shiftId}:stage-3-aggregate")
+            ->onQueue('sync')
+            ->allowFailures()
+            ->dispatch();
+
+        Log::info('[SyncHourlyRecords] Stage 3 dispatched — aggregating ' . count($jobs) . ' parent dept(s).');
     }
 }

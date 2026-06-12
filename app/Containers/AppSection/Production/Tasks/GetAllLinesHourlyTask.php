@@ -34,14 +34,15 @@ final class GetAllLinesHourlyTask extends ParentTask
         // Resolve department scope for current user
         $scopedDeptIds = DepartmentScope::resolve(auth()->user(), 'dashboard.view');
 
-        // 1 query: lines + departments (eager-loaded, scoped) + department.machines
+        // 1 query: lines + departments (eager-loaded, scoped, visible only) + children + machines
         $lines = ProductionLine::where('is_active', true)
             ->with(['departments' => function ($q) use ($scopedDeptIds) {
-                $q->orderBy('sort_order');
+                $q->where('is_hidden', false)
+                  ->orderBy('sort_order');
                 if ($scopedDeptIds !== null) {
                     $q->whereIn('id', $scopedDeptIds);
                 }
-            }, 'departments.machines'])
+            }, 'departments.machines', 'departments.children'])
             ->orderBy('sort_order')
             ->get();
 
@@ -67,11 +68,30 @@ final class GetAllLinesHourlyTask extends ParentTask
                 $records->each(fn ($r) => $r->setRelation('shiftDetail', $detail));
                 $records->each(fn ($r) => $r->setRelation('department', $dept));
 
-                return [
+                $result = [
                     'department'   => $dept,
                     'shift_detail' => $detail,
                     'hourly'       => $records,
                 ];
+
+                // For parent departments: include children data so FE can toggle visibility
+                if ($dept->relationLoaded('children') && $dept->children->isNotEmpty()) {
+                    $result['children'] = $dept->children->map(function ($child) use ($allRecords, $allDetails) {
+                        $childDetail  = $allDetails->get($child->id);
+                        $childRecords = $allRecords->get($child->id, collect());
+
+                        $childRecords->each(fn ($r) => $r->setRelation('shiftDetail', $childDetail));
+                        $childRecords->each(fn ($r) => $r->setRelation('department', $child));
+
+                        return [
+                            'department'   => $child,
+                            'shift_detail' => $childDetail,
+                            'hourly'       => $childRecords,
+                        ];
+                    })->values()->all();
+                }
+
+                return $result;
             })->values()->all();
 
             return [

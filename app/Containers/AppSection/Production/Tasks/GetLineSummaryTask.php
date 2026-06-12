@@ -54,11 +54,30 @@ final class GetLineSummaryTask extends ParentTask
             $records->each(fn ($r) => $r->setRelation('shiftDetail', $shiftDetail));
             $records->each(fn ($r) => $r->setRelation('department', $dept));
 
-            return [
+            $result = [
                 'department'   => $dept,
                 'shift_detail' => $shiftDetail,
                 'hourly'       => $records,
             ];
+
+            // For parent departments: include children data so FE can toggle visibility
+            if ($dept->relationLoaded('children') && $dept->children->isNotEmpty()) {
+                $result['children'] = $dept->children->map(function ($child) use ($allRecords, $shiftDetails) {
+                    $childRecords     = $allRecords->get($child->id, collect());
+                    $childShiftDetail = $shiftDetails->get($child->id);
+
+                    $childRecords->each(fn ($r) => $r->setRelation('shiftDetail', $childShiftDetail));
+                    $childRecords->each(fn ($r) => $r->setRelation('department', $child));
+
+                    return [
+                        'department'   => $child,
+                        'shift_detail' => $childShiftDetail,
+                        'hourly'       => $childRecords,
+                    ];
+                })->values()->all();
+            }
+
+            return $result;
         })->values()->all();
 
         return [

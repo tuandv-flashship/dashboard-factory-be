@@ -27,6 +27,11 @@ final class DepartmentTransformer extends ParentTransformer
             'productivity_type' => $dept->productivity_type,
             'sort_order' => $dept->sort_order,
             'is_active' => $dept->is_active,
+            'is_hidden' => $dept->is_hidden,
+            'is_parent' => $dept->relationLoaded('children') && $dept->children->isNotEmpty(),
+            'parent_id' => $dept->parent_id
+                ? ($dept->relationLoaded('parent') ? $dept->parent?->getHashedKey() : $dept->parent_id)
+                : null,
             'created_at' => $dept->created_at?->toIsoString(),
             'updated_at' => $dept->updated_at?->toIsoString(),
         ];

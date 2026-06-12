@@ -40,9 +40,10 @@ final class ProductionSeeder_1 extends Seeder
                 ['code' => 'dtf', 'label' => 'DTF', 'color' => '#f59e0b', 'subtitle' => 'Building 1', 'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ],
             'PD' => [
-                ['code' => 'dtf',       'label' => 'DTF',         'color' => '#14b8a6', 'subtitle' => 'Building 2',        'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-                ['code' => 'dtg',       'label' => 'DTG',         'color' => '#8b5cf6', 'subtitle' => 'Apollo + 2× Atlas', 'sort_order' => 2, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-                ['code' => 'pack_ship', 'label' => 'Pack & Ship', 'color' => '#ec4899', 'subtitle' => 'Đóng gói & Giao',  'sort_order' => 3, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                ['code' => 'pick',      'label' => 'Pick',        'color' => '#06b6d4', 'subtitle' => 'Lấy hàng — Chung',  'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                ['code' => 'dtf',       'label' => 'DTF',         'color' => '#14b8a6', 'subtitle' => 'Building 2',        'sort_order' => 2, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                ['code' => 'dtg',       'label' => 'DTG',         'color' => '#8b5cf6', 'subtitle' => 'Apollo + 2× Atlas', 'sort_order' => 3, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                ['code' => 'pack_ship', 'label' => 'Pack & Ship', 'color' => '#ec4899', 'subtitle' => 'Đóng gói & Giao',  'sort_order' => 4, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ],
         };
 
@@ -82,14 +83,17 @@ final class ProductionSeeder_1 extends Seeder
                 ['dtf-pack_ship', 14, 87.3, 3.2, [[83,73],[81,74],[87,83],[86,86],[85,79],[83,41],[89,null],[82,null]]],
             ],
             'PD' => [
-                // DTF — 4 departments
+                // DTF — 3 departments (pick moved to Pick line)
                 ['dtf-print',      10, 92.1, 1.8, [[88,90],[85,88],[90,87],[87,85],[89,80],[91,45],[88,null],[86,null]]],
-                ['dtf-pick',        3, 90.5, 1.8, [[135,130],[135,132],[140,142],[140,135],[135,128],[135,68],[140,null],[140,null]]],
                 ['dtf-cut',         6, 93.7, 1.1, [[82,85],[84,86],[86,88],[85,82],[83,78],[87,43],[84,null],[81,null]]],
                 ['dtf-mockup',      8, 95.2, 1.0, [[75,78],[78,80],[76,77],[79,76],[74,70],[80,40],[77,null],[75,null]]],
-                // DTG — 2 departments
-                ['dtg-pick_dtg',    2, 91.0, 1.5, [[105,95],[105,101],[95,100],[95,95],[105,92],[105,47],[95,null],[95,null]]],
+                // DTG — 1 department
                 ['dtg-dtg_print',   2, 88.4, 2.8, [[400,385],[400,392],[400,410],[400,378],[400,365],[400,195],[400,null],[400,null]]],
+                // Pick — 2 children (parent is aggregated from these)
+                ['pick-pick_dtf',   3, 90.5, 1.8, [[135,130],[135,132],[140,142],[140,135],[135,128],[135,68],[140,null],[140,null]]],
+                ['pick-pick_dtg',   2, 91.0, 1.5, [[105,95],[105,101],[95,100],[95,95],[105,92],[105,47],[95,null],[95,null]]],
+                // Pick parent — aggregated from pick_dtf + pick_dtg
+                ['pick-pick',       5, 90.8, 1.7, [[240,225],[240,233],[235,242],[235,230],[240,220],[240,115],[235,null],[235,null]]],
                 // Pack & Ship
                 ['pack_ship-pack_ship', 10, 89.5, 2.5, [[70,65],[72,68],[74,72],[73,71],[71,66],[75,37],[72,null],[70,null]]],
             ],
