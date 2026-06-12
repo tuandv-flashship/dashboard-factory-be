@@ -75,7 +75,6 @@ return new class extends Migration
                 'icon'               => 'ShoppingCart',
                 'unit'               => 'shirt',
                 'kpi_per_hour'       => 0,
-                'factory'            => 'PD',
                 'sort_order'         => 1,
                 'is_active'          => true,
                 'is_hidden'          => false,
