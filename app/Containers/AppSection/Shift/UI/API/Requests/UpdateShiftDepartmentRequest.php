@@ -35,6 +35,16 @@ final class UpdateShiftDepartmentRequest extends ParentRequest
 
     public function authorize(): bool
     {
+        // Headcount-only update → attendance.edit permission suffices.
+        // Any other shift-config field → requires shifts.edit.
+        $attendanceOnlyFields = ['headcount'];
+        $payloadKeys = array_keys($this->only(array_keys($this->rules())));
+        $isAttendanceOnly = empty(array_diff($payloadKeys, $attendanceOnlyFields));
+
+        if ($isAttendanceOnly) {
+            return $this->user()?->can('attendance.edit') ?? false;
+        }
+
         return $this->user()?->can('shifts.edit') ?? false;
     }
 }
