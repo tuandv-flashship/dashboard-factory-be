@@ -58,10 +58,11 @@ final class DepartmentSummary
         // Past shifts → all slots completed → target_remaining = 0
         $isPastShift = ($shiftDate && $shiftDate->lt(today()))
             || ($shiftEndAt && now()->gte($shiftEndAt));
+        $isToday = $shiftDate && $shiftDate->eq(today());
         $targetRemaining = 0;
         foreach ($records as $i => $r) {
             $effectiveTarget = $effectiveTargets[$i];
-            $status = $isPastShift ? 'completed' : $r->status;
+            $status = self::resolveSlotStatus($r, $isPastShift, $isToday);
             if ($status === 'active') {
                 $targetRemaining += max(0, $effectiveTarget - ($r->actual ?? 0));
             } elseif ($status === 'pending') {
@@ -87,7 +88,7 @@ final class DepartmentSummary
         $currentActual = 0;
         $currentTarget = 0;
         foreach ($records as $i => $r) {
-            $status = $isPastShift ? 'completed' : $r->status;
+            $status = self::resolveSlotStatus($r, $isPastShift, $isToday);
             if ($status === 'completed' || $status === 'active') {
                 $currentActual += $r->actual ?? 0;
                 $currentTarget += $effectiveTargets[$i] ?? 0;
@@ -254,5 +255,36 @@ final class DepartmentSummary
         }
 
         return [$estimatedEndTime, $outOfWorkAt];
+    }
+
+    /**
+     * Resolve slot status with real-time accuracy (same logic as HourlyRecordTransformer).
+     *
+     * Past shifts → 'completed'.
+     * Today → compute from hour_slot + now() using integer hour comparison.
+     * Otherwise → use DB status.
+     */
+    private static function resolveSlotStatus(mixed $record, bool $isPastShift, bool $isToday): string
+    {
+        if ($isPastShift) {
+            return 'completed';
+        }
+
+        if ($isToday && $record->hour_slot) {
+            $parts = explode('-', str_replace('h', '', $record->hour_slot));
+            $startHour = (int) ($parts[0] ?? 0);
+            $endHour   = (int) ($parts[1] ?? 0);
+            $currentHour = (int) now()->format('G');
+
+            if ($currentHour >= $endHour) {
+                return 'completed';
+            }
+            if ($currentHour >= $startHour) {
+                return 'active';
+            }
+            return 'pending';
+        }
+
+        return $record->status;
     }
 }

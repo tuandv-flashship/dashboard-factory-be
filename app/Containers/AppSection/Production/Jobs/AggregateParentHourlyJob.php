@@ -6,20 +6,26 @@ use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Enums\HourlyRecordStatus;
 use App\Containers\AppSection\Production\Models\HourlyRecord;
 use App\Containers\AppSection\Production\Support\ProductionCacheKeys;
+use App\Containers\AppSection\Production\Support\TargetEstimator;
 use App\Containers\AppSection\Shift\Models\Shift;
+use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Aggregate hourly records from child departments into a parent department.
  *
  * Dispatched AFTER all child SyncDepartmentHourlyJobs complete.
- * Sums ALL numeric data fields from children into the parent's hourly_records.
+ *
+ * From children: actual, staff, productivity_json (FPlatform data)
+ * From parent's own data: hour_start_inventory, target, efficiency
+ *   (same cascade logic as independent departments)
  *
  * Used for the Pick parent department (PD factory):
  *   Pick (parent) = Pick DTF (child) + Pick DTG (child)
@@ -58,7 +64,7 @@ final class AggregateParentHourlyJob implements ShouldQueue
             ->get()
             ->groupBy('hour_index');
 
-        // Fetch parent hourly_records
+        // Fetch parent hourly_records ordered by hour_index
         $parentRecords = HourlyRecord::where('shift_id', $this->shiftId)
             ->where('department_id', $this->parentDepartmentId)
             ->orderBy('hour_index')
@@ -73,69 +79,86 @@ final class AggregateParentHourlyJob implements ShouldQueue
             return;
         }
 
+        // ── Aggregate shift_detail fields from children FIRST ──
+        // (so parent's day_start_inventory is up-to-date before cascade)
+        $this->aggregateShiftDetail($shift, $parent, $childIds);
+
+        // ── Load parent's shift_detail for independent target/inventory calc ──
+        $parentDetail = ShiftDetail::where('shift_id', $shift->id)
+            ->where('department_id', $parent->id)
+            ->first();
+
+        $kpiPerHour     = $parentDetail->kpi_per_hour ?? ($parent->kpi_per_hour ?? 0);
+        $defaultHeadcount = $parentDetail->headcount ?? 0;
+        $isPerMachineDtg = $parent->productivity_type?->isPerMachineDtg() ?? false;
+        $isPerMachineDtf = $parent->productivity_type?->isPerMachineDtf() ?? false;
+
+        // Start inventory cascade from parent's own day_start_inventory
+        $currentInv = $parentDetail->day_start_inventory ?? 0;
+
+        // Parse shift timing for slot classification
+        $now       = now();
+        $shiftDate = $shift->date->toDateString();
+
         $updated = 0;
 
         foreach ($parentRecords as $hourIndex => $parentRecord) {
             $childGroup = $childRecords->get($hourIndex, collect());
 
-            if ($childGroup->isEmpty()) {
-                continue;
-            }
+            // ── Aggregate FPlatform data from children ──
+            $hasAnyActual = $childGroup->isNotEmpty() && $childGroup->contains(fn ($r) => $r->actual !== null);
+            $totalActual  = $hasAnyActual ? (int) $childGroup->sum('actual') : null;
 
-            // ── Aggregate ALL data fields from children ──
+            $hasAnyStaff = $childGroup->isNotEmpty() && $childGroup->contains(fn ($r) => $r->staff !== null);
+            $totalStaff  = $hasAnyStaff ? (int) $childGroup->sum('staff') : null;
 
-            // Actual: sum of children actuals (null if ALL children are null)
-            $hasAnyActual = $childGroup->contains(fn ($r) => $r->actual !== null);
-            $totalActual = $hasAnyActual ? $childGroup->sum('actual') : null;
+            // Merge productivity_json: concat all children items
+            $mergedProductivity = $childGroup->isNotEmpty()
+                ? $childGroup->pluck('productivity_json')->filter()->flatten(1)->values()->toArray()
+                : [];
 
-            // Staff: sum of children staff
-            $hasAnyStaff = $childGroup->contains(fn ($r) => $r->staff !== null);
-            $totalStaff = $hasAnyStaff ? $childGroup->sum('staff') : null;
+            // ── Parent's own target (same as TargetEstimator in other departments) ──
+            $effectiveTarget = TargetEstimator::effective(
+                $parentRecord->target,
+                $kpiPerHour,
+                $parentRecord->kpi_percent ?? 100,
+                $isPerMachineDtg,
+                $isPerMachineDtf
+                    ? ($parentRecord->machine_count ?? $parentDetail->machine_count ?? 0)
+                    : ($parentRecord->staff_required ?? $defaultHeadcount),
+            );
 
-            // hour_start_inventory: sum of children
-            $totalHourStartInventory = $childGroup->sum('hour_start_inventory');
+            // ── Parent's own inventory cascade ──
+            $hourStartInventory = max(0, $currentInv);
 
-            // Status: determined from children statuses
-            $statuses = $childGroup->pluck('status')->unique();
-            if ($statuses->every(fn ($s) => $s === HourlyRecordStatus::Completed->value)) {
-                $status = HourlyRecordStatus::Completed->value;
-            } elseif ($statuses->contains(HourlyRecordStatus::Active->value)) {
-                $status = HourlyRecordStatus::Active->value;
-            } else {
-                $status = HourlyRecordStatus::Pending->value;
-            }
+            // ── Slot classification (same logic as SyncDepartmentHourlyJob) ──
+            [$slotStart, $slotEnd] = $this->parseHourSlot($parentRecord->hour_slot, $shiftDate);
+            $isPassedSlot  = $now >= $slotEnd;
+            $isFutureSlot  = $now < $slotStart;
 
-            // Target: parent follows standard logic (TargetEstimator / staff confirmation)
-            // — NOT aggregated from children. Don't touch parent's target here.
-            $effectiveTarget = $parentRecord->target ?? 0;
-
+            // ── Efficiency (parent's own target vs aggregated actual) ──
             $efficiency = ($effectiveTarget > 0 && $totalActual !== null && $totalActual > 0)
                 ? round(($totalActual / $effectiveTarget) * 100, 1)
                 : 0;
 
-            // Merge productivity_json: concat all children items
-            $mergedProductivity = $childGroup
-                ->pluck('productivity_json')
-                ->filter()
-                ->flatten(1)
-                ->values()
-                ->toArray();
-
             $updates = [
                 'actual'               => $totalActual,
                 'staff'                => $totalStaff,
-                'hour_start_inventory' => $totalHourStartInventory,
+                'hour_start_inventory' => $hourStartInventory,
                 'efficiency'           => $efficiency,
-                'status'               => $status,
                 'productivity_json'    => !empty($mergedProductivity) ? $mergedProductivity : null,
             ];
 
             $parentRecord->update($updates);
             $updated++;
-        }
 
-        // ── Aggregate shift_detail fields from children ──
-        $this->aggregateShiftDetail($shift, $parent, $childIds);
+            // ── Advance inventory: passed → subtract actual, active/future → subtract target ──
+            if ($isPassedSlot) {
+                $currentInv = max(0, $currentInv - ($totalActual ?? 0));
+            } else {
+                $currentInv = max(0, $currentInv - $effectiveTarget);
+            }
+        }
 
         if ($updated > 0) {
             Log::info("[AggregateParentHourly] Aggregated {$updated} records for parent dept {$parent->code}.");
@@ -144,12 +167,30 @@ final class AggregateParentHourlyJob implements ShouldQueue
     }
 
     /**
+     * Parse hour_slot string (e.g. "9h-10h") into Carbon start/end.
+     */
+    private function parseHourSlot(string $hourSlot, string $shiftDate): array
+    {
+        $parts = explode('-', str_replace('h', '', $hourSlot));
+        $startHour = (int) $parts[0];
+        $endHour   = (int) $parts[1];
+
+        return [
+            Carbon::createFromFormat('Y-m-d H:i:s', "{$shiftDate} {$startHour}:00:00"),
+            Carbon::createFromFormat('Y-m-d H:i:s', "{$shiftDate} {$endHour}:00:00"),
+        ];
+    }
+
+    /**
      * Sum day_start_inventory, hotshot_total, hotshot_completed
      * from children's shift_details into the parent's shift_detail.
+     *
+     * Runs BEFORE the hourly cascade so parent's day_start_inventory
+     * is up-to-date for inventory projection.
      */
     private function aggregateShiftDetail(Shift $shift, Department $parent, array $childIds): void
     {
-        $parentDetail = \App\Containers\AppSection\Shift\Models\ShiftDetail::where('shift_id', $shift->id)
+        $parentDetail = ShiftDetail::where('shift_id', $shift->id)
             ->where('department_id', $parent->id)
             ->first();
 
@@ -157,7 +198,7 @@ final class AggregateParentHourlyJob implements ShouldQueue
             return;
         }
 
-        $childDetails = \App\Containers\AppSection\Shift\Models\ShiftDetail::where('shift_id', $shift->id)
+        $childDetails = ShiftDetail::where('shift_id', $shift->id)
             ->whereIn('department_id', $childIds)
             ->get();
 
