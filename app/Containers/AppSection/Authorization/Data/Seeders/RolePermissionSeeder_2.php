@@ -170,10 +170,7 @@ final class RolePermissionSeeder_2 extends ParentSeeder
                     ],
                 );
 
-                // Skip if role already has permissions assigned (idempotent)
-                if ($role->permissions()->count() > 0) {
-                    continue;
-                }
+                // Always sync permissions with department_ids (re-runnable)
 
                 // Resolve department IDs
                 $deptIds = null;

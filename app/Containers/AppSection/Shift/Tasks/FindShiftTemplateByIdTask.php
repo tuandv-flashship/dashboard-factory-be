@@ -9,6 +9,10 @@ final class FindShiftTemplateByIdTask extends ParentTask
 {
     public function run(int $id): ShiftTemplate
     {
-        return ShiftTemplate::with(['details.department.productionLine', 'details.department.machines'])->findOrFail($id);
+        return ShiftTemplate::with([
+            'details' => fn ($q) => $q->whereHas('department', fn ($d) => $d->where('is_hidden', false)),
+            'details.department.productionLine',
+            'details.department.machines',
+        ])->findOrFail($id);
     }
 }
