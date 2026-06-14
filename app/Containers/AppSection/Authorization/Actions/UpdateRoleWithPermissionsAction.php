@@ -33,15 +33,52 @@ final class UpdateRoleWithPermissionsAction extends ParentAction
             : $this->updateRoleTask->run($roleId, $data);
 
         if ($permissionIds !== null) {
-            // Build sync data with department_ids pivot
+            // Build explicit scope map: permission_id → department_ids JSON
             $scopeMap = collect($permissionScopes ?? [])->keyBy('permission_id');
+
+            // Resolve inherited scope: if a permission has no explicit scope,
+            // inherit from its closest scopeable ancestor (group.department-data → children).
+            $allPermissions = \App\Ship\Supports\PermissionRegistry::all();
+            $flagById = \App\Containers\AppSection\Authorization\Models\Permission::whereIn('id', $permissionIds)
+                ->pluck('name', 'id');
+
+            // Build flag → parent_flag map
+            $parentMap = collect($allPermissions)->pluck('parent_flag', 'flag');
+
+            // For each permission, walk up the tree to find inherited scope
+            $resolvedScope = [];
+            foreach ($permissionIds as $permId) {
+                if ($scopeMap->has($permId)) {
+                    $resolvedScope[$permId] = json_encode($scopeMap[$permId]['department_ids']);
+                    continue;
+                }
+
+                // Walk up parent chain to find inherited scope
+                $flag = $flagById[$permId] ?? null;
+                $inherited = null;
+                $visited = [];
+                while ($flag && !isset($visited[$flag])) {
+                    $visited[$flag] = true;
+                    $parentFlag = $parentMap[$flag] ?? null;
+                    if (!$parentFlag) {
+                        break;
+                    }
+                    // Find parent's permission_id and check if it has scope
+                    $parentId = $flagById->search($parentFlag);
+                    if ($parentId !== false && $scopeMap->has($parentId)) {
+                        $inherited = json_encode($scopeMap[$parentId]['department_ids']);
+                        break;
+                    }
+                    $flag = $parentFlag;
+                }
+
+                $resolvedScope[$permId] = $inherited; // null if truly non-scoped
+            }
 
             $syncData = [];
             foreach ($permissionIds as $permId) {
                 $syncData[$permId] = [
-                    'department_ids' => $scopeMap->has($permId)
-                        ? json_encode($scopeMap[$permId]['department_ids'])
-                        : null,
+                    'department_ids' => $resolvedScope[$permId] ?? null,
                 ];
             }
 
