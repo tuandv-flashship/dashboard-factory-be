@@ -134,9 +134,57 @@ final class AggregateParentHourlyJob implements ShouldQueue
             $updated++;
         }
 
+        // ── Aggregate shift_detail fields from children ──
+        $this->aggregateShiftDetail($shift, $parent, $childIds);
+
         if ($updated > 0) {
             Log::info("[AggregateParentHourly] Aggregated {$updated} records for parent dept {$parent->code}.");
             ProductionCacheKeys::flushForDepartment($shift, $parent);
+        }
+    }
+
+    /**
+     * Sum day_start_inventory, hotshot_total, hotshot_completed
+     * from children's shift_details into the parent's shift_detail.
+     */
+    private function aggregateShiftDetail(Shift $shift, Department $parent, array $childIds): void
+    {
+        $parentDetail = \App\Containers\AppSection\Shift\Models\ShiftDetail::where('shift_id', $shift->id)
+            ->where('department_id', $parent->id)
+            ->first();
+
+        if (!$parentDetail) {
+            return;
+        }
+
+        $childDetails = \App\Containers\AppSection\Shift\Models\ShiftDetail::where('shift_id', $shift->id)
+            ->whereIn('department_id', $childIds)
+            ->get();
+
+        if ($childDetails->isEmpty()) {
+            return;
+        }
+
+        $totalDayStartInventory = $childDetails->sum('day_start_inventory');
+        $totalHotshotTotal      = $childDetails->sum('hotshot_total');
+        $totalHotshotCompleted  = $childDetails->sum('hotshot_completed');
+
+        $changed = $parentDetail->day_start_inventory !== $totalDayStartInventory
+            || $parentDetail->hotshot_total !== $totalHotshotTotal
+            || $parentDetail->hotshot_completed !== $totalHotshotCompleted;
+
+        if ($changed) {
+            $parentDetail->update([
+                'day_start_inventory' => $totalDayStartInventory,
+                'hotshot_total'       => $totalHotshotTotal,
+                'hotshot_completed'   => $totalHotshotCompleted,
+            ]);
+
+            Log::info("[AggregateParentHourly] ShiftDetail aggregated for parent {$parent->code}.", [
+                'day_start_inventory' => $totalDayStartInventory,
+                'hotshot_total'       => $totalHotshotTotal,
+                'hotshot_completed'   => $totalHotshotCompleted,
+            ]);
         }
     }
 }
