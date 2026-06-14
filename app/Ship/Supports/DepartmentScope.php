@@ -60,7 +60,7 @@ final class DepartmentScope
 
             $ids = is_string($raw) ? json_decode($raw, true) : $raw;
             if (is_array($ids)) {
-                $allDeptIds = array_merge($allDeptIds, $ids);
+                $allDeptIds = array_merge($allDeptIds, array_map('intval', $ids));
             }
         }
 

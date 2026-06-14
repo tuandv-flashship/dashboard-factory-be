@@ -91,7 +91,7 @@ final class UpdateRoleWithPermissionsAction extends ParentAction
                 if ($group === null) {
                     continue;
                 }
-                $deptIds = $scopeMap[$permId]['department_ids'];
+                $deptIds = array_map('intval', $scopeMap[$permId]['department_ids']);
                 if (!isset($groupScopes[$group])) {
                     $groupScopes[$group] = [];
                 }
@@ -105,7 +105,7 @@ final class UpdateRoleWithPermissionsAction extends ParentAction
             foreach ($permissionIds as $permId) {
                 if ($scopeMap->has($permId)) {
                     $syncData[$permId] = [
-                        'department_ids' => json_encode($scopeMap[$permId]['department_ids']),
+                        'department_ids' => json_encode(array_map('intval', $scopeMap[$permId]['department_ids'])),
                     ];
                 } elseif (isset($permGroupMap[$permId], $groupScopes[$permGroupMap[$permId]])) {
                     $syncData[$permId] = [
