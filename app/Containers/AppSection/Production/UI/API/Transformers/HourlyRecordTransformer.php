@@ -17,6 +17,7 @@ final class HourlyRecordTransformer extends ParentTransformer
 
     private ?CarbonImmutable $shiftDate = null;
     private ?Carbon $shiftEndAt = null;
+    private ?Carbon $now = null;
 
     /**
      * Set the shift date for past-shift status override.
@@ -122,7 +123,7 @@ final class HourlyRecordTransformer extends ParentTransformer
                 ? round(($record->actual / $target) * 100, 1)
                 : 0,
             'error_rate' => $record->error_rate,
-            'status'     => $this->resolveStatus($record->status),
+            'status'     => $this->resolveStatus($record),
             'note'              => $record->note,
             'productivity_json' => $record->productivity_json,
             'machine_count'     => $effectiveMachineCount,
@@ -154,23 +155,55 @@ final class HourlyRecordTransformer extends ParentTransformer
     }
 
     /**
-     * Past shifts → force 'completed'; otherwise use DB value.
+     * Resolve status with real-time accuracy.
      *
-     * Two checks:
-     *  1. Past date  — shiftDate < today()
-     *  2. Same day but shift ended — now() >= shiftEndAt
+     * For today's shift: compute status from hour_slot + now() to avoid
+     * stale DB values caused by cache TTL or aggregate pipeline delay.
+     * For past shifts: force 'completed'.
      */
-    private function resolveStatus(string $dbStatus): string
+    private function resolveStatus(HourlyRecord $record): string
     {
+        $now = $this->now ??= now();
+
+        // Past date → all completed
         if ($this->shiftDate && $this->shiftDate->lt(today())) {
             return HourlyRecordStatus::Completed->value;
         }
 
-        if ($this->shiftEndAt && now()->gte($this->shiftEndAt)) {
+        // Same day but shift ended → all completed
+        if ($this->shiftEndAt && $now->gte($this->shiftEndAt)) {
             return HourlyRecordStatus::Completed->value;
         }
 
-        return $dbStatus;
+        // Today's active shift: compute from hour_slot in real-time
+        if ($this->shiftDate && $this->shiftDate->eq(today()) && $record->hour_slot) {
+            return $this->computeRealtimeStatus($record->hour_slot, $now);
+        }
+
+        return $record->status;
+    }
+
+    /**
+     * Compute status from hour_slot string (e.g. "9h-10h") and current time.
+     * Uses integer hour comparison to avoid Carbon object creation per record.
+     */
+    private function computeRealtimeStatus(string $hourSlot, Carbon $now): string
+    {
+        $parts = explode('-', str_replace('h', '', $hourSlot));
+        $startHour = (int) ($parts[0] ?? 0);
+        $endHour   = (int) ($parts[1] ?? 0);
+
+        $currentHour = (int) $now->format('G'); // 0-23, no leading zero
+
+        if ($currentHour >= $endHour) {
+            return HourlyRecordStatus::Completed->value;
+        }
+
+        if ($currentHour >= $startHour) {
+            return HourlyRecordStatus::Active->value;
+        }
+
+        return HourlyRecordStatus::Pending->value;
     }
 
     private function formatLastChange(HourlyRecord $record): ?array
