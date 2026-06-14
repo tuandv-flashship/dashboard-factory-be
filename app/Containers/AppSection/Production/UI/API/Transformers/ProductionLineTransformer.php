@@ -27,8 +27,12 @@ final class ProductionLineTransformer extends ParentTransformer
 
     public function includeDepartments(ProductionLine $line): \League\Fractal\Resource\Collection
     {
+        $departments = $line->departments
+            ->where('is_hidden', false)
+            ->load('machines');
+
         return $this->collection(
-            $line->departments->load('machines'),
+            $departments,
             new DepartmentTransformer(),
             'departments',
         );
