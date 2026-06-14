@@ -17,7 +17,7 @@ final class HourlyRecordTransformer extends ParentTransformer
 
     private ?CarbonImmutable $shiftDate = null;
     private ?Carbon $shiftEndAt = null;
-    private ?Carbon $now = null;
+    private CarbonImmutable|Carbon|null $now = null;
 
     /**
      * Set the shift date for past-shift status override.
@@ -187,7 +187,7 @@ final class HourlyRecordTransformer extends ParentTransformer
      * Compute status from hour_slot string (e.g. "9h-10h") and current time.
      * Uses integer hour comparison to avoid Carbon object creation per record.
      */
-    private function computeRealtimeStatus(string $hourSlot, Carbon $now): string
+    private function computeRealtimeStatus(string $hourSlot, CarbonImmutable|Carbon $now): string
     {
         $parts = explode('-', str_replace('h', '', $hourSlot));
         $startHour = (int) ($parts[0] ?? 0);
