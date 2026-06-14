@@ -2,9 +2,11 @@
 
 namespace App\Containers\AppSection\Shift\Tasks;
 
+use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Shift\Models\Shift;
 use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Ship\Parents\Tasks\Task as ParentTask;
+use Illuminate\Support\Collection;
 
 /**
  * Sync (upsert + prune) shift_details for a given shift.
@@ -14,6 +16,9 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
  *
  * For per_machine departments: also syncs shift_detail_machines pivot
  * and updates kpi_per_hour = Σ(machine KPIs).
+ *
+ * Hidden children (e.g., pick_dtf, pick_dtg) are auto-replicated
+ * from their parent department's schedule.
  */
 final class SyncShiftDetailsTask extends ParentTask
 {
@@ -77,18 +82,125 @@ final class SyncShiftDetailsTask extends ParentTask
             ]
         );
 
-        // Prune departments removed from the payload (2 DB queries instead of load-all + N deletes)
+        // Resolve hidden children once (1 query) — shared by replicate + prune
+        $payloadDeptIds = collect($detailsData)->pluck('department_id')->unique()->toArray();
+        $hiddenChildren = Department::whereIn('parent_id', $payloadDeptIds)
+            ->where('is_hidden', true)
+            ->where('is_active', true)
+            ->get();
+
+        // Auto-replicate parent schedule to hidden children
+        $this->replicateToHiddenChildren($shift, $hiddenChildren, $existingDetails, $now);
+
+        // Prune departments removed from payload, but preserve hidden children
+        $this->pruneRemovedDetails($shift, $detailsData, $hiddenChildren->pluck('id')->toArray());
+
+        // ── Sync per_machine pivot ──
+        $this->syncMachinesTask->run($shift, $detailsData, $now);
+    }
+
+    /**
+     * For parent departments in the payload, upsert shift_details
+     * for their hidden children (e.g., pick → pick_dtf, pick_dtg).
+     *
+     * Uses pre-loaded $existingDetails to avoid N+1 queries.
+     */
+    private function replicateToHiddenChildren(
+        Shift $shift,
+        Collection $hiddenChildren,
+        Collection $existingDetails,
+        $now,
+    ): void {
+        if ($hiddenChildren->isEmpty()) {
+            return;
+        }
+
+        $childrenByParent = $hiddenChildren->groupBy('parent_id');
+
+        // Re-fetch parent details after upsert to get the latest values
+        $parentDetails = ShiftDetail::where('shift_id', $shift->id)
+            ->whereIn('department_id', $childrenByParent->keys()->toArray())
+            ->get()
+            ->groupBy('department_id');
+
+        $childRows = [];
+
+        foreach ($parentDetails as $parentDeptId => $details) {
+            $children = $childrenByParent->get($parentDeptId);
+            if (!$children) {
+                continue;
+            }
+
+            foreach ($details as $parentDetail) {
+                foreach ($children as $child) {
+                    // Use pre-loaded existing details — no extra query
+                    $existingChild = $existingDetails->get("{$child->id}_{$parentDetail->shift_number}");
+
+                    $childRows[] = [
+                        'shift_id'           => $shift->id,
+                        'department_id'      => $child->id,
+                        'shift_number'       => $parentDetail->shift_number,
+                        'headcount'          => $existingChild->headcount ?? 0,
+                        'machine_count'      => null,
+                        'kpi_per_hour'       => $child->kpi_per_hour ?? $parentDetail->kpi_per_hour,
+                        'day_start_inventory'=> $existingChild->day_start_inventory ?? 0,
+                        'start_time'         => $parentDetail->start_time,
+                        'work_hours'         => $parentDetail->work_hours,
+                        'prep_minutes'       => $parentDetail->prep_minutes,
+                        'break1_start'       => $parentDetail->break1_start,
+                        'break1_minutes'     => $parentDetail->break1_minutes,
+                        'meal_break_start'   => $parentDetail->meal_break_start,
+                        'meal_break_minutes' => $parentDetail->meal_break_minutes,
+                        'break2_start'       => $parentDetail->break2_start,
+                        'break2_minutes'     => $parentDetail->break2_minutes,
+                        'break3_start'       => $parentDetail->break3_start,
+                        'break3_minutes'     => $parentDetail->break3_minutes,
+                        'created_at'         => $now,
+                        'updated_at'         => $now,
+                    ];
+                }
+            }
+        }
+
+        if (!empty($childRows)) {
+            ShiftDetail::upsert(
+                $childRows,
+                ['shift_id', 'department_id', 'shift_number'],
+                [
+                    'start_time', 'work_hours', 'prep_minutes',
+                    'break1_start', 'break1_minutes',
+                    'meal_break_start', 'meal_break_minutes',
+                    'break2_start', 'break2_minutes',
+                    'break3_start', 'break3_minutes',
+                    'updated_at',
+                ]
+            );
+        }
+    }
+
+    /**
+     * Remove shift_details not present in payload, but preserve hidden children.
+     *
+     * @param int[] $hiddenChildIds  Pre-resolved child department IDs
+     */
+    private function pruneRemovedDetails(Shift $shift, array $detailsData, array $hiddenChildIds): void
+    {
         $keepDeptShiftPairs = collect($detailsData)->map(
             fn ($d) => [$d['department_id'], $d['shift_number']]
         );
 
         $keepIds = ShiftDetail::where('shift_id', $shift->id)
-            ->where(function ($q) use ($keepDeptShiftPairs) {
+            ->where(function ($q) use ($keepDeptShiftPairs, $hiddenChildIds) {
+                // Keep payload departments
                 foreach ($keepDeptShiftPairs as $pair) {
                     $q->orWhere(function ($sub) use ($pair) {
                         $sub->where('department_id', $pair[0])
                             ->where('shift_number', $pair[1]);
                     });
+                }
+                // Keep hidden children
+                if (!empty($hiddenChildIds)) {
+                    $q->orWhereIn('department_id', $hiddenChildIds);
                 }
             })
             ->pluck('id');
@@ -96,8 +208,5 @@ final class SyncShiftDetailsTask extends ParentTask
         ShiftDetail::where('shift_id', $shift->id)
             ->whereNotIn('id', $keepIds)
             ->delete();
-
-        // ── Sync per_machine pivot ──
-        $this->syncMachinesTask->run($shift, $detailsData, $now);
     }
 }
