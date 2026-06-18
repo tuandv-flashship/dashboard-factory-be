@@ -292,7 +292,7 @@ final class DepartmentSummary
         if ($hours >= 24) {
             $days = intdiv($hours, 24);
             $hours = $hours % 24;
-            return sprintf('%02d:%02d (+%d)', $hours, $minutes, $days);
+            return sprintf('%02d:%02d + %dd', $hours, $minutes, $days);
         }
 
         return sprintf('%02d:%02d', $hours, $minutes);

@@ -71,7 +71,7 @@ Nếu duyệt qua toàn bộ các khung giờ của ca mà lượng tồn việc
     *   Nếu tổng số giờ $\text{hours} \ge 24$: Rollover qua ngày hôm sau và thêm hậu tố chênh lệch ngày:
         $$\text{days} = \text{intdiv}(\text{hours}, 24)$$
         $$\text{hoursOfDay} = \text{hours} \bmod 24$$
-        Định dạng trả về: `"HH:MM (+d)"` (ví dụ: `"01:00 (+1)"`, `"15:00 (+2)"`). 
+        Định dạng trả về: `"HH:MM + dd"` (ví dụ: `"01:00 + 1d"`, `"15:00 + 2d"`). 
         *(Lưu ý: Độ dài định dạng này tối đa là 10 ký tự, khớp hoàn hảo với giới hạn `string(10)` của cột `estimated_done` trong DB).*
 
 ---

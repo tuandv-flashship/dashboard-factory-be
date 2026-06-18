@@ -149,11 +149,11 @@ final class DepartmentSummaryTest extends UnitTestCase
         // Phút bù thêm: ceil(100 / 0.833) = 120 phút (2 giờ).
         // Giờ kết thúc ca: 23:00.
         // Giờ dự kiến: 23:00 + 2h = 01:00 hôm sau.
-        // Định dạng kỳ vọng: "01:00 (+1)"
+        // Định dạng kỳ vọng: "01:00 + 1d"
 
         [$estimatedEndTime, $outOfWorkAt] = DepartmentSummary::computeEstimatedEndTime($records, $effectiveTargets);
 
-        $this->assertSame('01:00 (+1)', $estimatedEndTime);
+        $this->assertSame('01:00 + 1d', $estimatedEndTime);
         $this->assertNull($outOfWorkAt);
     }
 
@@ -178,11 +178,11 @@ final class DepartmentSummaryTest extends UnitTestCase
         // Tổng phút: 1380 + 2400 = 3780 phút.
         // Giờ tương ứng: 3780 / 60 = 63 giờ.
         // 63 giờ = 2 ngày (48 giờ) + 15 giờ.
-        // Định dạng kỳ vọng: "15:00 (+2)"
+        // Định dạng kỳ vọng: "15:00 + 2d"
 
         [$estimatedEndTime, $outOfWorkAt] = DepartmentSummary::computeEstimatedEndTime($records, $effectiveTargets);
 
-        $this->assertSame('15:00 (+2)', $estimatedEndTime);
+        $this->assertSame('15:00 + 2d', $estimatedEndTime);
         $this->assertNull($outOfWorkAt);
     }
 }
