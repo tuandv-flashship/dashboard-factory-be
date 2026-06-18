@@ -402,6 +402,7 @@ php artisan octane:start --max-requests=250
 | `bin/caddy` | Caddy binary (gitignored) |
 | `frankenphp` | FrankenPHP binary (gitignored, auto-downloaded by Octane) |
 | `config/factory.php` | Factory config (`FACTORY` env) |
-| `docs/api-factory-decoupling.md` | API documentation cho FE |
-| `docs/production-deployment.md` | Production deployment guide |
+| `docs/specs/api-factory-decoupling.md` | API documentation cho FE |
+| `docs/deployment/production.md` | Production deployment guide |
+| `docs/specs/estimated-end-time.md` | Đặc tả logic giờ dự kiến hoàn thành |
 | `postman/DashboardFactory.postman_collection.json` | Postman collection |
