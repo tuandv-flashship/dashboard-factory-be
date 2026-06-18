@@ -99,11 +99,22 @@ final class DepartmentSummary
             : 0;
 
         // ── Estimated end time: first slot where department runs out of work ──
+        $lastRecord = $records->last();
+        $fallbackMultiplier = 0;
+        if ($lastRecord) {
+            $fallbackMultiplier = $isPerMachineDtf
+                ? ($lastRecord->machine_count ?? $defaultTargetMultiplier)
+                : ($lastRecord->staff ?? $defaultHeadcount);
+        }
+        if ($fallbackMultiplier <= 0) {
+            $fallbackMultiplier = 1;
+        }
+
         $fallbackCapacityPerHour = TargetEstimator::estimate(
             $kpiPerHour,
             100,
             $isPerMachineDtg,
-            $isPerMachineDtf ? $defaultTargetMultiplier : $defaultHeadcount
+            $fallbackMultiplier
         );
         [$estimatedEndTime, $outOfWorkAt] = self::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour);
 

@@ -185,4 +185,60 @@ final class DepartmentSummaryTest extends UnitTestCase
         $this->assertSame('15:00 + 2d', $estimatedEndTime);
         $this->assertNull($outOfWorkAt);
     }
+
+    /**
+     * Test kịch bản thực tế (bộ phận Pick): Số nhân sự ca = 0 (headcount = 0),
+     * target hiệu dụng khung giờ cuối = 0, nhưng có actual staff = 10 làm việc.
+     * Hệ thống sẽ tự động dùng actual staff làm fallbackMultiplier để tính công suất thực tế.
+     */
+    public function testScenarioBOverloadWithActualStaffFallback(): void
+    {
+        $records = collect([
+            (object)[
+                'hour_slot' => '13h-14h',
+                'hour_start_inventory' => 200,
+                'target' => 0,
+                'kpi_percent' => 100,
+                'staff_required' => 0,
+                'staff' => 8,
+                'actual' => 100,
+                'kpi_minutes' => 60,
+                'hour_index' => 1,
+                'status' => 'completed',
+                'productivity_json' => null,
+            ],
+            (object)[
+                'hour_slot' => '14h-15h',
+                'hour_start_inventory' => 145,
+                'target' => 0,
+                'kpi_percent' => 100,
+                'staff_required' => 0,
+                'staff' => 10,
+                'actual' => 100,
+                'kpi_minutes' => 30, // 30 phút cuối ca
+                'hour_index' => 2,
+                'status' => 'completed',
+                'productivity_json' => null,
+            ],
+        ]);
+
+        $dept = new \App\Containers\AppSection\Department\Models\Department();
+        $dept->productivity_type = \App\Containers\AppSection\Department\Enums\ProductivityType::PerPerson;
+        $dept->kpi_per_hour = 180;
+
+        $shiftDetail = new \App\Containers\AppSection\Shift\Models\ShiftDetail();
+        $shiftDetail->headcount = 0;
+
+        // Gọi build() để kích hoạt tính toán estimated_end_time từ đầu
+        $summary = DepartmentSummary::build($records, $dept, $shiftDetail);
+
+        // Năng suất định mức fallback: TargetEstimator::estimate(180, 100, false, 10) = 1800 đơn/giờ.
+        // Tồn cuối: 145 - 0 (target hiệu dụng slot cuối) = 145 đơn.
+        // Tốc độ: 1800 đơn / 30 phút = 60 đơn/phút. (Vì kpi_minutes slot cuối = 30).
+        // Phút bù thêm: ceil(145 / 60) = 3 phút.
+        // Giờ kết thúc ca: 14:00 + 30 phút = 14:30.
+        // Giờ hoàn thành mới: 14:33.
+
+        $this->assertSame('14:33', $summary['estimated_end_time']);
+    }
 }
