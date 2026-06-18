@@ -239,7 +239,14 @@ final class SyncOrderInventoryTask extends ParentTask
                     : ($r->staff_required ?? $defaultHeadcount),
             ));
 
-            [$estimatedEndTime] = DepartmentSummary::computeEstimatedEndTime($records, $effectiveTargets);
+            $fallbackCapacityPerHour = TargetEstimator::estimate(
+                $kpiPerHour,
+                100,
+                $isPerMachineDtg,
+                $isPerMachineDtf ? $defaultTargetMultiplier : $defaultHeadcount
+            );
+
+            [$estimatedEndTime] = DepartmentSummary::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour);
 
             if ($estimatedEndTime !== null && ($maxTime === null || $estimatedEndTime > $maxTime)) {
                 $maxTime = $estimatedEndTime;

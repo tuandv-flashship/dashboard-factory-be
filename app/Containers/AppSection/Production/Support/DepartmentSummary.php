@@ -99,7 +99,13 @@ final class DepartmentSummary
             : 0;
 
         // ── Estimated end time: first slot where department runs out of work ──
-        [$estimatedEndTime, $outOfWorkAt] = self::computeEstimatedEndTime($records, $effectiveTargets);
+        $fallbackCapacityPerHour = TargetEstimator::estimate(
+            $kpiPerHour,
+            100,
+            $isPerMachineDtg,
+            $isPerMachineDtf ? $defaultTargetMultiplier : $defaultHeadcount
+        );
+        [$estimatedEndTime, $outOfWorkAt] = self::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour);
 
         // ── Per-machine/person overall efficiency across all hour slots ──
         $productivityEfficiency = self::computeProductivityEfficiency(
@@ -224,8 +230,11 @@ final class DepartmentSummary
      *
      * @return array{0: string|null, 1: string|null} [estimatedEndTime, outOfWorkAt]
      */
-    public static function computeEstimatedEndTime(Collection $records, Collection $effectiveTargets): array
-    {
+    public static function computeEstimatedEndTime(
+        Collection $records,
+        Collection $effectiveTargets,
+        ?float $fallbackCapacityPerHour = null
+    ): array {
         $outOfWorkAt = null;
         $estimatedEndTime = null;
 
@@ -240,21 +249,53 @@ final class DepartmentSummary
                 $startHour = (int) explode('h', $r->hour_slot)[0];
                 // Handle overflow: minutes >= 60 → carry to next hour
                 $totalMinutes = $startHour * 60 + $minutes;
-                $estimatedEndTime = sprintf('%02d:%02d', intdiv($totalMinutes, 60), $totalMinutes % 60);
+                $estimatedEndTime = self::formatTotalMinutes($totalMinutes);
                 break;
             }
         }
 
-        // Fallback: no out-of-work slot → end time = last slot start + kpi_minutes
+        // Fallback: no out-of-work slot → calculate specific projected completion time
         if ($estimatedEndTime === null && $records->isNotEmpty()) {
             $lastRecord = $records->last();
+            $lastEffectiveTarget = $effectiveTargets->last() ?? 0;
+            $lastInventory = $lastRecord->hour_start_inventory ?? 0;
+
+            // Remaining inventory at the end of the shift
+            $remainingInventory = max(0, $lastInventory - $lastEffectiveTarget);
             $startHour = (int) explode('h', $lastRecord->hour_slot)[0];
             $slotMinutes = $lastRecord->kpi_minutes ?? 60;
-            $totalMinutes = $startHour * 60 + $slotMinutes;
-            $estimatedEndTime = sprintf('%02d:%02d', intdiv($totalMinutes, 60), $totalMinutes % 60);
+
+            $extraMinutes = 0;
+            if ($remainingInventory > 0) {
+                $capacityPerHour = $lastEffectiveTarget > 0 ? $lastEffectiveTarget : ($fallbackCapacityPerHour ?? 0);
+                if ($capacityPerHour > 0) {
+                    $ratePerMinute = $capacityPerHour / $slotMinutes;
+                    $extraMinutes = (int) ceil($remainingInventory / $ratePerMinute);
+                }
+            }
+
+            $totalMinutes = $startHour * 60 + $slotMinutes + $extraMinutes;
+            $estimatedEndTime = self::formatTotalMinutes($totalMinutes);
         }
 
         return [$estimatedEndTime, $outOfWorkAt];
+    }
+
+    /**
+     * Format total minutes into HH:MM, wrapping hours around 24-hour limit and appending day offsets.
+     */
+    private static function formatTotalMinutes(int $totalMinutes): string
+    {
+        $hours = intdiv($totalMinutes, 60);
+        $minutes = $totalMinutes % 60;
+
+        if ($hours >= 24) {
+            $days = intdiv($hours, 24);
+            $hours = $hours % 24;
+            return sprintf('%02d:%02d (+%d)', $hours, $minutes, $days);
+        }
+
+        return sprintf('%02d:%02d', $hours, $minutes);
     }
 
     /**

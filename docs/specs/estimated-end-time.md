@@ -49,10 +49,30 @@ Hệ thống xác định đây là khung giờ sẽ hết việc:
     $$\text{estimated\_end\_time} = \text{formatTime}(\text{totalMinutes})$$
 
 #### Kịch bản B: Không có khung giờ nào hết việc (Quá tải)
-Nếu duyệt qua toàn bộ các khung giờ của ca mà lượng tồn việc đầu giờ luôn lớn hơn mục tiêu của khung giờ đó, hệ thống sẽ tự động rơi vào cơ chế **Fallback**:
-*   Mốc thời gian hoàn thành dự kiến sẽ bằng thời điểm kết thúc của khung giờ cuối cùng trong ca.
-    $$\text{totalMinutes} = (\text{Giờ bắt đầu của slot cuối cùng} \times 60) + \text{kpi\_minutes của slot cuối}$$
-    $$\text{estimated\_end\_time} = \text{formatTime}(\text{totalMinutes})$$
+Nếu duyệt qua toàn bộ các khung giờ của ca mà lượng tồn việc đầu giờ luôn lớn hơn mục tiêu của khung giờ đó, hệ thống sẽ tính toán thêm thời gian cần thiết (phút bù giờ) ngoài ca để hoàn thành nốt lượng việc tồn:
+
+1.  **Xác định lượng việc tồn còn lại sau ca (`remainingInventory`)**:
+    $$\text{remainingInventory} = \max(0, \text{hour\_start\_inventory}_{\text{last}} - \text{effectiveTarget}_{\text{last}})$$
+2.  **Xác định năng suất sản xuất (đơn/phút) của bộ phận (`ratePerMinute`)**:
+    *   Nếu $\text{effectiveTarget}_{\text{last}} > 0$:
+        $$\text{ratePerMinute} = \frac{\text{effectiveTarget}_{\text{last}}}{\text{kpi\_minutes}_{\text{last}}}$$
+    *   Nếu $\text{effectiveTarget}_{\text{last}} = 0$: Sử dụng năng suất danh định làm dự phòng:
+        $$\text{ratePerMinute} = \frac{\text{fallbackCapacityPerHour}}{\text{kpi\_minutes}_{\text{last}}}$$
+        *(Với `fallbackCapacityPerHour` là `kpi_per_hour` gốc, được nhân với nhân sự/máy móc mặc định nếu cần).*
+3.  **Tính toán số phút bù giờ (`extraMinutes`)**:
+    *   Nếu $\text{ratePerMinute} > 0$:
+        $$\text{extraMinutes} = \text{ceil}\left( \frac{\text{remainingInventory}}{\text{ratePerMinute}} \right)$$
+    *   Nếu không xác định được năng suất: $\text{extraMinutes} = 0$.
+4.  **Giờ dự kiến hoàn thành mới**:
+    $$\text{totalMinutes} = (\text{Giờ bắt đầu của slot cuối} \times 60) + \text{kpi\_minutes của slot cuối} + \text{extraMinutes}$$
+
+    Quy đổi `totalMinutes` sang định dạng chuỗi `HH:MM`:
+    *   Nếu tổng số giờ $\text{hours} < 24$: Trả về `"HH:MM"` (ví dụ: `"15:23"`).
+    *   Nếu tổng số giờ $\text{hours} \ge 24$: Rollover qua ngày hôm sau và thêm hậu tố chênh lệch ngày:
+        $$\text{days} = \text{intdiv}(\text{hours}, 24)$$
+        $$\text{hoursOfDay} = \text{hours} \bmod 24$$
+        Định dạng trả về: `"HH:MM (+d)"` (ví dụ: `"01:00 (+1)"`, `"15:00 (+2)"`). 
+        *(Lưu ý: Độ dài định dạng này tối đa là 10 ký tự, khớp hoàn hảo với giới hạn `string(10)` của cột `estimated_done` trong DB).*
 
 ---
 
