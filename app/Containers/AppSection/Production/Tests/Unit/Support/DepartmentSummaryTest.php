@@ -293,4 +293,65 @@ final class DepartmentSummaryTest extends UnitTestCase
 
         $this->assertSame('14:35', $summary['estimated_end_time']);
     }
+
+    /**
+     * Test kịch bản B mid-shift: Đang ở giữa ca (slot cuối ở tương lai có staff = null),
+     * số headcount = 0, nhưng slot active/recent trước đó đã có actual staff = 8 làm việc.
+     * Hệ thống sẽ tự động tìm ngược lại để lấy actual staff gần nhất (8) làm fallbackMultiplier.
+     */
+    public function testScenarioBOverloadMidShiftWithActualStaffFallback(): void
+    {
+        $records = collect([
+            (object)[
+                'hour_slot' => '13h-14h',
+                'hour_start_inventory' => 200,
+                'target' => 0,
+                'kpi_percent' => 100,
+                'staff_required' => 0,
+                'staff' => 8,
+                'actual' => 100,
+                'kpi_minutes' => 60,
+                'hour_index' => 1,
+                'status' => 'active',
+                'productivity_json' => null,
+            ],
+            (object)[
+                'hour_slot' => '14h-15h',
+                'hour_start_inventory' => 245,
+                'target' => 0,
+                'kpi_percent' => 100,
+                'staff_required' => 0,
+                'staff' => null, // Pending/Future slot has null staff
+                'actual' => null,
+                'kpi_minutes' => 30, // 30 phút cuối ca
+                'hour_index' => 2,
+                'status' => 'pending',
+                'productivity_json' => null,
+            ],
+        ]);
+
+        $dept = new \App\Containers\AppSection\Department\Models\Department();
+        $dept->productivity_type = \App\Containers\AppSection\Department\Enums\ProductivityType::PerPerson;
+        $dept->kpi_per_hour = 180;
+
+        $shiftDetail = new \App\Containers\AppSection\Shift\Models\ShiftDetail();
+        $shiftDetail->headcount = 0;
+        $shiftDetail->day_start_inventory = 345;
+
+        $shiftDetail->start_time = '13:00:00';
+        $shiftDetail->work_hours = 1.5;
+        $shiftDetail->meal_break_minutes = 0;
+
+        // Gọi build() để kích hoạt tính toán estimated_end_time
+        $summary = DepartmentSummary::build($records, $dept, $shiftDetail);
+
+        // ending_inventory = 345 - 100 (totalCompleted) - 0 (targetRemaining) = 245.
+        // Năng suất định mức fallback: TargetEstimator::estimate(180, 100, false, 8) = 1440 đơn/giờ.
+        // Tốc độ: 1440 / 60 = 24 đơn/phút.
+        // Phút bù thêm: ceil(245 / 24) = 11 phút.
+        // Giờ kết thúc bộ phận (ShiftDetail::end_time): 14:30 (deptEndMinutes = 870).
+        // Giờ hoàn thành mới: 14:30 + 11 phút = 14:41.
+
+        $this->assertSame('14:41', $summary['estimated_end_time']);
+    }
 }

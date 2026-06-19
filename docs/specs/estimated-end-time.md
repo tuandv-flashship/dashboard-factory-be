@@ -58,7 +58,7 @@ Nếu duyệt qua toàn bộ các khung giờ của ca mà lượng tồn việc
         $$\text{ratePerMinute} = \frac{\text{effectiveTarget}_{\text{last}}}{\text{kpi\_minutes}_{\text{last}}}$$
     *   Nếu $\text{effectiveTarget}_{\text{last}} = 0$: Sử dụng năng suất danh định làm dự phòng:
         $$\text{ratePerMinute} = \frac{\text{fallbackCapacityPerHour}}{60}$$
-        *(Với `fallbackCapacityPerHour` là `kpi_per_hour` gốc, được nhân với số nhân sự/máy móc thực tế/mặc định).*
+        *(Với `fallbackCapacityPerHour` là `kpi_per_hour` gốc, được nhân với số nhân sự/máy móc thực tế/mặc định. Nếu slot cuối là slot tương lai chưa có dữ liệu staff, hệ thống sẽ tự động tìm ngược lại số lượng nhân sự thực tế từ slot active hoặc slot gần nhất đã qua).*
 3.  **Tính toán số phút bù giờ (`extraMinutes`)**:
     *   Nếu xác định được năng suất ($\text{ratePerMinute} > 0$):
         $$\text{extraMinutes} = \text{ceil}\left( \frac{\text{remainingInventory}}{\text{ratePerMinute}} \right)$$

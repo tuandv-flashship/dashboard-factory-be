@@ -102,9 +102,19 @@ final class DepartmentSummary
         $lastRecord = $records->last();
         $fallbackMultiplier = 0;
         if ($lastRecord) {
-            $fallbackMultiplier = $isPerMachineDtf
-                ? ($lastRecord->machine_count ?? $defaultTargetMultiplier)
-                : ($lastRecord->staff ?? $defaultHeadcount);
+            if ($isPerMachineDtf) {
+                $fallbackMultiplier = $lastRecord->machine_count ?? $defaultTargetMultiplier;
+            } else {
+                // Find the active or most recent record with a valid staff count
+                $recentStaff = null;
+                foreach ($records->reverse() as $r) {
+                    if (isset($r->staff) && $r->staff !== null && $r->staff > 0) {
+                        $recentStaff = $r->staff;
+                        break;
+                    }
+                }
+                $fallbackMultiplier = $lastRecord->staff ?? $recentStaff ?? $defaultHeadcount;
+            }
         }
 
         $fallbackCapacityPerHour = TargetEstimator::estimate(
