@@ -57,13 +57,16 @@ Nếu duyệt qua toàn bộ các khung giờ của ca mà lượng tồn việc
     *   Nếu $\text{effectiveTarget}_{\text{last}} > 0$:
         $$\text{ratePerMinute} = \frac{\text{effectiveTarget}_{\text{last}}}{\text{kpi\_minutes}_{\text{last}}}$$
     *   Nếu $\text{effectiveTarget}_{\text{last}} = 0$: Sử dụng năng suất danh định làm dự phòng:
-        $$\text{ratePerMinute} = \frac{\text{fallbackCapacityPerHour}}{\text{kpi\_minutes}_{\text{last}}}$$
-        *(Với `fallbackCapacityPerHour` là `kpi_per_hour` gốc, được nhân với nhân sự/máy móc mặc định nếu cần).*
+        $$\text{ratePerMinute} = \frac{\text{fallbackCapacityPerHour}}{60}$$
+        *(Với `fallbackCapacityPerHour` là `kpi_per_hour` gốc, được nhân với số nhân sự/máy móc thực tế/mặc định).*
 3.  **Tính toán số phút bù giờ (`extraMinutes`)**:
-    *   Nếu $\text{ratePerMinute} > 0$:
+    *   Nếu xác định được năng suất ($\text{ratePerMinute} > 0$):
         $$\text{extraMinutes} = \text{ceil}\left( \frac{\text{remainingInventory}}{\text{ratePerMinute}} \right)$$
-    *   Nếu không xác định được năng suất: $\text{extraMinutes} = 0$.
-4.  **Giờ dự kiến hoàn thành mới**:
+        Hệ thống tính mốc giờ dự kiến hoàn thành mới:
+        $$\text{totalMinutes} = (\text{Giờ bắt đầu của slot cuối} \times 60) + \text{kpi\_minutes của slot cuối} + \text{extraMinutes}$$
+    *   Nếu không có năng suất ($\text{ratePerMinute} = 0$):
+        Hệ thống không tính thời gian dự kiến hoàn thành nữa, trả về `null` (hiển thị mặc định là `"-"` trên giao diện thể hiện việc chưa có dữ liệu năng suất).
+4.  **Giờ dự kiến hoàn thành mới (khi có năng suất)**:
     $$\text{totalMinutes} = (\text{Giờ bắt đầu của slot cuối} \times 60) + \text{kpi\_minutes của slot cuối} + \text{extraMinutes}$$
 
     Quy đổi `totalMinutes` sang định dạng chuỗi `HH:MM`:
