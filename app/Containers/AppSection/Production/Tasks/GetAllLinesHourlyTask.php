@@ -37,7 +37,10 @@ final class GetAllLinesHourlyTask extends ParentTask
         // 1 query: lines + departments (eager-loaded, scoped, visible only) + children + machines
         $lines = ProductionLine::where('is_active', true)
             ->with(['departments' => function ($q) use ($scopedDeptIds) {
-                $q->where('is_hidden', false)
+                $q->where(function ($sub) {
+                      $sub->where('is_hidden', false)
+                          ->orWhereNull('parent_id'); // Include hidden independent depts (e.g. FLS Pick DTF)
+                  })
                   ->orderBy('sort_order');
                 if ($scopedDeptIds !== null) {
                     $q->whereIn('id', $scopedDeptIds);

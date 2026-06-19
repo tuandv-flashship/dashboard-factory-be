@@ -20,7 +20,10 @@ final class FindDepartmentsByLineIdTask extends ParentTask
     {
         $query = Department::query()
             ->where('production_line_id', $productionLineId)
-            ->where('is_hidden', false)
+            ->where(function ($sub) {
+                $sub->where('is_hidden', false)
+                    ->orWhereNull('parent_id'); // Include hidden independent depts (e.g. FLS Pick DTF)
+            })
             ->with(['machines', 'children'])
             ->orderBy('sort_order');
 

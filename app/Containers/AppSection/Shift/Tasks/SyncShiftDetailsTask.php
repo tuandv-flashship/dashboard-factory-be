@@ -92,8 +92,21 @@ final class SyncShiftDetailsTask extends ParentTask
         // Auto-replicate parent schedule to hidden children
         $this->replicateToHiddenChildren($shift, $hiddenChildren, $existingDetails, $now);
 
-        // Prune departments removed from payload, but preserve hidden children
-        $this->pruneRemovedDetails($shift, $detailsData, $hiddenChildren->pluck('id')->toArray());
+        // Also protect hidden independent departments (no parent, is_hidden=true)
+        // e.g. FLS Pick DTF: hidden from admin UI but has its own shift_detail from template
+        $hiddenIndependentIds = Department::whereNull('parent_id')
+            ->where('is_hidden', true)
+            ->where('is_active', true)
+            ->pluck('id')
+            ->toArray();
+
+        $protectedDeptIds = array_merge(
+            $hiddenChildren->pluck('id')->toArray(),
+            $hiddenIndependentIds,
+        );
+
+        // Prune departments removed from payload, but preserve all hidden departments
+        $this->pruneRemovedDetails($shift, $detailsData, $protectedDeptIds);
 
         // ── Sync per_machine pivot ──
         $this->syncMachinesTask->run($shift, $detailsData, $now);

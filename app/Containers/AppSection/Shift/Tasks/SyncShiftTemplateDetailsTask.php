@@ -19,10 +19,45 @@ final class SyncShiftTemplateDetailsTask extends ParentTask
      */
     public function run(int $shiftTemplateId, array $details): void
     {
+        $now = now();
+
+        // Preserve template details for hidden independent departments (no parent, is_hidden=true)
+        // e.g. FLS Pick DTF: hidden from admin UI but needs its own template config for shift creation
+        $hiddenIndependentDeptIds = Department::whereNull('parent_id')
+            ->where('is_hidden', true)
+            ->where('is_active', true)
+            ->pluck('id')
+            ->toArray();
+
+        $preservedRows = [];
+        if (!empty($hiddenIndependentDeptIds)) {
+            $preservedRows = ShiftTemplateDetail::where('shift_template_id', $shiftTemplateId)
+                ->whereIn('department_id', $hiddenIndependentDeptIds)
+                ->get()
+                ->map(fn ($row) => [
+                    'shift_template_id' => $shiftTemplateId,
+                    'department_id'     => $row->department_id,
+                    'shift_number'      => $row->shift_number,
+                    'headcount'         => $row->headcount,
+                    'start_time'        => $row->start_time,
+                    'work_hours'        => $row->work_hours,
+                    'prep_minutes'      => $row->prep_minutes,
+                    'break1_start'      => $row->break1_start,
+                    'break1_minutes'    => $row->break1_minutes,
+                    'meal_break_start'  => $row->meal_break_start,
+                    'meal_break_minutes'=> $row->meal_break_minutes,
+                    'break2_start'      => $row->break2_start,
+                    'break2_minutes'    => $row->break2_minutes,
+                    'break3_start'      => $row->break3_start,
+                    'break3_minutes'    => $row->break3_minutes,
+                    'created_at'        => $row->created_at ?? $now,
+                    'updated_at'        => $now,
+                ])
+                ->toArray();
+        }
+
         // Remove all existing details
         ShiftTemplateDetail::where('shift_template_id', $shiftTemplateId)->delete();
-
-        $now = now();
 
         // Bulk insert from FE payload (visible departments only)
         $rows = array_map(fn ($detail) => [
@@ -47,6 +82,11 @@ final class SyncShiftTemplateDetailsTask extends ParentTask
 
         if (!empty($rows)) {
             ShiftTemplateDetail::insert($rows);
+        }
+
+        // Re-insert preserved rows for hidden independent departments
+        if (!empty($preservedRows)) {
+            ShiftTemplateDetail::insert($preservedRows);
         }
 
         // Auto-replicate to hidden children of parent departments

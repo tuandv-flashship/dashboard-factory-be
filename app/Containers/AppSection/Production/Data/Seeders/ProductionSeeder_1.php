@@ -37,7 +37,9 @@ final class ProductionSeeder_1 extends Seeder
         // ═══════════════════════════════════════════════════════
         $lines = match ($factory) {
             'FLS' => [
-                ['code' => 'dtf', 'label' => 'DTF', 'color' => '#f59e0b', 'subtitle' => 'Building 1', 'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                ['code' => 'pick',      'label' => 'Pick',        'color' => '#06b6d4', 'subtitle' => 'Lấy hàng — Chung',  'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                ['code' => 'dtf',       'label' => 'DTF',         'color' => '#14b8a6', 'subtitle' => 'Building 1',        'sort_order' => 2, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
+                ['code' => 'pack_ship', 'label' => 'PACK',        'color' => '#ec4899', 'subtitle' => 'Đóng gói & Giao',  'sort_order' => 3, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
             ],
             'PD' => [
                 ['code' => 'pick',      'label' => 'Pick',        'color' => '#06b6d4', 'subtitle' => 'Lấy hàng — Chung',  'sort_order' => 1, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
@@ -75,12 +77,14 @@ final class ProductionSeeder_1 extends Seeder
         // [dept_key, staff, efficiency, errorRate, [target, actual] x 8]
         $hourlyData = match ($factory) {
             'FLS' => [
-                // DTF — 5 departments
+                // Pick — 1 department
+                ['pick-pick',       3, 92.0, 1.2, [[0,155],[0,162],[0,168],[0,158],[0,150],[0,80],[0,null],[0,null]]],
+                // DTF — 3 departments
                 ['dtf-print',     12, 94.2, 2.1, [[94,95],[90,94],[97,95],[92,87],[94,82],[97,49],[97,null],[93,null]]],
-                ['dtf-pick',       3, 92.0, 1.2, [[160,155],[160,162],[165,168],[165,158],[160,150],[160,80],[165,null],[165,null]]],
                 ['dtf-cut',        8, 91.5, 1.4, [[97,92],[99,99],[102,105],[102,98],[98,89],[102,49],[96,null],[97,null]]],
                 ['dtf-mockup',    10, 96.8, 0.8, [[84,92],[93,100],[91,92],[92,91],[86,81],[94,48],[85,null],[90,null]]],
-                ['dtf-pack_ship', 14, 87.3, 3.2, [[83,73],[81,74],[87,83],[86,86],[85,79],[83,41],[89,null],[82,null]]],
+                // PACK — 1 department
+                ['pack_ship-pack_ship', 14, 87.3, 3.2, [[83,73],[81,74],[87,83],[86,86],[85,79],[83,41],[89,null],[82,null]]],
             ],
             'PD' => [
                 // DTF — 3 departments (pick moved to Pick line)

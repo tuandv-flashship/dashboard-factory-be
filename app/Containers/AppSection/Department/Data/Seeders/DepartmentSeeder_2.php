@@ -34,20 +34,34 @@ final class DepartmentSeeder_2 extends Seeder
         }
 
         $departments = match ($factory) {
-            'FLS' => [
-                // DTF — 5 departments (all per_person)
-                ['production_line_id' => $dtf->id, 'code' => 'print',     'label' => 'In ấn',           'label_en' => 'Print',       'icon' => 'Printer',      'unit' => 'file',  'kpi_per_hour' => 130, 'sort_order' => 1, 'is_active' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
-                ['production_line_id' => $dtf->id, 'code' => 'pick',      'label' => 'Pick',            'label_en' => 'Pick',        'icon' => 'ShoppingCart', 'unit' => 'shirt', 'kpi_per_hour' => 180, 'sort_order' => 2, 'is_active' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
-                ['production_line_id' => $dtf->id, 'code' => 'cut',       'label' => 'Cắt',             'label_en' => 'Cut',         'icon' => 'Scissors',     'unit' => 'file',  'kpi_per_hour' => 280, 'sort_order' => 3, 'is_active' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
-                ['production_line_id' => $dtf->id, 'code' => 'mockup',    'label' => 'Ráp mẫu',         'label_en' => 'Mock Up',     'icon' => 'Layers',       'unit' => 'file',  'kpi_per_hour' => 75,  'sort_order' => 4, 'is_active' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
-                ['production_line_id' => $dtf->id, 'code' => 'pack_ship', 'label' => 'Đóng gói & Giao', 'label_en' => 'Pack & Ship', 'icon' => 'Package',      'unit' => 'shirt', 'kpi_per_hour' => 105, 'sort_order' => 5, 'is_active' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
-            ],
+            'FLS' => $this->buildFlsDepartments($now),
             'PD' => $this->buildPdDepartments($dtf, $now),
         };
 
         if (!empty($departments)) {
             Department::insert($departments);
         }
+    }
+
+    /**
+     * Build FLS departments: PICK (1) + DTF (3) + PACK (1).
+     */
+    private function buildFlsDepartments(\DateTimeInterface $now): array
+    {
+        $pick     = ProductionLine::where('code', 'pick')->firstOrFail();
+        $dtf      = ProductionLine::where('code', 'dtf')->firstOrFail();
+        $packShip = ProductionLine::where('code', 'pack_ship')->firstOrFail();
+
+        return [
+            // PICK line — 1 department
+            ['production_line_id' => $pick->id,     'code' => 'pick',      'label' => 'Pick DTF',        'label_en' => 'Pick DTF',    'icon' => 'ShoppingCart', 'unit' => 'shirt', 'kpi_per_hour' => 0,   'sort_order' => 1, 'is_active' => true, 'is_hidden' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
+            // DTF line — 3 departments (pick and pack_ship moved to their own lines)
+            ['production_line_id' => $dtf->id,      'code' => 'print',     'label' => 'In ấn',           'label_en' => 'Print',       'icon' => 'Printer',      'unit' => 'file',  'kpi_per_hour' => 130, 'sort_order' => 1, 'is_active' => true, 'is_hidden' => false, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
+            ['production_line_id' => $dtf->id,      'code' => 'cut',       'label' => 'Cắt',             'label_en' => 'Cut',         'icon' => 'Scissors',     'unit' => 'file',  'kpi_per_hour' => 280, 'sort_order' => 2, 'is_active' => true, 'is_hidden' => false, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
+            ['production_line_id' => $dtf->id,      'code' => 'mockup',    'label' => 'Ráp mẫu',         'label_en' => 'Mock Up',     'icon' => 'Layers',       'unit' => 'file',  'kpi_per_hour' => 75,  'sort_order' => 3, 'is_active' => true, 'is_hidden' => false, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
+            // PACK line — 1 department
+            ['production_line_id' => $packShip->id, 'code' => 'pack_ship', 'label' => 'Đóng gói & Giao', 'label_en' => 'Pack & Ship', 'icon' => 'Package',      'unit' => 'shirt', 'kpi_per_hour' => 105, 'sort_order' => 1, 'is_active' => true, 'is_hidden' => false, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
+        ];
     }
 
     /**
