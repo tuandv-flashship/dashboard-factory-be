@@ -235,11 +235,11 @@ final class DepartmentSummaryTest extends UnitTestCase
 
         // Năng suất định mức fallback: TargetEstimator::estimate(180, 100, false, 10) = 1800 đơn/giờ.
         // Tồn cuối: 145 - 0 (target hiệu dụng slot cuối) = 145 đơn.
-        // Tốc độ: 1800 đơn / 30 phút = 60 đơn/phút. (Vì kpi_minutes slot cuối = 30).
-        // Phút bù thêm: ceil(145 / 60) = 3 phút.
+        // Tốc độ: 1800 đơn / 60 phút = 30 đơn/phút. (Vì fallbackCapacityPerHour luôn chia cho 60 phút).
+        // Phút bù thêm: ceil(145 / 30) = 5 phút.
         // Giờ kết thúc ca: 14:00 + 30 phút = 14:30.
-        // Giờ hoàn thành mới: 14:33.
+        // Giờ hoàn thành mới: 14:35.
 
-        $this->assertSame('14:33', $summary['estimated_end_time']);
+        $this->assertSame('14:35', $summary['estimated_end_time']);
     }
 }

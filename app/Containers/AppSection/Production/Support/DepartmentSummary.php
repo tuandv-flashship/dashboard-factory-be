@@ -284,9 +284,11 @@ final class DepartmentSummary
 
             $extraMinutes = 0;
             if ($remainingInventory > 0) {
-                $capacityPerHour = $lastEffectiveTarget > 0 ? $lastEffectiveTarget : ($fallbackCapacityPerHour ?? 0);
-                if ($capacityPerHour > 0) {
-                    $ratePerMinute = $capacityPerHour / $slotMinutes;
+                if ($lastEffectiveTarget > 0) {
+                    $ratePerMinute = $lastEffectiveTarget / $slotMinutes;
+                    $extraMinutes = (int) ceil($remainingInventory / $ratePerMinute);
+                } elseif (($fallbackCapacityPerHour ?? 0) > 0) {
+                    $ratePerMinute = $fallbackCapacityPerHour / 60;
                     $extraMinutes = (int) ceil($remainingInventory / $ratePerMinute);
                 }
             }
