@@ -126,7 +126,7 @@ final class DepartmentSummaryTest extends UnitTestCase
 
         [$estimatedEndTime, $outOfWorkAt] = DepartmentSummary::computeEstimatedEndTime($records, $effectiveTargets, 0.0);
 
-        $this->assertSame('15:00', $estimatedEndTime);
+        $this->assertNull($estimatedEndTime);
         $this->assertNull($outOfWorkAt);
     }
 

@@ -106,9 +106,7 @@ final class DepartmentSummary
                 ? ($lastRecord->machine_count ?? $defaultTargetMultiplier)
                 : ($lastRecord->staff ?? $defaultHeadcount);
         }
-        if ($fallbackMultiplier <= 0) {
-            $fallbackMultiplier = 1;
-        }
+
 
         $fallbackCapacityPerHour = TargetEstimator::estimate(
             $kpiPerHour,
@@ -282,6 +280,7 @@ final class DepartmentSummary
             $startHour = (int) explode('h', $lastRecord->hour_slot)[0];
             $slotMinutes = $lastRecord->kpi_minutes ?? 60;
 
+            $hasCapacity = true;
             $extraMinutes = 0;
             if ($remainingInventory > 0) {
                 if ($lastEffectiveTarget > 0) {
@@ -290,11 +289,17 @@ final class DepartmentSummary
                 } elseif (($fallbackCapacityPerHour ?? 0) > 0) {
                     $ratePerMinute = $fallbackCapacityPerHour / 60;
                     $extraMinutes = (int) ceil($remainingInventory / $ratePerMinute);
+                } else {
+                    $hasCapacity = false;
                 }
             }
 
-            $totalMinutes = $startHour * 60 + $slotMinutes + $extraMinutes;
-            $estimatedEndTime = self::formatTotalMinutes($totalMinutes);
+            if ($hasCapacity) {
+                $totalMinutes = $startHour * 60 + $slotMinutes + $extraMinutes;
+                $estimatedEndTime = self::formatTotalMinutes($totalMinutes);
+            } else {
+                $estimatedEndTime = null;
+            }
         }
 
         return [$estimatedEndTime, $outOfWorkAt];

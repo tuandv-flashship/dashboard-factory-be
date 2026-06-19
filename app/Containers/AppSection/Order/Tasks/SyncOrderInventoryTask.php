@@ -246,9 +246,6 @@ final class SyncOrderInventoryTask extends ParentTask
                     ? ($lastRecord->machine_count ?? $defaultTargetMultiplier)
                     : ($lastRecord->staff ?? $defaultHeadcount);
             }
-            if ($fallbackMultiplier <= 0) {
-                $fallbackMultiplier = 1;
-            }
 
             $fallbackCapacityPerHour = TargetEstimator::estimate(
                 $kpiPerHour,

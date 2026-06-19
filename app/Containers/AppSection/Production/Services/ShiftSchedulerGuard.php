@@ -132,7 +132,13 @@ final class ShiftSchedulerGuard
         return Cache::remember(
             self::SETTING_CACHE_PREFIX . $key,
             now()->addHour(),
-            fn () => Setting::query()->where('key', $key)->value('value') ?? $default,
+            function () use ($key, $default) {
+                try {
+                    return Setting::query()->where('key', $key)->value('value') ?? $default;
+                } catch (\Throwable) {
+                    return $default;
+                }
+            },
         );
     }
 

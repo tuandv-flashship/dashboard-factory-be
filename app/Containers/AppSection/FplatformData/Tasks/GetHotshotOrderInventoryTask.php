@@ -18,7 +18,7 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
  *        DON GUI LAI excluded in order_summary CTE.
  *        Output: { estimate_date, tong_viec, da_lam }
  */
-final class GetHotshotOrderInventoryTask extends ParentTask
+class GetHotshotOrderInventoryTask extends ParentTask
 {
     use QueriesFplatform;
 

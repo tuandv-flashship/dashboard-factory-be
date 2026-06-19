@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Log;
  *   - FLS: 6 DTF teams + 5 hotshot = 11 teams
  *   - PD:  6 DTF + 2 DTG + 5 hotshot = 13 teams
  */
-final class GetAllTeamsInventoryTask extends ParentTask
+class GetAllTeamsInventoryTask extends ParentTask
 {
     /** @var int Cache TTL for historical dates (seconds) */
     private const CACHE_TTL_HISTORICAL = 3600;

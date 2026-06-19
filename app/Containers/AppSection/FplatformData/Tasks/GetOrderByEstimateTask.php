@@ -15,7 +15,7 @@ use App\Ship\Parents\Tasks\Task as ParentTask;
  *        Returns multiple rows: { estimate_date, tong_don, da_lam, chua_lam }
  *        Ordered by estimate_date DESC.
  */
-final class GetOrderByEstimateTask extends ParentTask
+class GetOrderByEstimateTask extends ParentTask
 {
     use QueriesFplatform;
 

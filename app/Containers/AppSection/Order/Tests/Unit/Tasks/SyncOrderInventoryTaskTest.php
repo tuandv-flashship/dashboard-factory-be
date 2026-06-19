@@ -90,32 +90,36 @@ final class SyncOrderInventoryTaskTest extends UnitTestCase
      */
     private function buildSyncTask(?array $dtf, ?array $dtg, ?array $hotshot): SyncOrderInventoryTask
     {
-        // Wrap DTF data in allInventory format (matching GetAllTeamsInventoryTask output)
+        // Wrap data in allInventory format (matching GetAllTeamsInventoryTask output)
         $allInventory = [
             'date'  => $this->testDate ?? '2099-12-01',
-            'teams' => $dtf ? ['order_inventory' => $dtf] : [],
+            'teams' => [
+                'order_inventory' => [
+                    'lines' => [
+                        'dtf' => $dtf,
+                        'dtg' => $dtg,
+                    ],
+                ],
+            ],
         ];
 
-        $allTeamsStub = new class($allInventory) {
-            public function __construct(private readonly array $r) {}
-            public function run(string $d): array { return $this->r; }
-        };
-        $dtgStub = new class($dtg) {
-            public function __construct(private readonly ?array $r) {}
-            public function run(string $d): ?array { return $this->r; }
-        };
-        $hotshotStub = new class($hotshot) {
-            public function __construct(private readonly ?array $r) {}
-            public function run(string $d, mixed $f): ?array { return $this->r; }
-        };
+        $allTeamsMock = $this->createMock(\App\Containers\AppSection\FplatformData\Tasks\GetAllTeamsInventoryTask::class);
+        $allTeamsMock->method('run')->willReturn($allInventory);
+
+        $hotshotMock = $this->createMock(\App\Containers\AppSection\FplatformData\Tasks\GetHotshotOrderInventoryTask::class);
+        $hotshotMock->method('run')->willReturn($hotshot);
+
+        $estimateMock = $this->createMock(\App\Containers\AppSection\FplatformData\Tasks\GetOrderByEstimateTask::class);
+        $estimateMock->method('runDtf')->willReturn([]);
+        $estimateMock->method('runDtg')->willReturn([]);
 
         $ref = new \ReflectionClass(SyncOrderInventoryTask::class);
         $task = $ref->newInstanceWithoutConstructor();
 
-        \Closure::bind(function () use ($allTeamsStub, $dtgStub, $hotshotStub) {
-            $this->allTeamsInventoryTask = $allTeamsStub;
-            $this->dtgTask = $dtgStub;
-            $this->hotshotTask = $hotshotStub;
+        \Closure::bind(function () use ($allTeamsMock, $hotshotMock, $estimateMock) {
+            $this->allTeamsInventoryTask = $allTeamsMock;
+            $this->hotshotTask = $hotshotMock;
+            $this->estimateTask = $estimateMock;
         }, $task, SyncOrderInventoryTask::class)();
 
         return $task;
