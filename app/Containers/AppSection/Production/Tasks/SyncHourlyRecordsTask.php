@@ -39,6 +39,7 @@ final class SyncHourlyRecordsTask extends ParentTask
         'mockup'    => Team::Mockup,
         'pack_ship' => Team::PackShip,
         'pick_dtg'  => Team::PickDtg,
+        'pick_dtf2' => Team::PickDtf2,
         'dtg_print' => Team::DtgPrint,
     ];
 

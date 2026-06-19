@@ -158,11 +158,17 @@ class GetAllTeamsInventoryTask extends ParentTask
     {
         $factory = FactoryLine::current();
 
-        return array_merge(
+        $teams = array_merge(
             self::DTF_TEAMS,
             $factory === FactoryLine::PD ? self::DTG_TEAMS : [],
             self::HOTSHOT_TEAMS,
         );
+
+        if ($factory === FactoryLine::PD) {
+            $teams[] = Team::PickDtf2;
+        }
+
+        return $teams;
     }
 
     /**
@@ -219,6 +225,13 @@ class GetAllTeamsInventoryTask extends ParentTask
                     $result ?: $defaults,
                 );
             }
+
+            // PickDtf2: only in PD factory
+            $result = $results[Team::PickDtf2->value] ?? null;
+            $teams[Team::PickDtf2->value] = array_merge(
+                ['label' => Team::PickDtf2->label()],
+                $result ?: $defaults,
+            );
         }
 
         // Hotshot teams: all factories

@@ -53,6 +53,7 @@ final class GetDailyInventoryAction extends ParentAction
                 Carbon::parse($date), $factoryLine, WorkType::Cat
             ),
             Team::Pick          => $this->pickInventoryTask->run($date, $factoryLine),
+            Team::PickDtf2      => $this->pickInventoryTask->run($date, FactoryLine::FLS),
             Team::Mockup        => $this->mockupInventoryTask->run($date, $factoryLine),
             Team::PackShip      => $this->packShipInventoryTask->run($date, $factoryLine),
             Team::OrderInventory => $this->runOrderInventory($date, $factoryLine),

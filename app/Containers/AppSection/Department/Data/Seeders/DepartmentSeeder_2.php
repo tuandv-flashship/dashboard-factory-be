@@ -96,6 +96,7 @@ final class DepartmentSeeder_2 extends Seeder
             Department::insert([
                 ['production_line_id' => $pick->id, 'parent_id' => $pickParent->id, 'code' => 'pick_dtf', 'label' => 'Pick DTF', 'label_en' => 'Pick DTF', 'icon' => 'ShoppingCart', 'unit' => 'shirt', 'kpi_per_hour' => 180, 'sort_order' => 2, 'is_active' => true, 'is_hidden' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
                 ['production_line_id' => $pick->id, 'parent_id' => $pickParent->id, 'code' => 'pick_dtg', 'label' => 'Pick DTG', 'label_en' => 'Pick DTG', 'icon' => 'ShoppingCart', 'unit' => 'shirt', 'kpi_per_hour' => 180, 'sort_order' => 3, 'is_active' => true, 'is_hidden' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
+                ['production_line_id' => $pick->id, 'parent_id' => $pickParent->id, 'code' => 'pick_dtf2', 'label' => 'Pick DTF2', 'label_en' => 'Pick DTF2', 'icon' => 'ShoppingCart', 'unit' => 'shirt', 'kpi_per_hour' => 180, 'sort_order' => 4, 'is_active' => true, 'is_hidden' => true, 'productivity_type' => 'per_person', 'created_at' => $now, 'updated_at' => $now],
             ]);
         }
 

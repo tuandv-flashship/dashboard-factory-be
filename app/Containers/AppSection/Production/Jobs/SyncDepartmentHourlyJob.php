@@ -43,6 +43,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         'cut'       => Team::Cut,
         'pick'      => Team::Pick,      // FLS: pick under DTF line
         'pick_dtf'  => Team::Pick,      // PD: pick child under Pick line
+        'pick_dtf2' => Team::PickDtf2,   // PD: pick child of FLS under Pick line
         'mockup'    => Team::Mockup,
         'pack_ship' => Team::PackShip,
         'pick_dtg'  => Team::PickDtg,
@@ -55,6 +56,7 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         'cut'       => 'hotshot_cut',
         'pick'      => 'hotshot_pick',      // FLS
         'pick_dtf'  => 'hotshot_pick',      // PD: same FPlatform hotshot key
+        'pick_dtf2' => 'hotshot_pick',      // PD: same FPlatform hotshot key for FLS Pick
         'mockup'    => 'hotshot_mockup',
         'pack_ship' => 'hotshot_pack_ship',
     ];
@@ -182,12 +184,14 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         $shiftStart = $deptStart->format('Y-m-d H:i:s');
         $shiftEnd   = $deptEnd->format('Y-m-d H:i:s');
 
+        $factory = $dept->code === 'pick_dtf2' ? FactoryLine::FLS : FactoryLine::current();
+
         // CUT team uses time-proportional image allocation instead of simple SUM per scan hour.
         // Single fetch: queries FPlatform once, computes both aggregate + per-user allocations.
         if ($team === Team::Cut) {
             [$productivityMap, $productivityDetailMap] = $this->fetchCutMetrics($detail, $shiftDate, $shiftStart, $shiftEnd);
         } else {
-            $productivityMap       = $this->fetchAndIndexByHour($hourlyMetricsAction, $team, HourlyMetricType::Productivity, $shiftStart, $shiftEnd);
+            $productivityMap       = $this->fetchAndIndexByHour($hourlyMetricsAction, $team, HourlyMetricType::Productivity, $shiftStart, $shiftEnd, $factory);
             // Team::Print always uses MachineProductivity (DTF groups by machine, not staff).
             // Other teams fall back to department productivity_type setting.
             $detailMetric = $team->supportsMetric(HourlyMetricType::MachineProductivity)
@@ -198,9 +202,10 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 $hourlyMetricsAction, $team,
                 $detailMetric,
                 $shiftStart, $shiftEnd,
+                $factory
             );
         }
-        $staffCountMap = $this->fetchAndIndexByHour($hourlyMetricsAction, $team, HourlyMetricType::StaffCount, $shiftStart, $shiftEnd);
+        $staffCountMap = $this->fetchAndIndexByHour($hourlyMetricsAction, $team, HourlyMetricType::StaffCount, $shiftStart, $shiftEnd, $factory);
 
         // ── Sync actual data from FPlatform ──
         // target, staff_required, kpi_minutes/hours/percent are manual-only — NOT touched.
@@ -325,10 +330,10 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
     private function fetchAndIndexByHour(
         GetHourlyMetricsAction $action, Team $team, HourlyMetricType $metric,
-        string $shiftStart, string $shiftEnd,
+        string $shiftStart, string $shiftEnd, FactoryLine $factory,
     ): array {
         try {
-            $result = $action->run($team, $metric, $shiftStart, $shiftEnd);
+            $result = $action->run($team, $metric, $shiftStart, $shiftEnd, $factory);
         } catch (\InvalidArgumentException) {
             return []; // Metric not supported by this team
         }
@@ -346,10 +351,10 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
 
     private function fetchAndGroupByHour(
         GetHourlyMetricsAction $action, Team $team, HourlyMetricType $metric,
-        string $shiftStart, string $shiftEnd,
+        string $shiftStart, string $shiftEnd, FactoryLine $factory,
     ): array {
         try {
-            $result = $action->run($team, $metric, $shiftStart, $shiftEnd);
+            $result = $action->run($team, $metric, $shiftStart, $shiftEnd, $factory);
         } catch (\InvalidArgumentException) {
             return []; // Metric not supported by this team
         }

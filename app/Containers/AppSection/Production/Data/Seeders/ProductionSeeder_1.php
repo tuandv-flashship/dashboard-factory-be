@@ -89,11 +89,12 @@ final class ProductionSeeder_1 extends Seeder
                 ['dtf-mockup',      8, 95.2, 1.0, [[75,78],[78,80],[76,77],[79,76],[74,70],[80,40],[77,null],[75,null]]],
                 // DTG — 1 department
                 ['dtg-dtg_print',   2, 88.4, 2.8, [[400,385],[400,392],[400,410],[400,378],[400,365],[400,195],[400,null],[400,null]]],
-                // Pick — 2 children (parent is aggregated from these)
+                // Pick — 3 children (parent is aggregated from these)
                 ['pick-pick_dtf',   3, 90.5, 1.8, [[135,130],[135,132],[140,142],[140,135],[135,128],[135,68],[140,null],[140,null]]],
                 ['pick-pick_dtg',   2, 91.0, 1.5, [[105,95],[105,101],[95,100],[95,95],[105,92],[105,47],[95,null],[95,null]]],
-                // Pick parent — aggregated from pick_dtf + pick_dtg
-                ['pick-pick',       5, 90.8, 1.7, [[240,225],[240,233],[235,242],[235,230],[240,220],[240,115],[235,null],[235,null]]],
+                ['pick-pick_dtf2',  2, 90.0, 1.0, [[50,45],[50,48],[50,52],[50,50],[50,47],[50,23],[50,null],[50,null]]],
+                // Pick parent — aggregated from pick_dtf + pick_dtg + pick_dtf2
+                ['pick-pick',       7, 90.5, 1.5, [[290,270],[290,281],[285,294],[285,280],[290,267],[290,138],[285,null],[285,null]]],
                 // Pack & Ship
                 ['pack_ship-pack_ship', 10, 89.5, 2.5, [[70,65],[72,68],[74,72],[73,71],[71,66],[75,37],[72,null],[70,null]]],
             ],

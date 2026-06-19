@@ -34,6 +34,7 @@ class FetchDailyInventoryForShiftTask extends ParentTask
         'pack_ship' => Team::PackShip,
         // DTG departments (PD only)
         'pick_dtg'  => Team::PickDtg,
+        'pick_dtf2' => Team::PickDtf2,
         'dtg_print' => Team::DtgPrint,
     ];
 

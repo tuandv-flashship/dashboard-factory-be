@@ -18,6 +18,7 @@ enum Team: string
     case HotshotCut     = 'hotshot_cut';
     case HotshotMockup  = 'hotshot_mockup';
     case HotshotPackShip = 'hotshot_pack_ship';
+    case PickDtf2       = 'pick_dtf2';
 
     public function label(): string
     {
@@ -36,6 +37,7 @@ enum Team: string
             self::HotshotCut     => 'Hotshot Cắt',
             self::HotshotMockup  => 'Hotshot Mockup',
             self::HotshotPackShip => 'Hotshot Pack & Ship',
+            self::PickDtf2       => 'Pick DTF2',
         };
     }
 
@@ -63,6 +65,7 @@ enum Team: string
             self::PackShip,
             self::PickDtg,
             self::DtgPrint,
+            self::PickDtf2,
         ];
     }
 

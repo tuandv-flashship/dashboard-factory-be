@@ -93,7 +93,7 @@ final class RolePermissionSeeder_2 extends ParentSeeder
             ],
             Role::LEAD_PICK->value => [
                 'description' => 'Quản lý bộ phận Pick DTF & DTG',
-                'depts'       => ['pick', 'pick_dtg'],
+                'depts'       => ['pick', 'pick_dtg', 'pick_dtf2'],
                 'permissions' => self::FULL_DEPT_PERMISSIONS,
             ],
             Role::LEAD_CUT_MOCKUP->value => [
@@ -120,7 +120,7 @@ final class RolePermissionSeeder_2 extends ParentSeeder
             ],
             Role::DASHBOARD_PICK->value => [
                 'description' => 'Xem Dashboard bộ phận Pick',
-                'depts'       => ['pick', 'pick_dtg'],
+                'depts'       => ['pick', 'pick_dtg', 'pick_dtf2'],
                 'permissions' => self::VIEW_ONLY_PERMISSIONS,
             ],
             Role::DASHBOARD_CUT->value => [

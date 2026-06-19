@@ -48,13 +48,15 @@ final class GetHourlyMetricsAction extends ParentAction
         HourlyMetricType $metric,
         string $startShift,
         string $endShift,
+        ?FactoryLine $factory = null,
     ): array {
-        $factory = FactoryLine::current();
+        $factory = $factory ?? FactoryLine::current();
 
         $hours = match ($team) {
             // UGS-based teams (Print, Pick) — unchanged
             Team::Print => $this->ugsTask->run($startShift, $endShift, $factory, WorkType::In, $metric),
             Team::Pick => $this->ugsTask->run($startShift, $endShift, $factory, WorkType::Pick, $metric),
+            Team::PickDtf2 => $this->ugsTask->run($startShift, $endShift, FactoryLine::FLS, WorkType::Pick, $metric),
 
             // CUT — time-proportional for Productivity/StaffProductivity, legacy for StaffCount
             Team::Cut => $this->resolveCutMetric($metric, $startShift, $endShift, $factory),
