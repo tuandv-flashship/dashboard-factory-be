@@ -107,14 +107,22 @@ final class DepartmentSummary
                 : ($lastRecord->staff ?? $defaultHeadcount);
         }
 
-
         $fallbackCapacityPerHour = TargetEstimator::estimate(
             $kpiPerHour,
             100,
             $isPerMachineDtg,
             $fallbackMultiplier
         );
-        [$estimatedEndTime, $outOfWorkAt] = self::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour, $endingInventory);
+
+        // Compute department end time in total minutes from midnight
+        // (wall-clock end = start_time + work_hours + meal_break)
+        $deptEndMinutes = null;
+        if ($shiftDetail?->end_time) {
+            $endParts = explode(':', $shiftDetail->end_time);
+            $deptEndMinutes = ((int) $endParts[0]) * 60 + ((int) ($endParts[1] ?? 0));
+        }
+
+        [$estimatedEndTime, $outOfWorkAt] = self::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour, $endingInventory, $deptEndMinutes);
 
         // ── Per-machine/person overall efficiency across all hour slots ──
         $productivityEfficiency = self::computeProductivityEfficiency(
@@ -233,17 +241,26 @@ final class DepartmentSummary
      * Finds the first slot where hour_start_inventory <= effectiveTarget
      * and calculates proportional finish time within that slot.
      *
+     * For overload scenarios (no out-of-work slot), extra minutes are added
+     * to the department's actual end time ($deptEndMinutes) rather than
+     * to startHour + kpi_minutes, because kpi_minutes is productive time
+     * (excluding breaks) and does not represent wall-clock slot duration.
+     *
      * Reusable by:
      *   - DepartmentSummary::build()          (API response)
      *   - SyncOrderInventoryTask              (order estimated_done)
      *
+     * @param  int|null $deptEndMinutes  Department end time in total minutes from midnight
+     *                                   (from ShiftDetail::end_time). Used as the base for
+     *                                   extra time calculation in overload scenarios.
      * @return array{0: string|null, 1: string|null} [estimatedEndTime, outOfWorkAt]
      */
     public static function computeEstimatedEndTime(
         Collection $records,
         Collection $effectiveTargets,
         ?float $fallbackCapacityPerHour = null,
-        ?int $endingInventory = null
+        ?int $endingInventory = null,
+        ?int $deptEndMinutes = null
     ): array {
         $outOfWorkAt = null;
         $estimatedEndTime = null;
@@ -277,7 +294,6 @@ final class DepartmentSummary
                 $remainingInventory = max(0, $lastInventory - $lastEffectiveTarget);
             }
 
-            $startHour = (int) explode('h', $lastRecord->hour_slot)[0];
             $slotMinutes = $lastRecord->kpi_minutes ?? 60;
 
             $hasCapacity = true;
@@ -295,7 +311,14 @@ final class DepartmentSummary
             }
 
             if ($hasCapacity) {
-                $totalMinutes = $startHour * 60 + $slotMinutes + $extraMinutes;
+                // Use department end time as base when available (accounts for breaks properly).
+                // Fallback to startHour + kpi_minutes for backward compatibility.
+                if ($deptEndMinutes !== null) {
+                    $totalMinutes = $deptEndMinutes + $extraMinutes;
+                } else {
+                    $startHour = (int) explode('h', $lastRecord->hour_slot)[0];
+                    $totalMinutes = $startHour * 60 + $slotMinutes + $extraMinutes;
+                }
                 $estimatedEndTime = self::formatTotalMinutes($totalMinutes);
             } else {
                 $estimatedEndTime = null;

@@ -62,12 +62,14 @@ Nếu duyệt qua toàn bộ các khung giờ của ca mà lượng tồn việc
 3.  **Tính toán số phút bù giờ (`extraMinutes`)**:
     *   Nếu xác định được năng suất ($\text{ratePerMinute} > 0$):
         $$\text{extraMinutes} = \text{ceil}\left( \frac{\text{remainingInventory}}{\text{ratePerMinute}} \right)$$
-        Hệ thống tính mốc giờ dự kiến hoàn thành mới:
-        $$\text{totalMinutes} = (\text{Giờ bắt đầu của slot cuối} \times 60) + \text{kpi\_minutes của slot cuối} + \text{extraMinutes}$$
+        Hệ thống tính mốc giờ dự kiến hoàn thành mới dựa trên **thời gian kết thúc thực tế của bộ phận** (từ `ShiftDetail::end_time`):
+        $$\text{deptEndMinutes} = \text{parse}(\text{ShiftDetail::end\_time}) \quad \text{(quy ra tổng phút từ 00:00)}$$
+        $$\text{totalMinutes} = \text{deptEndMinutes} + \text{extraMinutes}$$
+        > **Lưu ý quan trọng**: Trước đây công thức dùng `(startHour × 60) + kpi_minutes + extraMinutes`. Cách này **sai** khi slot cuối có break time, vì `kpi_minutes` chỉ tính phút làm việc thực tế (đã trừ break) — không đại diện cho thời lượng wall-clock của slot. Ví dụ: slot `14h-15h` có 15 phút break → `kpi_minutes = 45`, nhưng slot thực tế kết thúc lúc `15:00` chứ không phải `14:45`. Việc dùng `ShiftDetail::end_time` đảm bảo extra time được cộng từ đúng mốc wall-clock kết thúc ca.
     *   Nếu không có năng suất ($\text{ratePerMinute} = 0$):
         Hệ thống không tính thời gian dự kiến hoàn thành nữa, trả về `null` (hiển thị mặc định là `"-"` trên giao diện thể hiện việc chưa có dữ liệu năng suất).
 4.  **Giờ dự kiến hoàn thành mới (khi có năng suất)**:
-    $$\text{totalMinutes} = (\text{Giờ bắt đầu của slot cuối} \times 60) + \text{kpi\_minutes của slot cuối} + \text{extraMinutes}$$
+    $$\text{totalMinutes} = \text{deptEndMinutes} + \text{extraMinutes}$$
 
     Quy đổi `totalMinutes` sang định dạng chuỗi `HH:MM`:
     *   Nếu tổng số giờ $\text{hours} < 24$: Trả về `"HH:MM"` (ví dụ: `"15:23"`).

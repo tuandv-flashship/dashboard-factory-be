@@ -274,7 +274,14 @@ final class SyncOrderInventoryTask extends ParentTask
 
             $endingInventory = max(0, $dayStartInventory - $totalCompleted - $targetRemaining);
 
-            [$estimatedEndTime] = DepartmentSummary::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour, $endingInventory);
+            // Department end time in total minutes from midnight (wall-clock end)
+            $deptEndMinutes = null;
+            if ($detail->end_time) {
+                $endParts = explode(':', $detail->end_time);
+                $deptEndMinutes = ((int) $endParts[0]) * 60 + ((int) ($endParts[1] ?? 0));
+            }
+
+            [$estimatedEndTime] = DepartmentSummary::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour, $endingInventory, $deptEndMinutes);
 
             if ($estimatedEndTime !== null && ($maxTime === null || $estimatedEndTime > $maxTime)) {
                 $maxTime = $estimatedEndTime;
