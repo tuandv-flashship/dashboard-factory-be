@@ -116,7 +116,7 @@ final class DepartmentSummary
             $isPerMachineDtg,
             $fallbackMultiplier
         );
-        [$estimatedEndTime, $outOfWorkAt] = self::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour);
+        [$estimatedEndTime, $outOfWorkAt] = self::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour, $endingInventory);
 
         // ── Per-machine/person overall efficiency across all hour slots ──
         $productivityEfficiency = self::computeProductivityEfficiency(
@@ -244,7 +244,8 @@ final class DepartmentSummary
     public static function computeEstimatedEndTime(
         Collection $records,
         Collection $effectiveTargets,
-        ?float $fallbackCapacityPerHour = null
+        ?float $fallbackCapacityPerHour = null,
+        ?int $endingInventory = null
     ): array {
         $outOfWorkAt = null;
         $estimatedEndTime = null;
@@ -269,10 +270,15 @@ final class DepartmentSummary
         if ($estimatedEndTime === null && $records->isNotEmpty()) {
             $lastRecord = $records->last();
             $lastEffectiveTarget = $effectiveTargets->last() ?? 0;
-            $lastInventory = $lastRecord->hour_start_inventory ?? 0;
 
-            // Remaining inventory at the end of the shift
-            $remainingInventory = max(0, $lastInventory - $lastEffectiveTarget);
+            // Use endingInventory if provided, otherwise fallback to lastInventory - lastEffectiveTarget
+            if ($endingInventory !== null) {
+                $remainingInventory = $endingInventory;
+            } else {
+                $lastInventory = $lastRecord->hour_start_inventory ?? 0;
+                $remainingInventory = max(0, $lastInventory - $lastEffectiveTarget);
+            }
+
             $startHour = (int) explode('h', $lastRecord->hour_slot)[0];
             $slotMinutes = $lastRecord->kpi_minutes ?? 60;
 
@@ -316,7 +322,7 @@ final class DepartmentSummary
      * Today → compute from hour_slot + now() using integer hour comparison.
      * Otherwise → use DB status.
      */
-    private static function resolveSlotStatus(mixed $record, bool $isPastShift, bool $isToday): string
+    public static function resolveSlotStatus(mixed $record, bool $isPastShift, bool $isToday): string
     {
         if ($isPastShift) {
             return 'completed';

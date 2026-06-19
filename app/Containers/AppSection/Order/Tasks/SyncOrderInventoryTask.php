@@ -257,7 +257,27 @@ final class SyncOrderInventoryTask extends ParentTask
                 $fallbackMultiplier
             );
 
-            [$estimatedEndTime] = DepartmentSummary::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour);
+            $dayStartInventory = $detail->day_start_inventory ?? 0;
+            $totalCompleted = $records->whereNotNull('actual')->sum('actual');
+
+            $isPastShift = ($shift->date && $shift->date->lt(today()))
+                || ($shift->end_time && now()->gte($shift->computeEndAt()));
+            $isToday = $shift->date && $shift->date->eq(today());
+
+            $targetRemaining = 0;
+            foreach ($records as $i => $r) {
+                $effectiveTarget = $effectiveTargets[$i];
+                $status = DepartmentSummary::resolveSlotStatus($r, $isPastShift, $isToday);
+                if ($status === 'active') {
+                    $targetRemaining += max(0, $effectiveTarget - ($r->actual ?? 0));
+                } elseif ($status === 'pending') {
+                    $targetRemaining += $effectiveTarget;
+                }
+            }
+
+            $endingInventory = max(0, $dayStartInventory - $totalCompleted - $targetRemaining);
+
+            [$estimatedEndTime] = DepartmentSummary::computeEstimatedEndTime($records, $effectiveTargets, $fallbackCapacityPerHour, $endingInventory);
 
             if ($estimatedEndTime !== null && ($maxTime === null || $estimatedEndTime > $maxTime)) {
                 $maxTime = $estimatedEndTime;

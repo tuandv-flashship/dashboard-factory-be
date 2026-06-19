@@ -228,6 +228,7 @@ final class DepartmentSummaryTest extends UnitTestCase
 
         $shiftDetail = new \App\Containers\AppSection\Shift\Models\ShiftDetail();
         $shiftDetail->headcount = 0;
+        $shiftDetail->day_start_inventory = 345;
 
         // Gọi build() để kích hoạt tính toán estimated_end_time từ đầu
         $summary = DepartmentSummary::build($records, $dept, $shiftDetail);
