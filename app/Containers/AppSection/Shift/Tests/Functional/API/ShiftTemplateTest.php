@@ -4,6 +4,8 @@ namespace App\Containers\AppSection\Shift\Tests\Functional\API;
 
 use App\Containers\AppSection\Department\Models\Department;
 use App\Containers\AppSection\Production\Models\ProductionLine;
+use App\Containers\AppSection\Shift\Models\Shift;
+use App\Containers\AppSection\Shift\Models\ShiftDetail;
 use App\Containers\AppSection\Shift\Models\ShiftTemplate;
 use App\Containers\AppSection\Shift\Models\ShiftTemplateDetail;
 use App\Containers\AppSection\Shift\UI\API\Controllers\CopyShiftTemplateController;
@@ -338,6 +340,146 @@ final class ShiftTemplateTest extends ApiTestCase
 
         $this->assertDatabaseCount('shift_template_details', 1);
     }
+
+    public function testUpdateTemplatePropagatesToShifts(): void
+    {
+        $template = $this->createTemplate();
+
+        $yesterday = today()->subDay()->toDateString();
+        $today = today()->toDateString();
+        $tomorrow = today()->addDay()->toDateString();
+
+        // Cleanup any existing shifts to prevent unique constraint violation
+        Shift::query()->delete();
+
+        // 1. Create a past shift using this template
+        $pastShift = Shift::create([
+            'date'              => $yesterday,
+            'shift_number'      => 1,
+            'start_time'        => '06:30:00',
+            'end_time'          => '15:00:00',
+            'is_active'         => true,
+            'shift_template_id' => $template->id,
+        ]);
+        $pastDetail1 = ShiftDetail::create([
+            'shift_id'      => $pastShift->id,
+            'department_id' => $this->dept1->id,
+            'shift_number'  => 1,
+            'headcount'     => 8,
+            'start_time'    => '06:30:00',
+            'work_hours'    => 8,
+        ]);
+
+        // 2. Create a today shift using this template
+        $todayShift = Shift::create([
+            'date'              => $today,
+            'shift_number'      => 1,
+            'start_time'        => '06:30:00',
+            'end_time'          => '15:00:00',
+            'is_active'         => true,
+            'shift_template_id' => $template->id,
+        ]);
+        $todayDetail1 = ShiftDetail::create([
+            'shift_id'      => $todayShift->id,
+            'department_id' => $this->dept1->id,
+            'shift_number'  => 1,
+            'headcount'     => 8,
+            'start_time'    => '06:30:00',
+            'work_hours'    => 8,
+        ]);
+        // Simulate a manual override on today's shift (headcount changed from template default 5 to 7)
+        $todayDetail2 = ShiftDetail::create([
+            'shift_id'      => $todayShift->id,
+            'department_id' => $this->dept2->id,
+            'shift_number'  => 1,
+            'headcount'     => 7,
+            'start_time'    => '07:00:00',
+            'work_hours'    => 8,
+        ]);
+
+        // 3. Create a future shift using this template
+        $futureShift = Shift::create([
+            'date'              => $tomorrow,
+            'shift_number'      => 1,
+            'start_time'        => '06:30:00',
+            'end_time'          => '15:00:00',
+            'is_active'         => true,
+            'shift_template_id' => $template->id,
+        ]);
+        $futureDetail1 = ShiftDetail::create([
+            'shift_id'      => $futureShift->id,
+            'department_id' => $this->dept1->id,
+            'shift_number'  => 1,
+            'headcount'     => 8,
+            'start_time'    => '06:30:00',
+            'work_hours'    => 8,
+        ]);
+
+        // Perform the API request to update the template:
+        // - We change dept1's headcount to 12 and start_time to '07:00:00'.
+        // - We leave dept2's config exactly as the original template (headcount = 5, start_time = '07:00:00').
+        $response = $this->actingAs($this->admin, 'api')
+            ->patchJson(URL::action(UpdateShiftTemplateController::class, ['id' => $template->getHashedKey()]), [
+                'details' => [
+                    [
+                        'department_id'     => $this->dept1->id,
+                        'shift_number'      => 1,
+                        'headcount'         => 12,
+                        'start_time'        => '07:00',
+                        'work_hours'        => 8,
+                        'prep_minutes'      => 23,
+                        'break1_start'      => '09:00',
+                        'break1_minutes'    => 15,
+                        'meal_break_start'  => '11:30',
+                        'meal_break_minutes'=> 30,
+                        'break2_start'      => '14:00',
+                        'break2_minutes'    => 15,
+                        'break3_start'      => '16:30',
+                        'break3_minutes'    => 15,
+                    ],
+                    [
+                        'department_id'     => $this->dept2->id,
+                        'shift_number'      => 1,
+                        'headcount'         => 5,
+                        'start_time'        => '07:00',
+                        'work_hours'        => 8,
+                        'prep_minutes'      => 0,
+                        'break1_start'      => '09:30',
+                        'break1_minutes'    => 15,
+                        'meal_break_start'  => '12:00',
+                        'meal_break_minutes'=> 30,
+                        'break2_start'      => '14:30',
+                        'break2_minutes'    => 15,
+                        'break3_start'      => '17:00',
+                        'break3_minutes'    => 15,
+                    ],
+                ],
+            ]);
+
+        $response->assertOk();
+
+        // ── Asserts ──
+
+        // 1. Past shift: dept1 headcount and start_time must NOT change
+        $pastDetail1->refresh();
+        $this->assertEquals(8, $pastDetail1->headcount);
+        $this->assertEquals('06:30:00', $pastDetail1->start_time);
+
+        // 2. Today's shift: dept1 headcount and start_time must be updated to match the template changes
+        $todayDetail1->refresh();
+        $this->assertEquals(12, $todayDetail1->headcount);
+        $this->assertEquals('07:00:00', $todayDetail1->start_time);
+
+        // 3. Today's shift: dept2 must PRESERVE its manual override (headcount = 7) because dept2 was not modified in the template update
+        $todayDetail2->refresh();
+        $this->assertEquals(7, $todayDetail2->headcount);
+
+        // 4. Future shift: dept1 headcount and start_time must be updated
+        $futureDetail1->refresh();
+        $this->assertEquals(12, $futureDetail1->headcount);
+        $this->assertEquals('07:00:00', $futureDetail1->start_time);
+    }
+
 
     // ── Delete ───────────────────────────────────────────
 
