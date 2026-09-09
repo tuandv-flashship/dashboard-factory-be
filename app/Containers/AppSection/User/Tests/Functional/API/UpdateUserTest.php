@@ -2,7 +2,10 @@
 
 namespace App\Containers\AppSection\User\Tests\Functional\API;
 
+use App\Containers\AppSection\Authorization\Models\Permission;
+use App\Containers\AppSection\Authorization\Models\Role;
 use App\Containers\AppSection\User\Enums\Gender;
+use App\Containers\AppSection\User\Enums\UserStatus;
 use App\Containers\AppSection\User\Models\User;
 use App\Containers\AppSection\User\Tests\Functional\ApiTestCase;
 use App\Containers\AppSection\User\UI\API\Controllers\UpdateUserController;
@@ -70,6 +73,128 @@ final class UpdateUserTest extends ApiTestCase
         $user->refresh();
         $this->assertNotNull($user->password);
         $this->assertTrue(Hash::check('Av@dakedavra!', $user->password));
+    }
+
+    public function testCanSyncRolesWhenUpdatingUser(): void
+    {
+        $this->actingAs(User::factory()->superAdmin()->createOne());
+        $target = User::factory()->createOne();
+        $role = Role::factory()->createOne();
+
+        $response = $this->patchJson(URL::action(UpdateUserController::class, $target->getHashedKey()), [
+            'name' => 'Updated Name',
+            'role_ids' => [$role->getHashedKey()],
+        ]);
+
+        $response->assertOk();
+        $this->assertTrue($target->refresh()->hasRole($role));
+    }
+
+    public function testSyncingRolesReplacesThePreviousOnes(): void
+    {
+        $this->actingAs(User::factory()->superAdmin()->createOne());
+        $old = Role::factory()->createOne();
+        $new = Role::factory()->createOne();
+        $target = User::factory()->createOne();
+        $target->assignRole($old);
+
+        $response = $this->patchJson(URL::action(UpdateUserController::class, $target->getHashedKey()), [
+            'role_ids' => [$new->getHashedKey()],
+        ]);
+
+        $response->assertOk();
+        $target->refresh();
+        $this->assertTrue($target->hasRole($new));
+        $this->assertFalse($target->hasRole($old));
+    }
+
+    public function testUserWithoutEditPermissionCannotSelfAssignRoles(): void
+    {
+        $user = User::factory()->createOne();
+        $role = Role::factory()->createOne();
+        $this->actingAs($user);
+
+        $response = $this->patchJson(URL::action(UpdateUserController::class, $user->getHashedKey()), [
+            'name' => 'Updated Name',
+            'role_ids' => [$role->getHashedKey()],
+        ]);
+
+        $response->assertOk();
+        $this->assertFalse($user->refresh()->hasRole($role));
+    }
+
+    public function testUserWithEditPermissionCanUpdateAnotherUser(): void
+    {
+        $editor = User::factory()->createOne();
+        $editor->givePermissionTo(Permission::findOrCreate('users.edit', 'api'));
+        $this->actingAs($editor);
+        $target = User::factory()->createOne();
+
+        $response = $this->patchJson(URL::action(UpdateUserController::class, $target->getHashedKey()), [
+            'name' => 'Updated By Editor',
+        ]);
+
+        $response->assertOk();
+        $this->assertSame('Updated By Editor', $target->refresh()->name);
+    }
+
+    public function testUserWithoutEditPermissionCannotChangeOwnStatus(): void
+    {
+        $user = User::factory()->createOne(['status' => UserStatus::PENDING->value]);
+        $this->actingAs($user);
+
+        $response = $this->patchJson(URL::action(UpdateUserController::class, $user->getHashedKey()), [
+            'name' => 'Updated Name',
+            'status' => UserStatus::ACTIVE->value,
+        ]);
+
+        $response->assertOk();
+        $this->assertSame(UserStatus::PENDING, $user->refresh()->status);
+    }
+
+    public function testUserWithEditPermissionCanChangeStatus(): void
+    {
+        $editor = User::factory()->createOne();
+        $editor->givePermissionTo(Permission::findOrCreate('users.edit', 'api'));
+        $this->actingAs($editor);
+        $target = User::factory()->createOne(['status' => UserStatus::PENDING->value]);
+
+        $response = $this->patchJson(URL::action(UpdateUserController::class, $target->getHashedKey()), [
+            'status' => UserStatus::ACTIVE->value,
+        ]);
+
+        $response->assertOk();
+        $this->assertSame(UserStatus::ACTIVE, $target->refresh()->status);
+    }
+
+    public function testSendingAnEmptyRoleListClearsTheRoles(): void
+    {
+        $this->actingAs(User::factory()->superAdmin()->createOne());
+        $role = Role::factory()->createOne();
+        $target = User::factory()->createOne();
+        $target->assignRole($role);
+
+        $response = $this->patchJson(URL::action(UpdateUserController::class, $target->getHashedKey()), [
+            'role_ids' => [],
+        ]);
+
+        $response->assertOk();
+        $this->assertCount(0, $target->refresh()->roles);
+    }
+
+    public function testOmittingRoleIdsLeavesTheRolesUntouched(): void
+    {
+        $this->actingAs(User::factory()->superAdmin()->createOne());
+        $role = Role::factory()->createOne();
+        $target = User::factory()->createOne();
+        $target->assignRole($role);
+
+        $response = $this->patchJson(URL::action(UpdateUserController::class, $target->getHashedKey()), [
+            'name' => 'Updated Name',
+        ]);
+
+        $response->assertOk();
+        $this->assertTrue($target->refresh()->hasRole($role));
     }
 
     // TODO: move to request test

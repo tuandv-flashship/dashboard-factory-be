@@ -18,6 +18,7 @@ final class UpdateUserRequestTest extends UnitTestCase
     {
         $this->assertSame([
             'user_id',
+            'role_ids.*',
         ], $this->request->getDecode());
     }
 

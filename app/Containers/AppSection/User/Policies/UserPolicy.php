@@ -41,6 +41,12 @@ final class UserPolicy extends ParentPolicy
 
     public function update(User $user, int $userId): bool
     {
+        // Holders of the users.edit permission manage other people's accounts,
+        // everyone else may only edit their own profile.
+        if ($user->can('users.edit')) {
+            return true;
+        }
+
         $entity = $this->userRepository->findById($userId);
 
         return $user->is($entity);

@@ -14,11 +14,15 @@ final class UpdateUserRequest extends ParentRequest
 {
     protected array $decode = [
         'user_id',
+        'role_ids.*',
     ];
-    
+
     public function rules(): array
     {
         $isAdmin = $this->user()?->hasRole(RoleEnum::SUPER_ADMIN);
+        // Mirrors the gate in UpdateUserController, so the account management
+        // fields are validated for exactly the people allowed to send them.
+        $canManageUsers = $this->user()?->can('users.edit') ?? false;
 
         return [
             'name' => 'min:2|max:50',
@@ -28,7 +32,7 @@ final class UpdateUserRequest extends ParentRequest
             'phone' => ['string', 'max:20', 'nullable'],
             'description' => ['string', 'max:500', 'nullable'],
             'status' => [
-                Rule::excludeIf(!$isAdmin),
+                Rule::excludeIf(!$canManageUsers),
                 Rule::enum(UserStatus::class),
             ],
             'current_password' => [
@@ -40,6 +44,8 @@ final class UpdateUserRequest extends ParentRequest
                 'required_with:current_password',
             ],
             'new_password_confirmation' => 'required_with:new_password|same:new_password',
+            'role_ids' => [Rule::excludeIf(!$canManageUsers), 'sometimes', 'array'],
+            'role_ids.*' => ['required', 'exists:roles,id'],
         ];
     }
 

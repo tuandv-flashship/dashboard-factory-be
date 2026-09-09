@@ -19,7 +19,6 @@ final class UpdateUserController extends ApiController
             'birth',
             'phone',
             'description',
-            'status',
         ]);
 
         // Only touch the password when a new one is actually submitted.
@@ -29,8 +28,26 @@ final class UpdateUserController extends ApiController
             $data['password'] = $request->new_password;
         }
 
-        $user = $action->run($request->user_id, $data);
+        // The policy also lets a user edit their own profile, so the account
+        // management fields have to be gated separately. sanitize() reads raw
+        // input rather than validated(), so the Rule::excludeIf() guards in the
+        // request never reach this payload. Without these checks any user could
+        // grant themselves an admin role or activate their own pending account.
+        $canManageUsers = $request->user()?->can('users.edit') ?? false;
 
-        return Response::create($user, UserTransformer::class)->ok();
+        if ($canManageUsers && $request->has('status')) {
+            $data['status'] = $request->status;
+        }
+
+        $roleIds = null;
+        if ($canManageUsers && $request->has('role_ids')) {
+            $roleIds = $request->role_ids;
+        }
+
+        $user = $action->run($request->user_id, $data, $roleIds);
+
+        return Response::create($user, UserTransformer::class)
+            ->parseIncludes(['roles'])
+            ->ok();
     }
 }

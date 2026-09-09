@@ -6,6 +6,7 @@ use App\Containers\AppSection\AuditLog\Supports\AuditLogRecorder;
 use App\Containers\AppSection\User\Models\User;
 use App\Containers\AppSection\User\Tasks\UpdateUserTask;
 use App\Ship\Parents\Actions\Action as ParentAction;
+use Illuminate\Support\Facades\DB;
 
 final class UpdateUserAction extends ParentAction
 {
@@ -14,12 +15,23 @@ final class UpdateUserAction extends ParentAction
     ) {
     }
 
-    public function run(int $id, array $data): User
+    /**
+     * @param int[]|null $roleIds null leaves the current roles untouched,
+     *                            an array replaces them with exactly that set
+     */
+    public function run(int $id, array $data, array|null $roleIds = null): User
     {
-        $user = $this->updateUserTask->run($id, $data);
+        return DB::transaction(function () use ($id, $data, $roleIds): User {
+            $user = $this->updateUserTask->run($id, $data);
 
-        AuditLogRecorder::recordModel('updated', $user);
+            if (!is_null($roleIds)) {
+                $user->syncRoles($roleIds);
+                $user->load('roles');
+            }
 
-        return $user;
+            AuditLogRecorder::recordModel('updated', $user);
+
+            return $user;
+        });
     }
 }

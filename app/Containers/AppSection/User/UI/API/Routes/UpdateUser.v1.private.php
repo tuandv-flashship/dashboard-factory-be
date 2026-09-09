@@ -22,6 +22,8 @@
  * @apiBody            {String} current_password
  * @apiBody            {String} new_password min: 8
  * @apiBody            {String} new_password_confirmation same:new_password
+ * @apiBody            {String[]} [role_ids] Replaces the user's roles. Requires the users.edit permission, ignored otherwise.
+ * @apiBody            {String="active","inactive","pending"} [status] Requires the users.edit permission, ignored otherwise.
  *
  * @apiUse             UserSuccessSingleResponse
  */
