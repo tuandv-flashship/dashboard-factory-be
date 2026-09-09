@@ -197,6 +197,30 @@ final class UpdateUserTest extends ApiTestCase
         $this->assertTrue($target->refresh()->hasRole($role));
     }
 
+    public function testCanSyncRolesSentAsStringIds(): void
+    {
+        $this->actingAs(User::factory()->superAdmin()->createOne());
+        $target = User::factory()->createOne();
+        $role = Role::factory()->createOne();
+
+        // Mirrors the payload the dashboard actually sends. Hash ids are
+        // disabled in every environment, so ids arrive as the raw strings the
+        // frontend serialised, ["2"] rather than [2].
+        $response = $this->patchJson(URL::action(UpdateUserController::class, $target->getHashedKey()), [
+            'name' => 'test',
+            'email' => 'test@admin.com',
+            'gender' => Gender::MALE->value,
+            'status' => UserStatus::ACTIVE->value,
+            'role_ids' => [(string) $role->getKey()],
+        ]);
+
+        $response->assertOk();
+        $target->refresh();
+        $this->assertTrue($target->hasRole($role));
+        $this->assertSame(UserStatus::ACTIVE, $target->status);
+        $this->assertSame('test', $target->name);
+    }
+
     // TODO: move to request test
     public function testGivenUserHasNoAccessPreventsOperation(): void
     {

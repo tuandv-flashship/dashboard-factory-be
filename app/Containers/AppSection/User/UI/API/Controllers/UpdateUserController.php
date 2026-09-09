@@ -39,9 +39,13 @@ final class UpdateUserController extends ApiController
             $data['status'] = $request->status;
         }
 
+        // Hash ids are disabled, so role ids arrive as the raw strings the
+        // frontend serialised. Spatie reads a string as a role *name*, so they
+        // have to be cast before syncing. CreateUserAction and
+        // SyncUserRolesAction get this for free from their int variadic.
         $roleIds = null;
         if ($canManageUsers && $request->has('role_ids')) {
-            $roleIds = $request->role_ids;
+            $roleIds = array_map(static fn ($roleId): int => (int) $roleId, (array) $request->role_ids);
         }
 
         $user = $action->run($request->user_id, $data, $roleIds);
