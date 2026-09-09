@@ -51,6 +51,27 @@ final class UpdateUserTest extends ApiTestCase
         $this->assertTrue(Hash::check($data['new_password'], $user->refresh()->password));
     }
 
+    public function testUpdatingProfileWithoutPasswordKeepsExistingPassword(): void
+    {
+        $user = User::factory()->createOne([
+            'name' => 'He who must not be named',
+            'password' => 'Av@dakedavra!',
+        ]);
+        $this->actingAs($user);
+
+        $response = $this->patchJson(URL::action(UpdateUserController::class, $user->getHashedKey()), [
+            'name' => 'Updated Name',
+            'gender' => Gender::MALE->value,
+            'phone' => '0900000000',
+            'description' => 'Some description',
+        ]);
+
+        $response->assertOk();
+        $user->refresh();
+        $this->assertNotNull($user->password);
+        $this->assertTrue(Hash::check('Av@dakedavra!', $user->password));
+    }
+
     // TODO: move to request test
     public function testGivenUserHasNoAccessPreventsOperation(): void
     {

@@ -13,18 +13,23 @@ final class UpdateUserController extends ApiController
 {
     public function __invoke(UpdateUserRequest $request, UpdateUserAction $action): JsonResponse
     {
-        $user = $action->run(
-            $request->user_id,
-            $request->sanitize([
-                'name',
-                'gender',
-                'birth',
-                'phone',
-                'description',
-                'status',
-                'password' => $request->new_password,
-            ]),
-        );
+        $data = $request->sanitize([
+            'name',
+            'gender',
+            'birth',
+            'phone',
+            'description',
+            'status',
+        ]);
+
+        // Only touch the password when a new one is actually submitted.
+        // Passing it as a sanitize() default would write NULL on every
+        // profile update and lock the user out of the password grant.
+        if ($request->filled('new_password')) {
+            $data['password'] = $request->new_password;
+        }
+
+        $user = $action->run($request->user_id, $data);
 
         return Response::create($user, UserTransformer::class)->ok();
     }
