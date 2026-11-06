@@ -20,6 +20,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Record All Entries
+    |--------------------------------------------------------------------------
+    |
+    | By default only important entries (exceptions, failed requests/jobs,
+    | scheduled tasks, monitored tags) are recorded in every environment.
+    | Set TELESCOPE_RECORD_ALL=true temporarily to record every request,
+    | query, event... for a full debugging session.
+    |
+    */
+
+    'record_all' => env('TELESCOPE_RECORD_ALL', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Telescope Domain
     |--------------------------------------------------------------------------
     |

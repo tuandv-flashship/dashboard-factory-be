@@ -23,15 +23,17 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
 
         $this->hideSensitiveRequestDetails();
 
-        $isProduction = $this->app->environment('production');
+        // Record everything only when explicitly requested (TELESCOPE_RECORD_ALL=true).
+        // Recording every query/request on the realtime dashboard produced ~720 MB of
+        // telescope_entries per factory in just 48 hours on the dev servers.
+        $recordAll = (bool) config('telescope.record_all', false);
 
-        Telescope::filter(function (IncomingEntry $entry) use ($isProduction) {
-            // In non-production (local, fls): record everything for full debugging experience
-            if (! $isProduction) {
+        Telescope::filter(function (IncomingEntry $entry) use ($recordAll) {
+            if ($recordAll) {
                 return true;
             }
 
-            // In production (pd): only record important entries
+            // Default (all environments): only record important entries
             return $entry->isReportableException() ||
                    $entry->isFailedRequest() ||
                    $entry->isFailedJob() ||
