@@ -49,6 +49,7 @@ final class ShiftTemplateDetailTransformer extends ParentTransformer
                     'id'           => $m->getHashedKey(),
                     'code'         => $m->code,
                     'name'         => $m->name,
+                    'sort_order'   => $m->sort_order,
                     'kpi_per_hour' => $m->kpi_per_hour,
                 ])
                 ->values()

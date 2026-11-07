@@ -166,7 +166,6 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
         $defaultHeadcount = $detail->headcount ?? 0;
         // Target multiplier: DTF → machine_count, per_person → headcount
         $defaultTargetMultiplier = $isPerMachineDtf ? ($detail->machine_count ?? 0) : $defaultHeadcount;
-        $machineStaff     = $isPerMachineDtg ? $this->countMachinesFromInventory($team, $allInventory) : null;
 
         // Build per-machine KPI map for DTG: [strtolower(code) => kpi_per_hour]
         $machineKpiMap = null;
@@ -179,6 +178,8 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 ])
                 ->all();
         }
+        // DTG "staff" = number of machines attached to this shift detail
+        $machineStaff = $isPerMachineDtg ? count($machineKpiMap) : null;
 
         // ── Batch-fetch FPlatform data (3 API calls) ──
         $shiftStart = $deptStart->format('Y-m-d H:i:s');
@@ -411,26 +412,6 @@ final class SyncDepartmentHourlyJob implements ShouldQueue
                 'hotshot_completed' => $completed,
             ]);
         }
-    }
-
-    /**
-     * Count machines from FPlatform inventory for per_machine departments.
-     * e.g. dtg_print_split has 3 machines (apollo, atlas_1, atlas_2) → staff = 3.
-     */
-    private function countMachinesFromInventory(Team $team, array $allInventory): int
-    {
-        $inventoryKey = match ($team) {
-            Team::DtgPrint => Team::DtgPrintSplit->value,
-            default        => $team->value,
-        };
-
-        $teamData = $allInventory['teams'][$inventoryKey] ?? null;
-
-        if (!$teamData || !isset($teamData['machines'])) {
-            return 0;
-        }
-
-        return count($teamData['machines']);
     }
 
     /**
