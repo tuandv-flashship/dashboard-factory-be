@@ -2,15 +2,17 @@
 
 namespace App\Containers\AppSection\FplatformData\Tasks;
 
+use App\Containers\AppSection\FplatformData\Support\DtgMachineSplitter;
 use App\Containers\AppSection\FplatformData\Traits\QueriesFplatform;
+use App\Containers\AppSection\Machine\Models\Machine;
 use App\Ship\Parents\Tasks\Task as ParentTask;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Get daily inventory for team IN - DTG, split by machine productivity ratio.
  *
- * Source: docs/rpt_factory_ops_metrics_v5.sql
- * Apollo 250 file/h (62.5%), ATLAS_1 75 file/h (18.75%), ATLAS_2 75 file/h (18.75%)
+ * Source: docs/rpt_factory_ops_metrics_v5.sql (tong_viec query).
+ * The per-machine split is proportional to kpi_per_hour of the ACTIVE machines of the
+ * dtg_print department (machines table), keyed by machine code = strtolower(printed_by).
  */
 final class GetDtgPrintMachineSplitTask extends ParentTask
 {
@@ -44,9 +46,7 @@ final class GetDtgPrintMachineSplitTask extends ParentTask
             )
             SELECT
                 estimate_folder_date AS estimate_date,
-                ROUND(tong_viec * 0.625) AS tong_viec_apollo,
-                ROUND(tong_viec * 0.1875) AS tong_viec_atlas1,
-                tong_viec - ROUND(tong_viec * 0.625) - ROUND(tong_viec * 0.1875) AS tong_viec_atlas2
+                tong_viec
             FROM base_data
             WHERE estimate_folder_date = ?
         ";
@@ -57,27 +57,27 @@ final class GetDtgPrintMachineSplitTask extends ParentTask
             return null;
         }
 
-        $tongViecApollo = (int) $result->tong_viec_apollo;
-        $tongViecAtlas1 = (int) $result->tong_viec_atlas1;
-        $tongViecAtlas2 = (int) $result->tong_viec_atlas2;
+        $tongViec = (int) $result->tong_viec;
 
         return [
             'estimate_date' => $result->estimate_date,
-            'tong_viec'     => $tongViecApollo + $tongViecAtlas1 + $tongViecAtlas2,
-            'machines'      => [
-                'apollo' => [
-                    'ratio'     => '62.5%',
-                    'tong_viec' => $tongViecApollo,
-                ],
-                'atlas_1' => [
-                    'ratio'     => '18.75%',
-                    'tong_viec' => $tongViecAtlas1,
-                ],
-                'atlas_2' => [
-                    'ratio'     => '18.75%',
-                    'tong_viec' => $tongViecAtlas2,
-                ],
-            ],
+            'tong_viec'     => $tongViec,
+            'machines'      => DtgMachineSplitter::split($tongViec, $this->activeMachineKpiByCode()),
         ];
+    }
+
+    /**
+     * [strtolower(code) => kpi_per_hour] of active dtg_print machines, ordered by sort_order.
+     *
+     * @return array<string,int>
+     */
+    private function activeMachineKpiByCode(): array
+    {
+        return Machine::active()
+            ->whereHas('department', fn ($q) => $q->where('code', 'dtg_print'))
+            ->orderBy('sort_order')
+            ->get()
+            ->mapWithKeys(fn (Machine $m) => [strtolower($m->code) => (int) $m->kpi_per_hour])
+            ->all();
     }
 }
