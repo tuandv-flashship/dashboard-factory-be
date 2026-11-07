@@ -89,6 +89,7 @@ final class HourlyRecordTransformer extends ParentTransformer
                     'id'           => $hm->machine?->getHashedKey(),
                     'code'         => $hm->machine?->code,
                     'name'         => $hm->machine?->name,
+                    'sort_order'   => $hm->machine?->sort_order,
                     'kpi_per_hour' => $hm->kpi_per_hour,
                 ])->values()->all();
             } else {
@@ -98,6 +99,7 @@ final class HourlyRecordTransformer extends ParentTransformer
                     'id'           => $sdm->machine?->getHashedKey(),
                     'code'         => $sdm->machine?->code,
                     'name'         => $sdm->machine?->name,
+                    'sort_order'   => $sdm->machine?->sort_order,
                     'kpi_per_hour' => $sdm->kpi_per_hour,
                 ])->values()->all();
             }

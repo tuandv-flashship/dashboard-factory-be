@@ -55,6 +55,7 @@ final class ShiftDetailTransformer extends ParentTransformer
                     'id'           => $machine?->getHashedKey(),
                     'code'         => $machine?->code,
                     'name'         => $machine?->name,
+                    'sort_order'   => $machine?->sort_order,
                     'kpi_per_hour' => $sdm->kpi_per_hour,
                 ];
             })->values()->toArray();
