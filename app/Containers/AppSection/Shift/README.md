@@ -1557,11 +1557,16 @@ Gửi `machine_ids` (mảng integer, machine real IDs) cho dept per_machine:
 
 ### Máy DTG Print hiện tại (PD)
 
-| Code | Tên | KPI/giờ |
-|---|---|---|
-| `apollo` | Apollo | 250 mặt in/giờ |
-| `atlas_01` | Atlas-01 | 75 mặt in/giờ |
-| `atlas_02` | Atlas-02 | 75 mặt in/giờ |
+Code máy = `strtolower(printed_by)` trên fplatform (bắt buộc khớp để tra KPI từng máy). Cập nhật 2026-11-07 (migration `2026_11_07_100001_update_pd_dtg_printers`):
+
+| Sort | Code | Tên | KPI/giờ (mặc định) |
+|---|---|---|---|
+| 1 | `apollo` | Apollo 1 | 280 |
+| 2 | `atlas_1` | Atlas 2 | 90 |
+| 3 | `atlas_2` | Atlas 3 | 98 |
+| 4 | `atlas4` | Matrix 4 | 90 (tạm, chỉnh trong Admin) |
+| 5 | `atlas5` | Matrix 5 | 90 (tạm; code đoán theo ATLAS4, máy chưa in) |
+| 6 | `apollo6` | Apollo 6 | 280 (tạm, chỉnh trong Admin) |
 
 **Ví dụ tổ hợp:**
 

@@ -12,8 +12,9 @@ use App\Ship\Parents\Seeders\Seeder;
  * Uses config('factory.current') to determine which machines to seed.
  * Machines are linked to departments via department_id FK.
  *
- * PD: Only DTG Print department has machines (Apollo, Atlas-01, Atlas-02)
- *     with per-machine KPI tracking.
+ * PD: Only DTG Print department has machines (6 DTG printers) with per-machine
+ *     KPI tracking. Machine `code` MUST equal strtolower(fplatform printed_by):
+ *     Apollo, ATLAS_1, ATLAS_2, ATLAS4, ATLAS5, Apollo6.
  * FLS: No machines seeded (all departments are per_person).
  *
  * Run: php artisan db:seed --class="App\Containers\AppSection\Machine\Data\Seeders\MachineSeeder_2"
@@ -35,7 +36,7 @@ final class MachineSeeder_2 extends Seeder
     }
 
     /**
-     * PD — DTG Print machines (3 machines)
+     * PD — DTG Print machines (6 machines; display order Apollo 1 … Apollo 6)
      */
     private function seedPdMachines(): void
     {
@@ -49,11 +50,19 @@ final class MachineSeeder_2 extends Seeder
         }
 
         $now = now();
+        $base = ['department_id' => $dtgPrint->id, 'status' => 'online', 'unit' => 'print', 'created_at' => $now, 'updated_at' => $now];
         $machines = [
-            ['department_id' => $dtgPrint->id, 'code' => 'apollo',   'name' => 'Apollo',   'description' => 'Máy in DTG Apollo — 250 mặt in/giờ',   'status' => 'online', 'unit' => 'print', 'kpi_per_hour' => 250, 'sort_order' => 1, 'created_at' => $now, 'updated_at' => $now],
-            ['department_id' => $dtgPrint->id, 'code' => 'atlas_01', 'name' => 'Atlas-01', 'description' => 'Máy in DTG Atlas-01 — 75 mặt in/giờ',  'status' => 'online', 'unit' => 'print', 'kpi_per_hour' => 75,  'sort_order' => 2, 'created_at' => $now, 'updated_at' => $now],
-            ['department_id' => $dtgPrint->id, 'code' => 'atlas_02', 'name' => 'Atlas-02', 'description' => 'Máy in DTG Atlas-02 — 75 mặt in/giờ',  'status' => 'online', 'unit' => 'print', 'kpi_per_hour' => 75,  'sort_order' => 3, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'apollo',  'name' => 'Apollo 1', 'kpi_per_hour' => 280, 'sort_order' => 1],
+            ['code' => 'atlas_1', 'name' => 'Atlas 2',  'kpi_per_hour' => 90,  'sort_order' => 2],
+            ['code' => 'atlas_2', 'name' => 'Atlas 3',  'kpi_per_hour' => 98,  'sort_order' => 3],
+            ['code' => 'atlas4',  'name' => 'Matrix 4', 'kpi_per_hour' => 90,  'sort_order' => 4],
+            ['code' => 'atlas5',  'name' => 'Matrix 5', 'kpi_per_hour' => 90,  'sort_order' => 5],
+            ['code' => 'apollo6', 'name' => 'Apollo 6', 'kpi_per_hour' => 280, 'sort_order' => 6],
         ];
+        $machines = array_map(
+            fn (array $m) => $m + $base + ['description' => "Máy in DTG {$m['name']} — {$m['kpi_per_hour']} mặt in/giờ"],
+            $machines,
+        );
 
         Machine::insert($machines);
     }

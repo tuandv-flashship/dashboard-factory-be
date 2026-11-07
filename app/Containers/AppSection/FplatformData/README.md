@@ -51,7 +51,7 @@ Các table thuộc database `fplatform` và `report` (external, read-only, cùng
 | --------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `dtg_folder_detail`   | Chi tiết folder DTG.  | `folder_key`, `estimate_folder_date`, `done_at`, `done_by`, `done_user_name`                                                              |
 | `dtg_item_detail`     | Chi tiết item in DTG. | `folder_key`, `order_code`, `index_num`, `distribute_id`, `estimate_folder_date`, `active`                                                |
-| `dtg_printed_product` | Trạng thái in DTG.    | `order_code`, `index_num`, `distribute_id`, `print_status` (0/null=chưa in, 1=đã in), `printed_by` (Apollo/ATLAS_1/ATLAS_2), `product_id` |
+| `dtg_printed_product` | Trạng thái in DTG.    | `order_code`, `index_num`, `distribute_id`, `print_status` (0/null=chưa in, 1=đã in), `printed_by` (Apollo/ATLAS_1/ATLAS_2/ATLAS4/ATLAS5/Apollo6 — khớp `machines.code` = lowercase), `product_id` |
 
 ## SQL Reference
 
